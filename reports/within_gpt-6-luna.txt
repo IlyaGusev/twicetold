@@ -1,0 +1,727 @@
+
+Spillover: unflagged reviews, ICLR 2024-26, per additional flagged co-review
+          outcome    coef      se       p      n
+0    share_shared -0.0022  0.0017  0.2046  30665
+1        n_claims  0.0606  0.0240  0.0114  30665
+2        n_unique  0.0791  0.0230  0.0006  30665
+3  share_specific  0.0060  0.0014  0.0000  30665
+
+== ICLR 2019-2022, exposure=any_marker, n=30638
+  share_shared                 +0.0027 (SE 0.0032) p=0.405  mean=0.207
+  share_shared_lenient         +0.0037 (SE 0.0040) p=0.353  mean=0.405
+  n_claims                     -0.1706 (SE 0.0624) p=0.006  mean=7.184
+  n_unique                     -0.1625 (SE 0.0609) p=0.008  mean=5.844
+  share_specific               -0.0040 (SE 0.0034) p=0.245  mean=0.861
+  cat_clarity/presentation     -0.0117 (SE 0.0033) p=0.000  mean=0.213
+  cat_typo/formatting          +0.0008 (SE 0.0018) p=0.661  mean=0.050
+  cat_ablation                 +0.0023 (SE 0.0016) p=0.143  mean=0.036
+  cat_generalization           -0.0012 (SE 0.0013) p=0.347  mean=0.025
+  cat_related-work             +0.0024 (SE 0.0017) p=0.171  mean=0.049
+  cat_statistical-rigor        +0.0014 (SE 0.0009) p=0.136  mean=0.015
+  cat_experiments-scope        +0.0141 (SE 0.0029) p=0.000  mean=0.135
+  cat_compute-cost/scalability +0.0006 (SE 0.0014) p=0.659  mean=0.027
+
+== ICLR 2019-2022, exposure=gz_ai, n=30458
+  share_shared                 -0.0128 (SE 0.0107) p=0.234  mean=0.207
+  share_shared_lenient         -0.0070 (SE 0.0132) p=0.596  mean=0.405
+  n_claims                     -0.2202 (SE 0.1957) p=0.260  mean=7.184
+  n_unique                     -0.1538 (SE 0.1888) p=0.415  mean=5.844
+  share_specific               +0.0060 (SE 0.0113) p=0.598  mean=0.861
+  cat_clarity/presentation     +0.0020 (SE 0.0114) p=0.861  mean=0.213
+  cat_typo/formatting          -0.0033 (SE 0.0059) p=0.575  mean=0.050
+  cat_ablation                 -0.0048 (SE 0.0053) p=0.367  mean=0.036
+  cat_generalization           -0.0052 (SE 0.0045) p=0.245  mean=0.025
+  cat_related-work             +0.0020 (SE 0.0058) p=0.737  mean=0.049
+  cat_statistical-rigor        -0.0027 (SE 0.0027) p=0.321  mean=0.015
+  cat_experiments-scope        -0.0088 (SE 0.0095) p=0.352  mean=0.135
+  cat_compute-cost/scalability +0.0015 (SE 0.0048) p=0.751  mean=0.027
+
+== ICLR 2019-2022, exposure=gz_isAI, n=30458
+  share_shared                 -0.0082 (SE 0.0100) p=0.409  mean=0.207
+  share_shared_lenient         +0.0022 (SE 0.0125) p=0.859  mean=0.405
+  n_claims                     -0.3287 (SE 0.1821) p=0.071  mean=7.184
+  n_unique                     -0.2483 (SE 0.1750) p=0.156  mean=5.844
+  share_specific               -0.0047 (SE 0.0112) p=0.676  mean=0.861
+  cat_clarity/presentation     -0.0036 (SE 0.0110) p=0.740  mean=0.213
+  cat_typo/formatting          -0.0005 (SE 0.0061) p=0.936  mean=0.050
+  cat_ablation                 -0.0006 (SE 0.0049) p=0.908  mean=0.036
+  cat_generalization           -0.0003 (SE 0.0046) p=0.939  mean=0.025
+  cat_related-work             +0.0062 (SE 0.0059) p=0.292  mean=0.049
+  cat_statistical-rigor        -0.0006 (SE 0.0026) p=0.809  mean=0.015
+  cat_experiments-scope        -0.0086 (SE 0.0090) p=0.334  mean=0.135
+  cat_compute-cost/scalability +0.0034 (SE 0.0047) p=0.468  mean=0.027
+
+== ICLR 2019-2022, exposure=llm_flag, n=30638
+  share_shared                 +0.0418 (SE 0.0186) p=0.025  mean=0.207
+  share_shared_lenient         +0.0489 (SE 0.0218) p=0.025  mean=0.405
+  n_claims                     -0.7663 (SE 0.1799) p=0.000  mean=7.184
+  n_unique                     -0.6842 (SE 0.1731) p=0.000  mean=5.844
+  share_specific               -0.1291 (SE 0.0232) p=0.000  mean=0.861
+  cat_clarity/presentation     -0.0668 (SE 0.0179) p=0.000  mean=0.213
+  cat_typo/formatting          -0.0280 (SE 0.0077) p=0.000  mean=0.050
+  cat_ablation                 +0.0058 (SE 0.0089) p=0.516  mean=0.036
+  cat_generalization           +0.0023 (SE 0.0090) p=0.802  mean=0.025
+  cat_related-work             -0.0141 (SE 0.0064) p=0.028  mean=0.049
+  cat_statistical-rigor        +0.0070 (SE 0.0056) p=0.214  mean=0.015
+  cat_experiments-scope        +0.0414 (SE 0.0162) p=0.010  mean=0.135
+  cat_compute-cost/scalability +0.0293 (SE 0.0114) p=0.010  mean=0.027
+
+== ICLR 2019-2022, exposure=llm_flag_ss, n=30638
+  share_shared                 -0.0118 (SE 0.0066) p=0.075  mean=0.207
+  share_shared_lenient         -0.0151 (SE 0.0084) p=0.075  mean=0.405
+  n_claims                     +0.0397 (SE 0.1152) p=0.730  mean=7.184
+  n_unique                     +0.0865 (SE 0.1100) p=0.432  mean=5.844
+  share_specific               +0.0049 (SE 0.0074) p=0.504  mean=0.861
+  cat_clarity/presentation     +0.0021 (SE 0.0069) p=0.765  mean=0.213
+  cat_typo/formatting          +0.0096 (SE 0.0037) p=0.009  mean=0.050
+  cat_ablation                 +0.0018 (SE 0.0034) p=0.602  mean=0.036
+  cat_generalization           +0.0049 (SE 0.0028) p=0.079  mean=0.025
+  cat_related-work             +0.0005 (SE 0.0036) p=0.888  mean=0.049
+  cat_statistical-rigor        +0.0010 (SE 0.0020) p=0.633  mean=0.015
+  cat_experiments-scope        -0.0027 (SE 0.0061) p=0.650  mean=0.135
+  cat_compute-cost/scalability -0.0036 (SE 0.0028) p=0.209  mean=0.027
+
+== ICLR 2019-2022, exposure=llm_grade, n=30638
+  share_shared                 +0.0250 (SE 0.0048) p=0.000  mean=0.207
+  share_shared_lenient         +0.0255 (SE 0.0058) p=0.000  mean=0.405
+  n_claims                     -0.6757 (SE 0.0565) p=0.000  mean=7.184
+  n_unique                     -0.6409 (SE 0.0552) p=0.000  mean=5.844
+  share_specific               -0.0543 (SE 0.0057) p=0.000  mean=0.861
+  cat_clarity/presentation     -0.0501 (SE 0.0047) p=0.000  mean=0.213
+  cat_typo/formatting          -0.0101 (SE 0.0023) p=0.000  mean=0.050
+  cat_ablation                 +0.0032 (SE 0.0023) p=0.172  mean=0.036
+  cat_generalization           +0.0092 (SE 0.0023) p=0.000  mean=0.025
+  cat_related-work             -0.0126 (SE 0.0022) p=0.000  mean=0.049
+  cat_statistical-rigor        +0.0017 (SE 0.0013) p=0.198  mean=0.015
+  cat_experiments-scope        +0.0325 (SE 0.0044) p=0.000  mean=0.135
+  cat_compute-cost/scalability +0.0167 (SE 0.0025) p=0.000  mean=0.027
+
+== ICLR 2019-2022, exposure=marker_rate, n=30638
+  share_shared                 +0.0068 (SE 0.0040) p=0.088  mean=0.207
+  share_shared_lenient         +0.0083 (SE 0.0048) p=0.085  mean=0.405
+  n_claims                     -0.3023 (SE 0.0540) p=0.000  mean=7.184
+  n_unique                     -0.2834 (SE 0.0536) p=0.000  mean=5.844
+  share_specific               -0.0023 (SE 0.0041) p=0.578  mean=0.861
+  cat_clarity/presentation     -0.0181 (SE 0.0036) p=0.000  mean=0.213
+  cat_typo/formatting          -0.0010 (SE 0.0019) p=0.602  mean=0.050
+  cat_ablation                 +0.0002 (SE 0.0016) p=0.888  mean=0.036
+  cat_generalization           +0.0006 (SE 0.0014) p=0.652  mean=0.025
+  cat_related-work             +0.0016 (SE 0.0018) p=0.365  mean=0.049
+  cat_statistical-rigor        -0.0000 (SE 0.0009) p=0.958  mean=0.015
+  cat_experiments-scope        +0.0180 (SE 0.0037) p=0.000  mean=0.135
+  cat_compute-cost/scalability +0.0026 (SE 0.0018) p=0.155  mean=0.027
+
+== ICLR 2019-2022, exposure=p_llm, n=30638
+  share_shared                 +0.3538 (SE 0.0890) p=0.000  mean=0.207
+  share_shared_lenient         +0.3281 (SE 0.1075) p=0.002  mean=0.405
+  n_claims                     -10.1730 (SE 1.2031) p=0.000  mean=7.184
+  n_unique                     -9.3971 (SE 1.1455) p=0.000  mean=5.844
+  share_specific               -0.8646 (SE 0.1243) p=0.000  mean=0.861
+  cat_clarity/presentation     -0.6541 (SE 0.1022) p=0.000  mean=0.213
+  cat_typo/formatting          -0.1671 (SE 0.0331) p=0.000  mean=0.050
+  cat_ablation                 +0.0166 (SE 0.0342) p=0.626  mean=0.036
+  cat_generalization           +0.1295 (SE 0.0433) p=0.003  mean=0.025
+  cat_related-work             -0.2229 (SE 0.0325) p=0.000  mean=0.049
+  cat_statistical-rigor        +0.0237 (SE 0.0213) p=0.266  mean=0.015
+  cat_experiments-scope        +0.3732 (SE 0.0870) p=0.000  mean=0.135
+  cat_compute-cost/scalability +0.2257 (SE 0.0480) p=0.000  mean=0.027
+
+== ICLR 2019-2022, exposure=p_llm_ss, n=9582
+  share_shared                 -0.0464 (SE 0.0331) p=0.161  mean=0.207
+  share_shared_lenient         -0.0640 (SE 0.0409) p=0.117  mean=0.405
+  n_claims                     +0.3862 (SE 0.5625) p=0.492  mean=7.184
+  n_unique                     +0.6309 (SE 0.5379) p=0.241  mean=5.844
+  share_specific               +0.0292 (SE 0.0380) p=0.442  mean=0.861
+  cat_clarity/presentation     +0.0351 (SE 0.0322) p=0.277  mean=0.213
+  cat_typo/formatting          +0.0523 (SE 0.0184) p=0.005  mean=0.050
+  cat_ablation                 -0.0015 (SE 0.0209) p=0.943  mean=0.036
+  cat_generalization           +0.0111 (SE 0.0128) p=0.386  mean=0.025
+  cat_related-work             -0.0076 (SE 0.0169) p=0.654  mean=0.049
+  cat_statistical-rigor        +0.0094 (SE 0.0095) p=0.323  mean=0.015
+  cat_experiments-scope        -0.0385 (SE 0.0300) p=0.200  mean=0.135
+  cat_compute-cost/scalability +0.0016 (SE 0.0160) p=0.921  mean=0.027
+
+== ICLR 2024-2024, exposure=any_marker, n=11527
+  share_shared                 +0.0127 (SE 0.0043) p=0.003  mean=0.203
+  share_shared_lenient         +0.0137 (SE 0.0055) p=0.013  mean=0.410
+  n_claims                     -0.6493 (SE 0.0721) p=0.000  mean=6.638
+  n_unique                     -0.5955 (SE 0.0696) p=0.000  mean=5.415
+  share_specific               -0.0208 (SE 0.0051) p=0.000  mean=0.853
+  cat_clarity/presentation     -0.0225 (SE 0.0046) p=0.000  mean=0.202
+  cat_typo/formatting          -0.0046 (SE 0.0019) p=0.016  mean=0.033
+  cat_ablation                 +0.0026 (SE 0.0023) p=0.256  mean=0.041
+  cat_generalization           +0.0085 (SE 0.0022) p=0.000  mean=0.036
+  cat_related-work             +0.0016 (SE 0.0023) p=0.490  mean=0.043
+  cat_statistical-rigor        -0.0026 (SE 0.0012) p=0.031  mean=0.014
+  cat_experiments-scope        +0.0076 (SE 0.0041) p=0.066  mean=0.149
+  cat_compute-cost/scalability +0.0048 (SE 0.0023) p=0.038  mean=0.041
+
+== ICLR 2024-2024, exposure=gz_ai, n=11527
+  share_shared                 +0.0356 (SE 0.0075) p=0.000  mean=0.203
+  share_shared_lenient         +0.0426 (SE 0.0096) p=0.000  mean=0.410
+  n_claims                     -1.6851 (SE 0.1021) p=0.000  mean=6.638
+  n_unique                     -1.6092 (SE 0.0998) p=0.000  mean=5.415
+  share_specific               -0.0476 (SE 0.0094) p=0.000  mean=0.853
+  cat_clarity/presentation     -0.0364 (SE 0.0079) p=0.000  mean=0.202
+  cat_typo/formatting          -0.0155 (SE 0.0029) p=0.000  mean=0.033
+  cat_ablation                 -0.0003 (SE 0.0040) p=0.934  mean=0.041
+  cat_generalization           +0.0250 (SE 0.0038) p=0.000  mean=0.036
+  cat_related-work             -0.0145 (SE 0.0037) p=0.000  mean=0.043
+  cat_statistical-rigor        -0.0059 (SE 0.0021) p=0.005  mean=0.014
+  cat_experiments-scope        +0.0131 (SE 0.0070) p=0.060  mean=0.149
+  cat_compute-cost/scalability +0.0289 (SE 0.0046) p=0.000  mean=0.041
+
+== ICLR 2024-2024, exposure=gz_isAI, n=11527
+  share_shared                 +0.0209 (SE 0.0057) p=0.000  mean=0.203
+  share_shared_lenient         +0.0273 (SE 0.0072) p=0.000  mean=0.410
+  n_claims                     -1.2906 (SE 0.0773) p=0.000  mean=6.638
+  n_unique                     -1.2051 (SE 0.0761) p=0.000  mean=5.415
+  share_specific               -0.0334 (SE 0.0070) p=0.000  mean=0.853
+  cat_clarity/presentation     -0.0275 (SE 0.0059) p=0.000  mean=0.202
+  cat_typo/formatting          -0.0093 (SE 0.0023) p=0.000  mean=0.033
+  cat_ablation                 -0.0005 (SE 0.0031) p=0.869  mean=0.041
+  cat_generalization           +0.0192 (SE 0.0029) p=0.000  mean=0.036
+  cat_related-work             -0.0097 (SE 0.0028) p=0.000  mean=0.043
+  cat_statistical-rigor        -0.0038 (SE 0.0016) p=0.017  mean=0.014
+  cat_experiments-scope        +0.0058 (SE 0.0053) p=0.268  mean=0.149
+  cat_compute-cost/scalability +0.0218 (SE 0.0034) p=0.000  mean=0.041
+
+== ICLR 2024-2024, exposure=llm_flag, n=11527
+  share_shared                 +0.0280 (SE 0.0059) p=0.000  mean=0.203
+  share_shared_lenient         +0.0330 (SE 0.0075) p=0.000  mean=0.410
+  n_claims                     -1.5669 (SE 0.0783) p=0.000  mean=6.638
+  n_unique                     -1.4681 (SE 0.0757) p=0.000  mean=5.415
+  share_specific               -0.0557 (SE 0.0076) p=0.000  mean=0.853
+  cat_clarity/presentation     -0.0577 (SE 0.0059) p=0.000  mean=0.202
+  cat_typo/formatting          -0.0162 (SE 0.0020) p=0.000  mean=0.033
+  cat_ablation                 +0.0023 (SE 0.0032) p=0.471  mean=0.041
+  cat_generalization           +0.0284 (SE 0.0032) p=0.000  mean=0.036
+  cat_related-work             -0.0143 (SE 0.0027) p=0.000  mean=0.043
+  cat_statistical-rigor        -0.0021 (SE 0.0017) p=0.214  mean=0.014
+  cat_experiments-scope        +0.0331 (SE 0.0056) p=0.000  mean=0.149
+  cat_compute-cost/scalability +0.0308 (SE 0.0035) p=0.000  mean=0.041
+
+== ICLR 2024-2024, exposure=llm_flag_ss, n=11527
+  share_shared                 +0.0177 (SE 0.0042) p=0.000  mean=0.203
+  share_shared_lenient         +0.0188 (SE 0.0056) p=0.001  mean=0.410
+  n_claims                     -0.9037 (SE 0.0680) p=0.000  mean=6.638
+  n_unique                     -0.8583 (SE 0.0667) p=0.000  mean=5.415
+  share_specific               -0.0210 (SE 0.0053) p=0.000  mean=0.853
+  cat_clarity/presentation     -0.0296 (SE 0.0048) p=0.000  mean=0.202
+  cat_typo/formatting          -0.0040 (SE 0.0019) p=0.042  mean=0.033
+  cat_ablation                 +0.0012 (SE 0.0023) p=0.609  mean=0.041
+  cat_generalization           +0.0148 (SE 0.0022) p=0.000  mean=0.036
+  cat_related-work             -0.0027 (SE 0.0023) p=0.241  mean=0.043
+  cat_statistical-rigor        -0.0022 (SE 0.0012) p=0.073  mean=0.014
+  cat_experiments-scope        +0.0139 (SE 0.0041) p=0.001  mean=0.149
+  cat_compute-cost/scalability +0.0107 (SE 0.0024) p=0.000  mean=0.041
+
+== ICLR 2024-2024, exposure=llm_grade, n=11527
+  share_shared                 +0.0184 (SE 0.0027) p=0.000  mean=0.203
+  share_shared_lenient         +0.0210 (SE 0.0035) p=0.000  mean=0.410
+  n_claims                     -0.8825 (SE 0.0378) p=0.000  mean=6.638
+  n_unique                     -0.8454 (SE 0.0367) p=0.000  mean=5.415
+  share_specific               -0.0303 (SE 0.0035) p=0.000  mean=0.853
+  cat_clarity/presentation     -0.0352 (SE 0.0028) p=0.000  mean=0.202
+  cat_typo/formatting          -0.0090 (SE 0.0010) p=0.000  mean=0.033
+  cat_ablation                 +0.0027 (SE 0.0015) p=0.074  mean=0.041
+  cat_generalization           +0.0155 (SE 0.0015) p=0.000  mean=0.036
+  cat_related-work             -0.0080 (SE 0.0014) p=0.000  mean=0.043
+  cat_statistical-rigor        -0.0012 (SE 0.0008) p=0.167  mean=0.014
+  cat_experiments-scope        +0.0187 (SE 0.0026) p=0.000  mean=0.149
+  cat_compute-cost/scalability +0.0168 (SE 0.0016) p=0.000  mean=0.041
+
+== ICLR 2024-2024, exposure=marker_rate, n=11527
+  share_shared                 +0.0179 (SE 0.0041) p=0.000  mean=0.203
+  share_shared_lenient         +0.0202 (SE 0.0053) p=0.000  mean=0.410
+  n_claims                     -0.8099 (SE 0.0576) p=0.000  mean=6.638
+  n_unique                     -0.7583 (SE 0.0552) p=0.000  mean=5.415
+  share_specific               -0.0251 (SE 0.0053) p=0.000  mean=0.853
+  cat_clarity/presentation     -0.0237 (SE 0.0042) p=0.000  mean=0.202
+  cat_typo/formatting          -0.0061 (SE 0.0015) p=0.000  mean=0.033
+  cat_ablation                 +0.0016 (SE 0.0021) p=0.452  mean=0.041
+  cat_generalization           +0.0095 (SE 0.0023) p=0.000  mean=0.036
+  cat_related-work             -0.0026 (SE 0.0020) p=0.188  mean=0.043
+  cat_statistical-rigor        -0.0019 (SE 0.0010) p=0.057  mean=0.014
+  cat_experiments-scope        +0.0137 (SE 0.0040) p=0.001  mean=0.149
+  cat_compute-cost/scalability +0.0067 (SE 0.0021) p=0.001  mean=0.041
+
+== ICLR 2024-2024, exposure=p_llm, n=11527
+  share_shared                 +0.0626 (SE 0.0114) p=0.000  mean=0.203
+  share_shared_lenient         +0.0591 (SE 0.0141) p=0.000  mean=0.410
+  n_claims                     -3.2839 (SE 0.1406) p=0.000  mean=6.638
+  n_unique                     -3.0744 (SE 0.1367) p=0.000  mean=5.415
+  share_specific               -0.1117 (SE 0.0145) p=0.000  mean=0.853
+  cat_clarity/presentation     -0.1077 (SE 0.0115) p=0.000  mean=0.202
+  cat_typo/formatting          -0.0337 (SE 0.0034) p=0.000  mean=0.033
+  cat_ablation                 +0.0035 (SE 0.0059) p=0.547  mean=0.041
+  cat_generalization           +0.0578 (SE 0.0063) p=0.000  mean=0.036
+  cat_related-work             -0.0271 (SE 0.0047) p=0.000  mean=0.043
+  cat_statistical-rigor        -0.0044 (SE 0.0036) p=0.225  mean=0.014
+  cat_experiments-scope        +0.0590 (SE 0.0104) p=0.000  mean=0.149
+  cat_compute-cost/scalability +0.0675 (SE 0.0070) p=0.000  mean=0.041
+
+== ICLR 2024-2024, exposure=p_llm_ss, n=11486
+  share_shared                 +0.0440 (SE 0.0099) p=0.000  mean=0.203
+  share_shared_lenient         +0.0463 (SE 0.0126) p=0.000  mean=0.410
+  n_claims                     -2.6612 (SE 0.1433) p=0.000  mean=6.638
+  n_unique                     -2.4699 (SE 0.1389) p=0.000  mean=5.415
+  share_specific               -0.0528 (SE 0.0119) p=0.000  mean=0.853
+  cat_clarity/presentation     -0.0647 (SE 0.0103) p=0.000  mean=0.202
+  cat_typo/formatting          -0.0162 (SE 0.0036) p=0.000  mean=0.033
+  cat_ablation                 +0.0051 (SE 0.0051) p=0.312  mean=0.041
+  cat_generalization           +0.0429 (SE 0.0052) p=0.000  mean=0.036
+  cat_related-work             -0.0105 (SE 0.0049) p=0.034  mean=0.043
+  cat_statistical-rigor        -0.0032 (SE 0.0032) p=0.319  mean=0.014
+  cat_experiments-scope        +0.0311 (SE 0.0093) p=0.001  mean=0.149
+  cat_compute-cost/scalability +0.0378 (SE 0.0058) p=0.000  mean=0.041
+
+== ICLR 2024-2026, exposure=any_marker, n=46825
+  share_shared                 +0.0158 (SE 0.0021) p=0.000  mean=0.236
+  share_shared_lenient         +0.0194 (SE 0.0027) p=0.000  mean=0.438
+  n_claims                     -0.6066 (SE 0.0364) p=0.000  mean=6.844
+  n_unique                     -0.5916 (SE 0.0350) p=0.000  mean=5.366
+  share_specific               -0.0066 (SE 0.0023) p=0.004  mean=0.880
+  cat_clarity/presentation     -0.0275 (SE 0.0021) p=0.000  mean=0.162
+  cat_typo/formatting          -0.0060 (SE 0.0009) p=0.000  mean=0.029
+  cat_ablation                 +0.0067 (SE 0.0012) p=0.000  mean=0.053
+  cat_generalization           +0.0103 (SE 0.0012) p=0.000  mean=0.048
+  cat_related-work             -0.0014 (SE 0.0010) p=0.162  mean=0.037
+  cat_statistical-rigor        +0.0010 (SE 0.0007) p=0.146  mean=0.019
+  cat_experiments-scope        +0.0143 (SE 0.0020) p=0.000  mean=0.162
+  cat_compute-cost/scalability +0.0083 (SE 0.0012) p=0.000  mean=0.052
+
+== ICLR 2024-2026, exposure=gz_ai, n=11527
+  share_shared                 +0.0356 (SE 0.0075) p=0.000  mean=0.236
+  share_shared_lenient         +0.0426 (SE 0.0096) p=0.000  mean=0.438
+  n_claims                     -1.6851 (SE 0.1021) p=0.000  mean=6.844
+  n_unique                     -1.6092 (SE 0.0998) p=0.000  mean=5.366
+  share_specific               -0.0476 (SE 0.0094) p=0.000  mean=0.880
+  cat_clarity/presentation     -0.0364 (SE 0.0079) p=0.000  mean=0.162
+  cat_typo/formatting          -0.0155 (SE 0.0029) p=0.000  mean=0.029
+  cat_ablation                 -0.0003 (SE 0.0040) p=0.934  mean=0.053
+  cat_generalization           +0.0250 (SE 0.0038) p=0.000  mean=0.048
+  cat_related-work             -0.0145 (SE 0.0037) p=0.000  mean=0.037
+  cat_statistical-rigor        -0.0059 (SE 0.0021) p=0.005  mean=0.019
+  cat_experiments-scope        +0.0131 (SE 0.0070) p=0.060  mean=0.162
+  cat_compute-cost/scalability +0.0289 (SE 0.0046) p=0.000  mean=0.052
+
+== ICLR 2024-2026, exposure=gz_isAI, n=11527
+  share_shared                 +0.0209 (SE 0.0057) p=0.000  mean=0.236
+  share_shared_lenient         +0.0273 (SE 0.0072) p=0.000  mean=0.438
+  n_claims                     -1.2906 (SE 0.0773) p=0.000  mean=6.844
+  n_unique                     -1.2051 (SE 0.0761) p=0.000  mean=5.366
+  share_specific               -0.0334 (SE 0.0070) p=0.000  mean=0.880
+  cat_clarity/presentation     -0.0275 (SE 0.0059) p=0.000  mean=0.162
+  cat_typo/formatting          -0.0093 (SE 0.0023) p=0.000  mean=0.029
+  cat_ablation                 -0.0005 (SE 0.0031) p=0.869  mean=0.053
+  cat_generalization           +0.0192 (SE 0.0029) p=0.000  mean=0.048
+  cat_related-work             -0.0097 (SE 0.0028) p=0.000  mean=0.037
+  cat_statistical-rigor        -0.0038 (SE 0.0016) p=0.017  mean=0.019
+  cat_experiments-scope        +0.0058 (SE 0.0053) p=0.268  mean=0.162
+  cat_compute-cost/scalability +0.0218 (SE 0.0034) p=0.000  mean=0.052
+
+== ICLR 2024-2026, exposure=llm_flag, n=46825
+  share_shared                 +0.0474 (SE 0.0023) p=0.000  mean=0.236
+  share_shared_lenient         +0.0506 (SE 0.0028) p=0.000  mean=0.438
+  n_claims                     -1.4421 (SE 0.0357) p=0.000  mean=6.844
+  n_unique                     -1.4763 (SE 0.0341) p=0.000  mean=5.366
+  share_specific               -0.0213 (SE 0.0024) p=0.000  mean=0.880
+  cat_clarity/presentation     -0.0670 (SE 0.0021) p=0.000  mean=0.162
+  cat_typo/formatting          -0.0202 (SE 0.0009) p=0.000  mean=0.029
+  cat_ablation                 +0.0134 (SE 0.0013) p=0.000  mean=0.053
+  cat_generalization           +0.0266 (SE 0.0013) p=0.000  mean=0.048
+  cat_related-work             -0.0144 (SE 0.0010) p=0.000  mean=0.037
+  cat_statistical-rigor        +0.0006 (SE 0.0007) p=0.371  mean=0.019
+  cat_experiments-scope        +0.0318 (SE 0.0021) p=0.000  mean=0.162
+  cat_compute-cost/scalability +0.0335 (SE 0.0013) p=0.000  mean=0.052
+
+== ICLR 2024-2026, exposure=llm_flag_ss, n=46825
+  share_shared                 +0.0274 (SE 0.0021) p=0.000  mean=0.236
+  share_shared_lenient         +0.0302 (SE 0.0027) p=0.000  mean=0.438
+  n_claims                     -1.0232 (SE 0.0359) p=0.000  mean=6.844
+  n_unique                     -1.0194 (SE 0.0348) p=0.000  mean=5.366
+  share_specific               -0.0066 (SE 0.0023) p=0.004  mean=0.880
+  cat_clarity/presentation     -0.0347 (SE 0.0021) p=0.000  mean=0.162
+  cat_typo/formatting          -0.0080 (SE 0.0009) p=0.000  mean=0.029
+  cat_ablation                 +0.0077 (SE 0.0012) p=0.000  mean=0.053
+  cat_generalization           +0.0157 (SE 0.0011) p=0.000  mean=0.048
+  cat_related-work             -0.0050 (SE 0.0010) p=0.000  mean=0.037
+  cat_statistical-rigor        -0.0013 (SE 0.0007) p=0.053  mean=0.019
+  cat_experiments-scope        +0.0157 (SE 0.0020) p=0.000  mean=0.162
+  cat_compute-cost/scalability +0.0171 (SE 0.0012) p=0.000  mean=0.052
+
+== ICLR 2024-2026, exposure=llm_grade, n=46825
+  share_shared                 +0.0286 (SE 0.0012) p=0.000  mean=0.236
+  share_shared_lenient         +0.0306 (SE 0.0015) p=0.000  mean=0.438
+  n_claims                     -0.8917 (SE 0.0199) p=0.000  mean=6.844
+  n_unique                     -0.9170 (SE 0.0190) p=0.000  mean=5.366
+  share_specific               -0.0125 (SE 0.0013) p=0.000  mean=0.880
+  cat_clarity/presentation     -0.0434 (SE 0.0012) p=0.000  mean=0.162
+  cat_typo/formatting          -0.0121 (SE 0.0005) p=0.000  mean=0.029
+  cat_ablation                 +0.0082 (SE 0.0007) p=0.000  mean=0.053
+  cat_generalization           +0.0156 (SE 0.0007) p=0.000  mean=0.048
+  cat_related-work             -0.0086 (SE 0.0006) p=0.000  mean=0.037
+  cat_statistical-rigor        +0.0006 (SE 0.0004) p=0.108  mean=0.019
+  cat_experiments-scope        +0.0207 (SE 0.0011) p=0.000  mean=0.162
+  cat_compute-cost/scalability +0.0199 (SE 0.0007) p=0.000  mean=0.052
+
+== ICLR 2024-2026, exposure=marker_rate, n=46825
+  share_shared                 +0.0184 (SE 0.0024) p=0.000  mean=0.236
+  share_shared_lenient         +0.0227 (SE 0.0030) p=0.000  mean=0.438
+  n_claims                     -0.7525 (SE 0.0329) p=0.000  mean=6.844
+  n_unique                     -0.7122 (SE 0.0315) p=0.000  mean=5.366
+  share_specific               -0.0117 (SE 0.0027) p=0.000  mean=0.880
+  cat_clarity/presentation     -0.0284 (SE 0.0022) p=0.000  mean=0.162
+  cat_typo/formatting          -0.0061 (SE 0.0009) p=0.000  mean=0.029
+  cat_ablation                 +0.0055 (SE 0.0013) p=0.000  mean=0.053
+  cat_generalization           +0.0109 (SE 0.0013) p=0.000  mean=0.048
+  cat_related-work             -0.0007 (SE 0.0011) p=0.538  mean=0.037
+  cat_statistical-rigor        -0.0007 (SE 0.0007) p=0.255  mean=0.019
+  cat_experiments-scope        +0.0195 (SE 0.0023) p=0.000  mean=0.162
+  cat_compute-cost/scalability +0.0085 (SE 0.0013) p=0.000  mean=0.052
+
+== ICLR 2024-2026, exposure=p_llm, n=46825
+  share_shared                 +0.0840 (SE 0.0045) p=0.000  mean=0.236
+  share_shared_lenient         +0.0855 (SE 0.0054) p=0.000  mean=0.438
+  n_claims                     -2.8954 (SE 0.0643) p=0.000  mean=6.844
+  n_unique                     -2.8829 (SE 0.0613) p=0.000  mean=5.366
+  share_specific               -0.0478 (SE 0.0047) p=0.000  mean=0.880
+  cat_clarity/presentation     -0.1243 (SE 0.0038) p=0.000  mean=0.162
+  cat_typo/formatting          -0.0375 (SE 0.0014) p=0.000  mean=0.029
+  cat_ablation                 +0.0220 (SE 0.0025) p=0.000  mean=0.053
+  cat_generalization           +0.0552 (SE 0.0025) p=0.000  mean=0.048
+  cat_related-work             -0.0286 (SE 0.0017) p=0.000  mean=0.037
+  cat_statistical-rigor        -0.0011 (SE 0.0014) p=0.429  mean=0.019
+  cat_experiments-scope        +0.0623 (SE 0.0040) p=0.000  mean=0.162
+  cat_compute-cost/scalability +0.0750 (SE 0.0027) p=0.000  mean=0.052
+
+== ICLR 2024-2026, exposure=p_llm_ss, n=46700
+  share_shared                 +0.0569 (SE 0.0042) p=0.000  mean=0.236
+  share_shared_lenient         +0.0649 (SE 0.0053) p=0.000  mean=0.438
+  n_claims                     -2.5147 (SE 0.0690) p=0.000  mean=6.844
+  n_unique                     -2.4214 (SE 0.0663) p=0.000  mean=5.366
+  share_specific               -0.0210 (SE 0.0043) p=0.000  mean=0.880
+  cat_clarity/presentation     -0.0697 (SE 0.0040) p=0.000  mean=0.162
+  cat_typo/formatting          -0.0202 (SE 0.0016) p=0.000  mean=0.029
+  cat_ablation                 +0.0148 (SE 0.0024) p=0.000  mean=0.053
+  cat_generalization           +0.0376 (SE 0.0023) p=0.000  mean=0.048
+  cat_related-work             -0.0148 (SE 0.0019) p=0.000  mean=0.037
+  cat_statistical-rigor        -0.0027 (SE 0.0013) p=0.037  mean=0.019
+  cat_experiments-scope        +0.0346 (SE 0.0038) p=0.000  mean=0.162
+  cat_compute-cost/scalability +0.0425 (SE 0.0025) p=0.000  mean=0.052
+
+== ICLR 2025-2025, exposure=any_marker, n=11999
+  share_shared                 +0.0174 (SE 0.0041) p=0.000  mean=0.218
+  share_shared_lenient         +0.0200 (SE 0.0054) p=0.000  mean=0.424
+  n_claims                     -0.7384 (SE 0.0716) p=0.000  mean=6.926
+  n_unique                     -0.7333 (SE 0.0687) p=0.000  mean=5.555
+  share_specific               -0.0096 (SE 0.0044) p=0.030  mean=0.876
+  cat_clarity/presentation     -0.0331 (SE 0.0043) p=0.000  mean=0.186
+  cat_typo/formatting          -0.0054 (SE 0.0018) p=0.003  mean=0.035
+  cat_ablation                 +0.0050 (SE 0.0022) p=0.021  mean=0.043
+  cat_generalization           +0.0143 (SE 0.0022) p=0.000  mean=0.044
+  cat_related-work             -0.0023 (SE 0.0020) p=0.259  mean=0.038
+  cat_statistical-rigor        +0.0006 (SE 0.0012) p=0.609  mean=0.014
+  cat_experiments-scope        +0.0201 (SE 0.0040) p=0.000  mean=0.160
+  cat_compute-cost/scalability +0.0130 (SE 0.0024) p=0.000  mean=0.047
+
+== ICLR 2025-2025, exposure=llm_flag, n=11999
+  share_shared                 +0.0392 (SE 0.0044) p=0.000  mean=0.218
+  share_shared_lenient         +0.0377 (SE 0.0055) p=0.000  mean=0.424
+  n_claims                     -1.6810 (SE 0.0676) p=0.000  mean=6.926
+  n_unique                     -1.6390 (SE 0.0654) p=0.000  mean=5.555
+  share_specific               -0.0237 (SE 0.0047) p=0.000  mean=0.876
+  cat_clarity/presentation     -0.0657 (SE 0.0044) p=0.000  mean=0.186
+  cat_typo/formatting          -0.0209 (SE 0.0017) p=0.000  mean=0.035
+  cat_ablation                 +0.0073 (SE 0.0023) p=0.002  mean=0.043
+  cat_generalization           +0.0262 (SE 0.0024) p=0.000  mean=0.044
+  cat_related-work             -0.0131 (SE 0.0021) p=0.000  mean=0.038
+  cat_statistical-rigor        -0.0001 (SE 0.0012) p=0.959  mean=0.014
+  cat_experiments-scope        +0.0419 (SE 0.0042) p=0.000  mean=0.160
+  cat_compute-cost/scalability +0.0380 (SE 0.0027) p=0.000  mean=0.047
+
+== ICLR 2025-2025, exposure=llm_flag_ss, n=11999
+  share_shared                 +0.0242 (SE 0.0040) p=0.000  mean=0.218
+  share_shared_lenient         +0.0241 (SE 0.0051) p=0.000  mean=0.424
+  n_claims                     -1.1677 (SE 0.0716) p=0.000  mean=6.926
+  n_unique                     -1.1329 (SE 0.0692) p=0.000  mean=5.555
+  share_specific               -0.0051 (SE 0.0043) p=0.238  mean=0.876
+  cat_clarity/presentation     -0.0407 (SE 0.0042) p=0.000  mean=0.186
+  cat_typo/formatting          -0.0094 (SE 0.0019) p=0.000  mean=0.035
+  cat_ablation                 +0.0047 (SE 0.0021) p=0.025  mean=0.043
+  cat_generalization           +0.0166 (SE 0.0021) p=0.000  mean=0.044
+  cat_related-work             -0.0049 (SE 0.0020) p=0.016  mean=0.038
+  cat_statistical-rigor        +0.0006 (SE 0.0012) p=0.617  mean=0.014
+  cat_experiments-scope        +0.0230 (SE 0.0039) p=0.000  mean=0.160
+  cat_compute-cost/scalability +0.0230 (SE 0.0023) p=0.000  mean=0.047
+
+== ICLR 2025-2025, exposure=llm_grade, n=11999
+  share_shared                 +0.0232 (SE 0.0022) p=0.000  mean=0.218
+  share_shared_lenient         +0.0215 (SE 0.0028) p=0.000  mean=0.424
+  n_claims                     -0.9461 (SE 0.0357) p=0.000  mean=6.926
+  n_unique                     -0.9293 (SE 0.0344) p=0.000  mean=5.555
+  share_specific               -0.0131 (SE 0.0024) p=0.000  mean=0.876
+  cat_clarity/presentation     -0.0390 (SE 0.0022) p=0.000  mean=0.186
+  cat_typo/formatting          -0.0111 (SE 0.0009) p=0.000  mean=0.035
+  cat_ablation                 +0.0045 (SE 0.0012) p=0.000  mean=0.043
+  cat_generalization           +0.0142 (SE 0.0012) p=0.000  mean=0.044
+  cat_related-work             -0.0073 (SE 0.0011) p=0.000  mean=0.038
+  cat_statistical-rigor        +0.0001 (SE 0.0006) p=0.834  mean=0.014
+  cat_experiments-scope        +0.0237 (SE 0.0020) p=0.000  mean=0.160
+  cat_compute-cost/scalability +0.0203 (SE 0.0013) p=0.000  mean=0.047
+
+== ICLR 2025-2025, exposure=marker_rate, n=11999
+  share_shared                 +0.0210 (SE 0.0044) p=0.000  mean=0.218
+  share_shared_lenient         +0.0241 (SE 0.0057) p=0.000  mean=0.424
+  n_claims                     -0.9056 (SE 0.0622) p=0.000  mean=6.926
+  n_unique                     -0.8513 (SE 0.0598) p=0.000  mean=5.555
+  share_specific               -0.0152 (SE 0.0050) p=0.002  mean=0.876
+  cat_clarity/presentation     -0.0389 (SE 0.0041) p=0.000  mean=0.186
+  cat_typo/formatting          -0.0080 (SE 0.0018) p=0.000  mean=0.035
+  cat_ablation                 +0.0045 (SE 0.0023) p=0.050  mean=0.043
+  cat_generalization           +0.0157 (SE 0.0025) p=0.000  mean=0.044
+  cat_related-work             +0.0002 (SE 0.0024) p=0.942  mean=0.038
+  cat_statistical-rigor        -0.0007 (SE 0.0012) p=0.563  mean=0.014
+  cat_experiments-scope        +0.0280 (SE 0.0046) p=0.000  mean=0.160
+  cat_compute-cost/scalability +0.0134 (SE 0.0026) p=0.000  mean=0.047
+
+== ICLR 2025-2025, exposure=p_llm, n=11999
+  share_shared                 +0.0687 (SE 0.0076) p=0.000  mean=0.218
+  share_shared_lenient         +0.0637 (SE 0.0093) p=0.000  mean=0.424
+  n_claims                     -3.0700 (SE 0.1094) p=0.000  mean=6.926
+  n_unique                     -2.9439 (SE 0.1052) p=0.000  mean=5.555
+  share_specific               -0.0450 (SE 0.0079) p=0.000  mean=0.876
+  cat_clarity/presentation     -0.1212 (SE 0.0067) p=0.000  mean=0.186
+  cat_typo/formatting          -0.0361 (SE 0.0024) p=0.000  mean=0.035
+  cat_ablation                 +0.0151 (SE 0.0040) p=0.000  mean=0.043
+  cat_generalization           +0.0565 (SE 0.0043) p=0.000  mean=0.044
+  cat_related-work             -0.0257 (SE 0.0030) p=0.000  mean=0.038
+  cat_statistical-rigor        -0.0007 (SE 0.0022) p=0.741  mean=0.014
+  cat_experiments-scope        +0.0719 (SE 0.0068) p=0.000  mean=0.160
+  cat_compute-cost/scalability +0.0774 (SE 0.0047) p=0.000  mean=0.047
+
+== ICLR 2025-2025, exposure=p_llm_ss, n=11961
+  share_shared                 +0.0485 (SE 0.0071) p=0.000  mean=0.218
+  share_shared_lenient         +0.0526 (SE 0.0090) p=0.000  mean=0.424
+  n_claims                     -2.5377 (SE 0.1178) p=0.000  mean=6.926
+  n_unique                     -2.4103 (SE 0.1138) p=0.000  mean=5.555
+  share_specific               -0.0204 (SE 0.0073) p=0.005  mean=0.876
+  cat_clarity/presentation     -0.0822 (SE 0.0072) p=0.000  mean=0.186
+  cat_typo/formatting          -0.0227 (SE 0.0027) p=0.000  mean=0.035
+  cat_ablation                 +0.0124 (SE 0.0038) p=0.001  mean=0.043
+  cat_generalization           +0.0426 (SE 0.0039) p=0.000  mean=0.044
+  cat_related-work             -0.0171 (SE 0.0034) p=0.000  mean=0.038
+  cat_statistical-rigor        +0.0002 (SE 0.0020) p=0.931  mean=0.014
+  cat_experiments-scope        +0.0461 (SE 0.0065) p=0.000  mean=0.160
+  cat_compute-cost/scalability +0.0490 (SE 0.0044) p=0.000  mean=0.047
+
+== ICLR 2026-2026, exposure=any_marker, n=23299
+  share_shared                 +0.0163 (SE 0.0031) p=0.000  mean=0.261
+  share_shared_lenient         +0.0213 (SE 0.0038) p=0.000  mean=0.459
+  n_claims                     -0.4914 (SE 0.0519) p=0.000  mean=6.903
+  n_unique                     -0.4874 (SE 0.0497) p=0.000  mean=5.245
+  share_specific               +0.0027 (SE 0.0030) p=0.375  mean=0.895
+  cat_clarity/presentation     -0.0264 (SE 0.0028) p=0.000  mean=0.130
+  cat_typo/formatting          -0.0065 (SE 0.0012) p=0.000  mean=0.025
+  cat_ablation                 +0.0095 (SE 0.0019) p=0.000  mean=0.064
+  cat_generalization           +0.0087 (SE 0.0018) p=0.000  mean=0.056
+  cat_related-work             -0.0023 (SE 0.0013) p=0.088  mean=0.033
+  cat_statistical-rigor        +0.0029 (SE 0.0011) p=0.008  mean=0.024
+  cat_experiments-scope        +0.0145 (SE 0.0028) p=0.000  mean=0.170
+  cat_compute-cost/scalability +0.0073 (SE 0.0018) p=0.000  mean=0.059
+
+== ICLR 2026-2026, exposure=llm_flag, n=23299
+  share_shared                 +0.0565 (SE 0.0030) p=0.000  mean=0.261
+  share_shared_lenient         +0.0604 (SE 0.0037) p=0.000  mean=0.459
+  n_claims                     -1.2621 (SE 0.0491) p=0.000  mean=6.903
+  n_unique                     -1.3653 (SE 0.0466) p=0.000  mean=5.245
+  share_specific               -0.0096 (SE 0.0029) p=0.001  mean=0.895
+  cat_clarity/presentation     -0.0691 (SE 0.0026) p=0.000  mean=0.130
+  cat_typo/formatting          -0.0202 (SE 0.0011) p=0.000  mean=0.025
+  cat_ablation                 +0.0191 (SE 0.0018) p=0.000  mean=0.064
+  cat_generalization           +0.0257 (SE 0.0017) p=0.000  mean=0.056
+  cat_related-work             -0.0148 (SE 0.0013) p=0.000  mean=0.033
+  cat_statistical-rigor        +0.0016 (SE 0.0010) p=0.119  mean=0.024
+  cat_experiments-scope        +0.0264 (SE 0.0027) p=0.000  mean=0.170
+  cat_compute-cost/scalability +0.0319 (SE 0.0017) p=0.000  mean=0.059
+
+== ICLR 2026-2026, exposure=llm_flag_ss, n=23299
+  share_shared                 +0.0333 (SE 0.0031) p=0.000  mean=0.261
+  share_shared_lenient         +0.0378 (SE 0.0038) p=0.000  mean=0.459
+  n_claims                     -0.9699 (SE 0.0519) p=0.000  mean=6.903
+  n_unique                     -0.9965 (SE 0.0501) p=0.000  mean=5.245
+  share_specific               +0.0006 (SE 0.0029) p=0.844  mean=0.895
+  cat_clarity/presentation     -0.0325 (SE 0.0028) p=0.000  mean=0.130
+  cat_typo/formatting          -0.0084 (SE 0.0012) p=0.000  mean=0.025
+  cat_ablation                 +0.0119 (SE 0.0018) p=0.000  mean=0.064
+  cat_generalization           +0.0152 (SE 0.0017) p=0.000  mean=0.056
+  cat_related-work             -0.0059 (SE 0.0014) p=0.000  mean=0.033
+  cat_statistical-rigor        -0.0021 (SE 0.0010) p=0.040  mean=0.024
+  cat_experiments-scope        +0.0122 (SE 0.0027) p=0.000  mean=0.170
+  cat_compute-cost/scalability +0.0165 (SE 0.0017) p=0.000  mean=0.059
+
+== ICLR 2026-2026, exposure=llm_grade, n=23299
+  share_shared                 +0.0363 (SE 0.0018) p=0.000  mean=0.261
+  share_shared_lenient         +0.0398 (SE 0.0022) p=0.000  mean=0.459
+  n_claims                     -0.8430 (SE 0.0301) p=0.000  mean=6.903
+  n_unique                     -0.9185 (SE 0.0286) p=0.000  mean=5.245
+  share_specific               -0.0038 (SE 0.0017) p=0.024  mean=0.895
+  cat_clarity/presentation     -0.0493 (SE 0.0016) p=0.000  mean=0.130
+  cat_typo/formatting          -0.0136 (SE 0.0007) p=0.000  mean=0.025
+  cat_ablation                 +0.0126 (SE 0.0010) p=0.000  mean=0.064
+  cat_generalization           +0.0163 (SE 0.0009) p=0.000  mean=0.056
+  cat_related-work             -0.0095 (SE 0.0008) p=0.000  mean=0.033
+  cat_statistical-rigor        +0.0016 (SE 0.0006) p=0.007  mean=0.024
+  cat_experiments-scope        +0.0195 (SE 0.0015) p=0.000  mean=0.170
+  cat_compute-cost/scalability +0.0209 (SE 0.0010) p=0.000  mean=0.059
+
+== ICLR 2026-2026, exposure=marker_rate, n=23299
+  share_shared                 +0.0171 (SE 0.0038) p=0.000  mean=0.261
+  share_shared_lenient         +0.0241 (SE 0.0047) p=0.000  mean=0.459
+  n_claims                     -0.5959 (SE 0.0514) p=0.000  mean=6.903
+  n_unique                     -0.5761 (SE 0.0489) p=0.000  mean=5.245
+  share_specific               +0.0008 (SE 0.0037) p=0.822  mean=0.895
+  cat_clarity/presentation     -0.0249 (SE 0.0031) p=0.000  mean=0.130
+  cat_typo/formatting          -0.0049 (SE 0.0015) p=0.001  mean=0.025
+  cat_ablation                 +0.0093 (SE 0.0022) p=0.000  mean=0.064
+  cat_generalization           +0.0087 (SE 0.0021) p=0.000  mean=0.056
+  cat_related-work             +0.0001 (SE 0.0017) p=0.960  mean=0.033
+  cat_statistical-rigor        +0.0001 (SE 0.0012) p=0.911  mean=0.024
+  cat_experiments-scope        +0.0181 (SE 0.0035) p=0.000  mean=0.170
+  cat_compute-cost/scalability +0.0065 (SE 0.0020) p=0.001  mean=0.059
+
+== ICLR 2026-2026, exposure=p_llm, n=23299
+  share_shared                 +0.1009 (SE 0.0063) p=0.000  mean=0.261
+  share_shared_lenient         +0.1069 (SE 0.0075) p=0.000  mean=0.459
+  n_claims                     -2.6057 (SE 0.0948) p=0.000  mean=6.903
+  n_unique                     -2.7276 (SE 0.0893) p=0.000  mean=5.245
+  share_specific               -0.0273 (SE 0.0060) p=0.000  mean=0.895
+  cat_clarity/presentation     -0.1299 (SE 0.0049) p=0.000  mean=0.130
+  cat_typo/formatting          -0.0383 (SE 0.0021) p=0.000  mean=0.025
+  cat_ablation                 +0.0321 (SE 0.0038) p=0.000  mean=0.064
+  cat_generalization           +0.0525 (SE 0.0036) p=0.000  mean=0.056
+  cat_related-work             -0.0305 (SE 0.0023) p=0.000  mean=0.033
+  cat_statistical-rigor        -0.0005 (SE 0.0019) p=0.795  mean=0.024
+  cat_experiments-scope        +0.0564 (SE 0.0056) p=0.000  mean=0.170
+  cat_compute-cost/scalability +0.0752 (SE 0.0039) p=0.000  mean=0.059
+
+== ICLR 2026-2026, exposure=p_llm_ss, n=23253
+  share_shared                 +0.0672 (SE 0.0061) p=0.000  mean=0.261
+  share_shared_lenient         +0.0781 (SE 0.0076) p=0.000  mean=0.459
+  n_claims                     -2.3776 (SE 0.1043) p=0.000  mean=6.903
+  n_unique                     -2.3303 (SE 0.0994) p=0.000  mean=5.245
+  share_specific               -0.0063 (SE 0.0056) p=0.262  mean=0.895
+  cat_clarity/presentation     -0.0597 (SE 0.0054) p=0.000  mean=0.130
+  cat_typo/formatting          -0.0182 (SE 0.0023) p=0.000  mean=0.025
+  cat_ablation                 +0.0194 (SE 0.0037) p=0.000  mean=0.064
+  cat_generalization           +0.0307 (SE 0.0034) p=0.000  mean=0.056
+  cat_related-work             -0.0137 (SE 0.0026) p=0.000  mean=0.033
+  cat_statistical-rigor        -0.0052 (SE 0.0020) p=0.008  mean=0.024
+  cat_experiments-scope        +0.0270 (SE 0.0054) p=0.000  mean=0.170
+  cat_compute-cost/scalability +0.0389 (SE 0.0037) p=0.000  mean=0.059
+
+== NeurIPS 2023-2025, exposure=any_marker, n=12258
+  share_shared                 +0.0112 (SE 0.0041) p=0.006  mean=0.203
+  share_shared_lenient         +0.0179 (SE 0.0054) p=0.001  mean=0.397
+  n_claims                     -0.6907 (SE 0.0750) p=0.000  mean=6.450
+  n_unique                     -0.6452 (SE 0.0722) p=0.000  mean=5.273
+  share_specific               -0.0150 (SE 0.0045) p=0.001  mean=0.862
+  cat_clarity/presentation     -0.0328 (SE 0.0044) p=0.000  mean=0.194
+  cat_typo/formatting          -0.0057 (SE 0.0021) p=0.006  mean=0.039
+  cat_ablation                 +0.0058 (SE 0.0022) p=0.007  mean=0.044
+  cat_generalization           +0.0123 (SE 0.0024) p=0.000  mean=0.046
+  cat_related-work             +0.0027 (SE 0.0023) p=0.232  mean=0.040
+  cat_statistical-rigor        +0.0005 (SE 0.0012) p=0.672  mean=0.012
+  cat_experiments-scope        +0.0225 (SE 0.0039) p=0.000  mean=0.150
+  cat_compute-cost/scalability +0.0074 (SE 0.0025) p=0.003  mean=0.054
+
+== NeurIPS 2023-2025, exposure=llm_flag, n=12258
+  share_shared                 +0.0449 (SE 0.0048) p=0.000  mean=0.203
+  share_shared_lenient         +0.0520 (SE 0.0061) p=0.000  mean=0.397
+  n_claims                     -1.5415 (SE 0.0686) p=0.000  mean=6.450
+  n_unique                     -1.5495 (SE 0.0665) p=0.000  mean=5.273
+  share_specific               -0.0356 (SE 0.0055) p=0.000  mean=0.862
+  cat_clarity/presentation     -0.0762 (SE 0.0048) p=0.000  mean=0.194
+  cat_typo/formatting          -0.0201 (SE 0.0021) p=0.000  mean=0.039
+  cat_ablation                 +0.0132 (SE 0.0026) p=0.000  mean=0.044
+  cat_generalization           +0.0285 (SE 0.0030) p=0.000  mean=0.046
+  cat_related-work             -0.0119 (SE 0.0023) p=0.000  mean=0.040
+  cat_statistical-rigor        -0.0008 (SE 0.0014) p=0.561  mean=0.012
+  cat_experiments-scope        +0.0396 (SE 0.0045) p=0.000  mean=0.150
+  cat_compute-cost/scalability +0.0391 (SE 0.0031) p=0.000  mean=0.054
+
+== NeurIPS 2023-2025, exposure=llm_flag_ss, n=12258
+  share_shared                 +0.0287 (SE 0.0040) p=0.000  mean=0.203
+  share_shared_lenient         +0.0312 (SE 0.0053) p=0.000  mean=0.397
+  n_claims                     -1.1424 (SE 0.0772) p=0.000  mean=6.450
+  n_unique                     -1.1485 (SE 0.0745) p=0.000  mean=5.273
+  share_specific               -0.0196 (SE 0.0046) p=0.000  mean=0.862
+  cat_clarity/presentation     -0.0455 (SE 0.0043) p=0.000  mean=0.194
+  cat_typo/formatting          -0.0092 (SE 0.0019) p=0.000  mean=0.039
+  cat_ablation                 +0.0062 (SE 0.0022) p=0.005  mean=0.044
+  cat_generalization           +0.0192 (SE 0.0023) p=0.000  mean=0.046
+  cat_related-work             -0.0100 (SE 0.0021) p=0.000  mean=0.040
+  cat_statistical-rigor        -0.0009 (SE 0.0012) p=0.425  mean=0.012
+  cat_experiments-scope        +0.0237 (SE 0.0038) p=0.000  mean=0.150
+  cat_compute-cost/scalability +0.0245 (SE 0.0025) p=0.000  mean=0.054
+
+== NeurIPS 2023-2025, exposure=llm_grade, n=12258
+  share_shared                 +0.0266 (SE 0.0023) p=0.000  mean=0.203
+  share_shared_lenient         +0.0301 (SE 0.0031) p=0.000  mean=0.397
+  n_claims                     -0.9494 (SE 0.0377) p=0.000  mean=6.450
+  n_unique                     -0.9510 (SE 0.0366) p=0.000  mean=5.273
+  share_specific               -0.0218 (SE 0.0027) p=0.000  mean=0.862
+  cat_clarity/presentation     -0.0448 (SE 0.0024) p=0.000  mean=0.194
+  cat_typo/formatting          -0.0117 (SE 0.0011) p=0.000  mean=0.039
+  cat_ablation                 +0.0062 (SE 0.0013) p=0.000  mean=0.044
+  cat_generalization           +0.0159 (SE 0.0014) p=0.000  mean=0.046
+  cat_related-work             -0.0078 (SE 0.0011) p=0.000  mean=0.040
+  cat_statistical-rigor        -0.0006 (SE 0.0007) p=0.322  mean=0.012
+  cat_experiments-scope        +0.0238 (SE 0.0022) p=0.000  mean=0.150
+  cat_compute-cost/scalability +0.0227 (SE 0.0015) p=0.000  mean=0.054
+
+== NeurIPS 2023-2025, exposure=marker_rate, n=12258
+  share_shared                 +0.0087 (SE 0.0046) p=0.056  mean=0.203
+  share_shared_lenient         +0.0157 (SE 0.0060) p=0.009  mean=0.397
+  n_claims                     -0.8377 (SE 0.0700) p=0.000  mean=6.450
+  n_unique                     -0.7720 (SE 0.0684) p=0.000  mean=5.273
+  share_specific               -0.0099 (SE 0.0055) p=0.071  mean=0.862
+  cat_clarity/presentation     -0.0376 (SE 0.0048) p=0.000  mean=0.194
+  cat_typo/formatting          -0.0067 (SE 0.0022) p=0.002  mean=0.039
+  cat_ablation                 +0.0048 (SE 0.0026) p=0.064  mean=0.044
+  cat_generalization           +0.0114 (SE 0.0028) p=0.000  mean=0.046
+  cat_related-work             +0.0020 (SE 0.0024) p=0.387  mean=0.040
+  cat_statistical-rigor        +0.0004 (SE 0.0013) p=0.774  mean=0.012
+  cat_experiments-scope        +0.0299 (SE 0.0045) p=0.000  mean=0.150
+  cat_compute-cost/scalability +0.0085 (SE 0.0026) p=0.001  mean=0.054
+
+== NeurIPS 2023-2025, exposure=p_llm, n=12258
+  share_shared                 +0.0862 (SE 0.0087) p=0.000  mean=0.203
+  share_shared_lenient         +0.1020 (SE 0.0108) p=0.000  mean=0.397
+  n_claims                     -3.0632 (SE 0.1266) p=0.000  mean=6.450
+  n_unique                     -3.0752 (SE 0.1230) p=0.000  mean=5.273
+  share_specific               -0.0683 (SE 0.0100) p=0.000  mean=0.862
+  cat_clarity/presentation     -0.1418 (SE 0.0078) p=0.000  mean=0.194
+  cat_typo/formatting          -0.0379 (SE 0.0034) p=0.000  mean=0.039
+  cat_ablation                 +0.0212 (SE 0.0047) p=0.000  mean=0.044
+  cat_generalization           +0.0555 (SE 0.0053) p=0.000  mean=0.046
+  cat_related-work             -0.0277 (SE 0.0034) p=0.000  mean=0.040
+  cat_statistical-rigor        -0.0032 (SE 0.0022) p=0.154  mean=0.012
+  cat_experiments-scope        +0.0666 (SE 0.0079) p=0.000  mean=0.150
+  cat_compute-cost/scalability +0.0845 (SE 0.0060) p=0.000  mean=0.054
+
+== NeurIPS 2023-2025, exposure=p_llm_ss, n=12233
+  share_shared                 +0.0694 (SE 0.0080) p=0.000  mean=0.203
+  share_shared_lenient         +0.0752 (SE 0.0101) p=0.000  mean=0.397
+  n_claims                     -2.6568 (SE 0.1291) p=0.000  mean=6.450
+  n_unique                     -2.6508 (SE 0.1259) p=0.000  mean=5.273
+  share_specific               -0.0394 (SE 0.0087) p=0.000  mean=0.862
+  cat_clarity/presentation     -0.1068 (SE 0.0077) p=0.000  mean=0.194
+  cat_typo/formatting          -0.0247 (SE 0.0036) p=0.000  mean=0.039
+  cat_ablation                 +0.0155 (SE 0.0044) p=0.000  mean=0.044
+  cat_generalization           +0.0432 (SE 0.0046) p=0.000  mean=0.046
+  cat_related-work             -0.0206 (SE 0.0037) p=0.000  mean=0.040
+  cat_statistical-rigor        -0.0026 (SE 0.0023) p=0.244  mean=0.012
+  cat_experiments-scope        +0.0513 (SE 0.0072) p=0.000  mean=0.150
+  cat_compute-cost/scalability +0.0620 (SE 0.0053) p=0.000  mean=0.054

@@ -1,0 +1,36 @@
+judgments_a0: 150 valid of 150
+judgments_a1: 150 valid of 150
+judgments_a2: 150 valid of 150
+judgments_a3: 150 valid of 150
+judgments_b0: 150 valid of 150
+judgments_b1: 150 valid of 150
+judgments_b2: 150 valid of 150
+judgments_b3: 150 valid of 150
+600 pairs with both adjudications
+  run agreement on same_problem: 0.968, kappa 0.933
+  run agreement on same_target: 0.960, kappa 0.916
+            subset        reference    n  precision  recall    fpr  n_pipe_merge  n_ref_merge
+0              all      ref_problem  600      0.840   0.757  0.085           200          222
+1              all  ref_problem_any  600      0.895   0.743  0.058           200          241
+2              pre      ref_problem  300      0.810   0.717  0.102           100          113
+3              pre  ref_problem_any  300      0.880   0.710  0.068           100          124
+4             post      ref_problem  300      0.870   0.798  0.068           100          109
+5             post  ref_problem_any  300      0.910   0.778  0.049           100          117
+6  post, unflagged      ref_problem  150      0.860   0.843  0.071            50           51
+7  post, unflagged  ref_problem_any  150      0.920   0.821  0.043            50           56
+8    post, flagged      ref_problem  150      0.880   0.759  0.065            50           58
+9    post, flagged  ref_problem_any  150      0.900   0.738  0.056            50           61
+
+Precision of pipeline merges (both adjudicators agree) by stratum:
+                mean  size
+period flagged            
+post   False    0.86    50
+       True     0.88    50
+pre    False    0.81   100
+
+Recall: share of adjudicated same-problem pairs that the pipeline merged, by stratum (sampling weights ignored):
+                 mean  size
+period flagged             
+post   False    0.843    51
+       True     0.759    58
+pre    False    0.717   113

@@ -1,0 +1,55 @@
+/home/yallen/twicetold/src/validate_blind.py:55: Pandas4Warning: The 'lsuffix' and 'rsuffix' keywords in DataFrame.join are deprecated and will be removed in a future version. Use the 'suffixes' keyword instead.
+  both = o.join(r, how="inner", lsuffix="_a", rsuffix="_b")
+/home/yallen/twicetold/src/validate_blind.py:68: Pandas4Warning: The 'lsuffix' and 'rsuffix' keywords in DataFrame.join are deprecated and will be removed in a future version. Use the 'suffixes' keyword instead.
+  both = o.join(m, how="inner", lsuffix="_opus", rsuffix="_model")
+== Opus reference vs independent Opus replicate: 20 papers
+n_claims                        25.800  25.550 rho  0.94  bias -0.250 (SE 0.528)
+n_clusters                      21.800  21.400 rho  0.95  bias -0.400 (SE 0.400)
+n_targets                       15.450  15.900 rho  0.94  bias +0.450 (SE 0.320)
+n_shared_clusters                3.150   3.050 rho  0.93  bias -0.100 (SE 0.143)
+share_shared_claims              0.269   0.269 rho  0.94  bias +0.000 (SE 0.009)
+share_shared_claims_lenient      0.503   0.458 rho  0.54  bias -0.046 (SE 0.027)
+D3                              17.137  16.988 rho  0.97  bias -0.150 (SE 0.236)
+S3                               1.800   1.875 rho  0.96  bias +0.075 (SE 0.066)
+U3                               0.890   0.885 rho  0.95  bias -0.005 (SE 0.004)
+T3                              12.800  13.150 rho  0.97  bias +0.350 (SE 0.184)
+pair_rate_strict                 0.020   0.021 rho  0.91  bias +0.001 (SE 0.001)
+hit_rate_strict                  0.131   0.142 rho  0.87  bias +0.011 (SE 0.008)
+share_specific                   0.895   0.867 rho  0.85  bias -0.028 (SE 0.011)
+hill_shannon                    20.642  20.141 rho  0.94  bias -0.501 (SE 0.382)
+== gpt-6-luna vs blind Opus reference: 40 papers
+outcome                           opus   model    rho
+n_claims                        25.875  29.725   0.91
+n_clusters                      21.625  25.175   0.91
+n_targets                       14.975  21.175   0.82
+n_shared_clusters                3.300   2.800   0.78
+share_shared_claims              0.286   0.205   0.68
+share_shared_claims_lenient      0.522   0.322   0.63
+D3                              17.044  19.675   0.90
+S3                               1.925   1.613   0.76
+U3                               0.880   0.918   0.70
+T3                              12.488  16.831   0.84
+pair_rate_strict                 0.024   0.013   0.71
+hit_rate_strict                  0.145   0.096   0.68
+share_specific                   0.908   0.874   0.59
+hill_shannon                    20.434  24.111   0.89
+
+Bias (model - opus) by year, with SE:
+  n_claims               {2018: '+3.300 (1.350)', 2022: '+5.200 (1.143)', 2024: '+2.100 (0.948)', 2026: '+4.800 (1.093)'}
+  n_clusters             {2018: '+4.000 (0.907)', 2022: '+3.700 (0.616)', 2024: '+2.000 (1.325)', 2026: '+4.500 (0.719)'}
+  n_shared_clusters      {2018: '-1.200 (0.554)', 2022: '-0.400 (0.400)', 2024: '+0.100 (0.233)', 2026: '-0.500 (0.342)'}
+  share_shared_claims    {2018: '-0.109 (0.039)', 2022: '-0.074 (0.032)', 2024: '-0.049 (0.045)', 2026: '-0.093 (0.014)'}
+  S3                     {2018: '-0.700 (0.367)', 2022: '-0.200 (0.238)', 2024: '-0.100 (0.194)', 2026: '-0.250 (0.171)'}
+  U3                     {2018: '+0.046 (0.019)', 2022: '+0.036 (0.014)', 2024: '+0.035 (0.030)', 2026: '+0.036 (0.006)'}
+  hit_rate_strict        {2018: '-0.052 (0.027)', 2022: '-0.055 (0.024)', 2024: '-0.054 (0.038)', 2026: '-0.034 (0.016)'}
+
+Equivalence (TOST) of year bias: p that |bias(2026) - bias(2018-2022)| < bound
+  share_shared_claims    diff -0.002 (SE 0.029), bound 0.03, TOST p=0.161
+  S3                     diff +0.200 (SE 0.279), bound 0.3, TOST p=0.360
+  hit_rate_strict        diff +0.020 (SE 0.024), bound 0.03, TOST p=0.330
+
+Means by year (opus | model) for S3 and share_shared_claims:
+  S3                     {2018: {'S3_opus': 2.3, 'S3_model': 1.6}, 2022: {'S3_opus': 2.1, 'S3_model': 1.9}, 2024: {'S3_opus': 1.35, 'S3_model': 1.25}, 2026: {'S3_opus': 1.95, 'S3_model': 1.7}}
+  share_shared_claims    {2018: {'share_shared_claims_opus': 0.298, 'share_shared_claims_model': 0.189}, 2022: {'share_shared_claims_opus': 0.309, 'share_shared_claims_model': 0.235}, 2024: {'share_shared_claims_opus': 0.241, 'share_shared_claims_model': 0.192}, 2026: {'share_shared_claims_opus': 0.297, 'share_shared_claims_model': 0.204}}
+  D3                     {2018: {'D3_opus': 19.725, 'D3_model': 22.8}, 2022: {'D3_opus': 17.35, 'D3_model': 20.025}, 2024: {'D3_opus': 15.0, 'D3_model': 16.525}, 2026: {'D3_opus': 16.1, 'D3_model': 19.35}}
+  n_claims               {2018: {'n_claims_opus': 29.8, 'n_claims_model': 33.1}, 2022: {'n_claims_opus': 26.4, 'n_claims_model': 31.6}, 2024: {'n_claims_opus': 22.3, 'n_claims_model': 24.4}, 2026: {'n_claims_opus': 25.0, 'n_claims_model': 29.8}}

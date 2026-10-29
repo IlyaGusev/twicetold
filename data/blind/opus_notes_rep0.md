@@ -1,0 +1,11 @@
+# Hard cases, batch 0 (rep0)
+- B24_R1: reviewer's UPDATE says "my initial concerns have been addressed"; applied rule 4 and gave an empty claim list.
+- B20_R3: after-response text says RLSearch peer-review and sample-size concerns are addressed; dropped those, kept the RLSearch detail request.
+- B24_R3: kept the original-review concerns (gradient bias, total training time) because the update only says the rating changed, not that they were resolved.
+- B32: five claims (R0 trivial application, R0 Theorem 1 = Cohen et al., R3 follows Cohen, R2 difference from prior certification, R1 lacks inventive approach) merged as one novelty problem; R0's Theorems 2-3 kept apart because the cited prior work differs.
+- B04_R3 and B12_R2: split lists of missing baselines into one claim per named method (rule 4).
+- B16_R2: long numbered question lists split into one claim per question; minor presentation notes kept even though the reviewer said "no need to reply".
+- B12: R0 "larger datasets", R2 "datasets too simple" and R1 "scalability to vast datasets" merged, since one new experiment answers all three.
+- B36: R1 "LSTM training not described" merged with R3 "pipeline unclear", since one algorithm description answers both.
+- B36: R0 "triggers without disturbance immunity" merged with R2 "Observation 1 fails for dynamic and multi-target triggers".
+- Category choice was hardest for data-leakage and stability concerns (B04, B28); used "other".

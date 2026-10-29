@@ -1,0 +1,344 @@
+\pdfoutput=1
+\documentclass[11pt]{article}
+\usepackage[review]{acl}
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{xcolor}
+\usepackage{subcaption}
+\usepackage{siunitx}
+\sisetup{detect-all}
+\newcommand{\todo}[1]{\textcolor{red}{[#1]}}
+\newcommand{\Dk}{D_3}
+\newcommand{\Sk}{S_3}
+\newcommand{\Uk}{U_3}
+
+\title{Twice Told: Reviewers of the Same Paper Raise the Same Critiques More Often in the LLM Era}
+
+\author{Anonymous ACL submission}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+A paper gets several reviewers so that it gets several different readings. We ask whether large language models have made the readings the same. We decompose 117k public reviews of 31k ICLR 2017--2026 and NeurIPS 2021--2025 papers into 793k atomic critique claims and cluster the claims of each paper's reviewers into distinct critiques, which gives, per paper, how many critiques a panel raises and how many it raises twice. From 2021 to 2025 three reviewers of the same ICLR paper shared 1.3--1.4 critiques; in 2026, with 44\% of reviews in an LLM style, they share 1.7, a 19\% rise that placebo panels of unrelated reviews cannot produce and that is larger on specific claims; NeurIPS rose the same way in 2025. Holding the paper fixed, an LLM-styled review raises fewer critiques, fewer that no co-reviewer raises, and more that a co-reviewer also raises, and two such reviews match each other 43\% more often than two unflagged reviews. Distinct critiques per panel did not fall, but the repertoire narrowed: clarity, typo and theory critiques gave way to a checklist of evaluation complaints. We validate the pipeline against blind LLM reference annotations across years and 600 adjudicated claim pairs, and release it.
+\end{abstract}
+
+\section{Introduction}
+
+A paper gets several reviewers so that it gets several \emph{different} readings. The value of a review panel lies in its coverage: one reviewer checks the proof, another knows the missing baseline, a third notices that Figure~3 contradicts Table~2. A classic study of psychology journals found that two reviewers of the same paper typically share no critical point at all \citep{fiske1990reviewers}, and inter-reviewer reliability is low across fields \citep{bornmann2010reliability}. Low overlap is partly noise \citep{cortes2021inconsistency}, but it is also coverage: a panel of three is more useful than one reviewer read three times only if the three raise different points.
+
+Large language models now sit inside this process. LLM involvement in ICLR reviews is now large by every available estimate: about 10\% of review sentences were LLM-modified in 2024 \citep{liang2024monitoring}, and 21\% of 2026 reviews are labelled fully AI-generated \citep{pangram2025iclr}. The ACL 2027 theme asks whether such use homogenizes what a knowledge system produces. Peer review is a sharp test bed for the question: every paper has its own control group of independent readers, the data are public, and they span the years before and after LLMs arrived. Prior work shows that LLM-written reviews look alike in embedding space \citep{liang2024monitoring,baumann2026stop,hou2026converge}, but embeddings mix style and content, so they cannot say whether the \emph{critiques} converge, and most evidence comes from synthetic reviews or a single year.
+
+We measure homogenization where it matters: at the level of the distinct problems reviewers raise. A two-pass LLM pipeline splits every review into atomic critique claims and then clusters the claims of a paper's reviewers by target and criticism. From the clusters we compute, for a panel of $k$ reviews, the expected number of distinct critiques $D_k$, the number raised by at least two reviewers $S_k$, and the share raised by exactly one $U_k$, together with the pairwise match rates used in earlier human-overlap studies. We apply the pipeline to 117k reviews of 31k papers from ICLR 2017--2026 and NeurIPS 2021--2025, validate it against blind reference annotations across years, and estimate trends and within-paper associations with LLM exposure under four designs that make different assumptions, bounded below by a same-area placebo and above by all-LLM panels.
+
+\paragraph{Findings.} Reviewers of the same ICLR paper shared 1.3--1.4 of their critiques per three reviews in every year from 2021 to 2025 and 1.7 in 2026, a 19\% rise that a placebo of unrelated reviews cannot produce and that is larger on specific claims; NeurIPS rose the same way in 2025. Inside a paper, an LLM-styled review raises fewer critiques, fewer that no co-reviewer raises, and more that a co-reviewer also raises; two such reviews match each other 43\% more often than two unflagged reviews. The 2026 jump is broader than the flagged reviews, and the critiques that two LLM-styled reviews share are not confirmed by a third reader more often than those two unflagged reviews share. Distinct critiques per panel did not fall, but the repertoire narrowed from 267 to 230 effective critique types: clarity, typo and theory critiques gave way to a checklist of evaluation complaints.
+
+\paragraph{Contributions.} (1) The first claim-level, within-paper measurement of reviewer overlap over ten years of real reviews, with a validated and released pipeline. (2) Converging evidence from year trends, a same-area placebo, and two within-paper designs that LLM-styled reviews make panels overlap more, with validation against blind reference annotations and 600 adjudicated claim pairs. (3) A decomposition of what is lost: not specificity but breadth, as close-reading critiques fall and checklist critiques rise. (4) A same-area placebo and an all-LLM upper bound that bracket the observed trend.
+
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{LLM use in peer review.}
+Corpus-level estimates put LLM-modified text at 7--17\% of review sentences at ML venues in late 2023 \citep{liang2024monitoring}; per-review detectors flag 16\% of ICLR 2024 reviews \citep{russo2025lottery} and 21\% of ICLR 2026 reviews as fully AI-generated \citep{pangram2025iclr,thai2026editlens}. Detectors cannot tell polished from generated reviews \citep{saha2026policies}, and half of the reviews written under a no-LLM policy in the ICML 2026 trial were still not purely human \citep{kim2026use}, so we treat exposure as graded and noisy and lean on designs that need no per-review labels.
+
+\paragraph{Effects on scores and content.}
+AI-assisted reviews give higher scores and compress ratings \citep{russo2025lottery,sharma2026favor}, median quality has not clearly declined \citep{kuznetsov2026decline}, and reviews mention originality less since 2023 \citep{wu2026impact}; none of these measures whether reviewers of the same paper raise the same points.
+
+\paragraph{Homogenization.}
+\citet{liang2024monitoring} find that the review nearest its paper's embedding centroid carries more LLM text. \citet{baumann2026stop} show that fully AI-generated ICLR 2026 reviews are more similar to reviews of \emph{other} papers ($d{=}0.29$); their within-paper result (+8.7\%) comes from a 60-paper simulation with two AI reviewer agents, not from real panels. Synthetic LLM reviews converge across papers \citep{hou2026converge,du2024critique}, and in a Nature-family study 21\% of AI--AI review-item pairs match against 3\% of human--human pairs \citep{kim2026limits}. Claim-level work covers reviewer agreement before LLMs \citep{liu2026checklists}, AI coverage of a panel's issues on ICLR 2026 \citep{parsa2026mimicking,fichtl2026communities}, and simulated collapse of AI reviewers \citep{ho2026collapse}; all are embedding-level, synthetic, single-year, or pre-LLM. Outside peer review, LLM assistance reduces the collective diversity of ideas and styles even when wording stays varied \citep{padmakumar2024writing,anderson2024homogenization,doshi2024generative,agarwal2025homogenize,moon2026diverse}, and claim-level pipelines measure this collapse directly \citep{wright2026whose,kim2026argument}. Our contribution is the claim-level, within-paper, ten-year version of the question on real reviews.
+
+\paragraph{Human overlap baselines.}
+Reviewers of the same paper rarely make the same points: a typical pair shares no critical point \citep{fiske1990reviewers}; GPT-4 matches 35\% of one human review's points in another review of the same ICLR paper \citep{liang2024feedback}; a strict same-target-same-criticism rule gives 3\% of pairs \citep{kim2026limits}. The match rule moves the number by an order of magnitude, so we report a strict and a lenient rule. Discussion makes reviews converge \citep{kargaran2025insights}, rebuttals move scores \citep{gao2019rebuttal}, and a randomized trial found no herding effect of the first discussion post on the panel's final decision \citep{stelmakh2023herding}; we flag reviews edited after the author response. LLM evaluators favor their own generations \citep{panickssery2024self} and RLHF reduces output diversity \citep{kirk2024rlhf}, so an LLM instrument may merge LLM-styled claims more readily; our validation tests this.
+
+\section{Data}
+\label{sec:data}
+
+\paragraph{Corpus.}
+We use public OpenReview reviews from Hugging Face dumps: ICLR 2017--2025 and NeurIPS 2021--2025 from ResearchArcade \citep{arcade2025dataset}, and ICLR 2026 from \citet{heineman2026iclr}, completed with the raw API records of \citet{jerma2026iclr}. OpenReview releases reviews under CC~BY~4.0. After keeping official reviews longer than 200 characters and dropping the 2,187 withdrawn ICLR 2026 submissions that have reviews, we have 249{,}903 reviews of 64{,}436 papers (Table~\ref{tab:corpus}, Appendix~\ref{app:corpus}). ICLR is the main corpus because it publishes reviews of rejected papers; the 2024--2025 dumps omit withdrawn submissions and we drop them from 2026 for comparability, a selection we bound in Limitations. NeurIPS publishes mainly accepted papers (95\%) and serves as a replication under a different selection.
+
+\paragraph{Sample.}
+We extract claims from every non-withdrawn ICLR 2017--2023 paper with at least three reviews, from 3{,}000 random papers each for ICLR 2024 and 2025, 6{,}000 for ICLR 2026, and 1{,}000 per year for NeurIPS 2021--2025: 30{,}937 papers and 116{,}847 reviews, with panels capped at five random reviews per paper.
+
+\paragraph{Form changes.}
+The ICLR review form changed in 2022, 2023 and 2024, from one free-text field to separate summary, strengths, weaknesses and questions fields (Table~\ref{tab:corpus}). The extractor reads all fields of a review, joined in a fixed order with field tags, so every year yields the same unit; because a separate questions field could change how many claims a review yields, we also rerun the pipeline with that field removed. ICLR 2024--2026 share one form while LLM use rose steeply, which gives a same-form contrast; NeurIPS 2025 moved back to a joint strengths-and-weaknesses field.
+
+\paragraph{Metadata.}
+Each review carries a rating and a confidence score; each paper a decision. ICLR 2026 submissions carry an OpenReview primary area (21 areas); for other years we predict it from title-and-abstract embeddings trained on the 2026 labels (59\% five-fold accuracy; Appendix~\ref{app:areas}). Public reviews are final versions: for ICLR 2024--2025 we know whether the rating changed after the author response (23\% and 31\% did), and for all years we flag reviews whose text mentions the response; ICLR 2026 modification stamps are bulk timestamps. All ICLR 2023 reviews but 0.1\% were created before 30 November 2022, the release date of ChatGPT.
+
+\paragraph{LLM exposure.}
+We score every review with a style detector: a logistic regression on hashed word 1--2-grams and character 3--4-grams, trained on the human reviews of ICLR 2021--2023 papers paired with reviews of the same papers written by five LLMs \citep{yu2026reviewed}, and tested on the held-out 2024 pairs (AUC 0.99). The detector uses surface style only, never similarity between co-reviews. A review is \emph{flagged} when its score exceeds the 99th percentile of all ICLR 2017--2022 reviews, so the pre-ChatGPT false-positive rate is 1\% by construction. Flagged shares are 2.8\% in 2023, 17\% in 2024, 32\% in 2025 and 44\% in 2026 at ICLR, and 14\%, 27\% and 41\% at NeurIPS 2023--2025. On ICLR 2024 the flag agrees with the independent GPTZero labels of \citet{russo2025lottery} (AUC 0.92; 71\% of flagged reviews are labelled AI, against 18\% overall), which we use as a second measure. We also score only the summary and strengths fields, which feed no claim.
+
+\section{Measuring Distinct Critiques}
+\label{sec:method}
+
+\paragraph{Unit.}
+A \emph{critique claim} is one distinct problem a reviewer raises, one the authors would answer with one fix or one reply (``no comparison with DPO'', ``Theorem~2 assumes bounded gradients without justification''); praise, summary, and questions that only ask for an explanation are not claims. Claims from different reviews of the same paper that point to the same problem form a \emph{critique}.
+
+\paragraph{Two-pass extraction.}
+Pass~1 reads one review at a time and returns its claims as JSON: a paraphrase of at most 25 words that keeps the concrete referents, one of 17 categories (Appendix~\ref{app:prompts}), a target (method, theory, experiments, results, claims, related work, presentation), and a specificity flag (true if the claim names a section, equation, figure, dataset, baseline or number of this paper). Pass~2 receives the claim paraphrases of a panel, without the review text, and groups them in two levels: \emph{targets} (same element of the paper) and \emph{clusters} (same element and same criticism). Pass~1 sees one review at a time, so it cannot harmonize wording across co-reviewers, but it does turn every review into one vocabulary; the placebo panels below measure the overlap that vocabulary produces on its own. Pass~2 sees the pass-1 category and target of each claim as a hint; the reference annotation uses the same protocol. We run both passes with \texttt{gpt-6-luna} (structured JSON output; low reasoning effort in pass~1, medium in pass~2; about \$160 of the study's \$210 for the full sample and its placebo and robustness panels) and repeat them with \texttt{gpt-6.1-sol}, a larger model, on 1,000 ICLR papers (100 per year) as a second instrument.
+
+\paragraph{Outcomes.}
+Let a paper have $n$ reviews. For every subset of $k$ reviews we count the distinct clusters, the clusters raised by at least two of the $k$ reviews, and the share of clusters raised by exactly one; averaging over all $\binom{n}{k}$ subsets gives the rarefied outcomes $D_k$ (distinct critiques), $S_k$ (shared critiques) and $U_k$ (unique rate), the rarefaction of \citet{hurlbert1971rarefaction}. Rarefaction makes panels of three to five reviews comparable; because the clustering saw the whole panel, we also re-cluster a random three-review subset from scratch (all 2023 and 2026 papers with four or more reviews). We report $k{=}3$ because ICLR papers had three reviews on average before 2021. The share of claims in a shared cluster, the pairwise match rate of \citet{kim2026limits} (share of cross-review claim pairs in one cluster) and the hit rate of \citet{liang2024feedback} (share of one review's claims matched in another) place our numbers next to prior baselines; each has a strict (cluster) and a lenient (target) version. Two variants guard against the instrument counting more claims rather than more overlap: the same outcomes on \emph{specific} claims only, and on at most eight randomly kept claims per review.
+
+\paragraph{Cross-paper measures.}
+We embed every claim paraphrase and compute its maximum cosine similarity to a fixed random pool of 10,000 claims from \emph{other} papers in the same venue-year. A claim is a \emph{template} claim if this similarity exceeds the 75th percentile of ICLR 2017--2022, so the template share is 25\% in the pre-period by construction. $k$-means on 300,000 claims of 2017--2022 defines 300 fine-grained critique types; the \emph{tail share} is the share of claims in the 150 types least frequent in 2017--2022, and the effective number of types (exponential of the entropy, on 20,000 claims per venue-year) summarizes the breadth of the repertoire \citep{hill1973diversity,jost2006entropy}.
+
+\paragraph{Placebo panels.}
+The model may merge more readily on the prose of one year, or generic claims may be more mergeable. We therefore run pass~2 on \emph{placebo panels}: for each ICLR year, 300 panels of three reviews of three different papers from the same primary area, and 300 panels of four reviews of four different papers from any area. The placebo tracks, year by year, how much the instrument merges when reviews have no paper in common; the \emph{excess} overlap is the observed mean minus the same-year same-area placebo mean.
+
+\paragraph{Validation.}
+Reference annotations come from a different model family (Claude Opus 5.5) reading under a written two-level protocol with the year hidden: four annotators cover 40 ICLR papers (10 each from 2018, 2022, 2024 and 2026, all four reviews of each), and two further annotators independently re-annotate 20 of them, which gives the noise ceiling of the reference itself. We report rank agreement on every outcome and the bias of the pipeline relative to the reference by year, with its confidence interval. The AMPERE propositions of \citet{hua2019argument} (400 ICLR 2018 reviews) test pass-1 segmentation on one pre-LLM year. Finally, 600 cross-review claim pairs, stratified by the pipeline's decision, by period, and by whether a review is flagged, are adjudicated by two independent runs of an Opus annotator that sees the two claims and both reviews; this tests whether the merge decision is biased toward LLM-styled claims \citep{panickssery2024self}. The pair set is released for human adjudication (Limitations). A further 300 claims (150 from 2017--2022, 150 from 2024--2026) are labelled generic or specific by two independent Opus annotators (Appendix~\ref{app:more}).
+
+\paragraph{Designs.}
+\textbf{E1} fits year effects relative to ICLR 2023, the last year whose reviews were written before ChatGPT, with 2017--2022 as a pre-trend test and heteroskedasticity-robust standard errors. The primary specification has no controls, because review length and rating spread are themselves changed by LLM use \citep{russo2025lottery}; controlled and area-reweighted specifications are robustness checks. \textbf{E2} repeats this inside the same-form window ICLR 2024--2026, and on NeurIPS. \textbf{E3} compares reviews of the same paper with paper fixed effects, at two levels. At the review level, the outcome of a review (share of its claims that co-reviewers also raise, number of claims, number of unique claims, category mix) is regressed on its exposure with review-level controls and paper-clustered errors. At the pair level, the hit rate of every pair of reviews of the same paper is regressed on the pair type (neither, one, or both flagged) with paper fixed effects, on all claims and on specific claims only; this is the comparison a self-preference bias would have to mimic. Because one review's exposure also changes its co-reviewers' outcomes, we report the spillover separately. \textbf{E4} uses area-by-year cells: the share of flagged reviews in a cell as a continuous treatment, with area and year fixed effects, area-specific linear trends, and cell-clustered errors; a continuous treatment needs parallel trends across doses \citep{callaway2024continuous}, which we check with an event study by 2026-dose tercile with 2017--2022 as the pre-period. \textbf{E5} runs the pipeline on panels of four LLM-written reviews of the same ICLR 2022--2024 papers (one each from GPT-4o, Claude, Gemini and Llama, the four models with complete coverage in the paired corpus of \citet{yu2026reviewed}), on mixed panels of two human and two LLM reviews, and on the four human reviews of the same papers; it is a descriptive ceiling. \textbf{E6} tracks which critiques disappear: specific share, template share, tail share, and the effective number of critique types. The effect of an \emph{assigned} LLM policy needs the ICML 2026 trial's assignments \citep{kim2026use}, which are not public; Appendix~\ref{app:icml} gives the analysis plan.
+
+\section{Results}
+\label{sec:results}
+
+The pipeline extracted 793{,}306 claims from the 116{,}847 sampled reviews (6.8 per review). Figure~\ref{fig:trends} shows the main outcomes by venue-year with the placebo floors; Table~\ref{tab:year} gives the ICLR year effects relative to 2023.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figs/trends_gpt-6-luna.pdf}
+\caption{Claim-level outcomes by venue-year with 95\% confidence intervals (shaded: ChatGPT era). Grey lines are placebo panels of reviews of different papers clustered by the same pipeline, rarefied to three reviews: three same-area reviews (squares) or four reviews from any area (triangles). Reviewers of the same ICLR paper shared 1.43 critiques in 2023 and 1.70 in 2026 while the placebo fell; distinct critiques $D_3$ did not change.}
+\label{fig:trends}
+\end{figure*}
+
+\subsection{The instrument}
+\label{sec:validation}
+
+\paragraph{Agreement with the reference.}
+On the 40 blind papers, the pipeline and the Opus reference rank papers alike on distinct critiques ($D_3$: Spearman $\rho{=}0.90$), shared critiques ($S_3$: 0.76), the share of claims shared (0.68) and the hit rate (0.68). The pipeline extracts more claims (29.8 against 25.0 per paper in 2026) and merges less (share shared 0.08 below the reference). The bias in 2026 minus the bias in 2018--2022 is $-0.002$ (SE 0.029) for the share shared and $+0.20$ (0.28) for $S_3$; 40 papers cannot exclude a drift as large as the 2026 effect; the sharper test is the pair adjudication. Two replicates of the reference on 20 papers agree with it at $\rho{=}0.93$--$0.97$, with no bias. On AMPERE, extracted claims track evaluative and request propositions ($\rho{=}0.78$) and cover 68\% of requests.
+
+\paragraph{The merge decision.}
+Appendix Table~\ref{tab:pairs} reports the 600 claim pairs. The two adjudication runs agree on ``same problem'' for 97\% of pairs ($\kappa{=}0.93$). Against pairs that both runs merge, the pipeline's merges have precision 0.84 and recall 0.76. Precision is 0.81 in 2017--2022 and 0.87 in 2026 (SE 0.04 and 0.03), and in 2026 it is the same for pairs with a flagged review (0.88) as without (0.86); recall is lower on flagged pairs (0.76 against 0.84). Correcting the raw 2026-to-2023 ratio of merged claim pairs (1.13) for both rates gives 1.09. The pipeline does not merge LLM-styled claims more readily.
+
+\subsection{Year trends (E1, E2)}
+\label{sec:trends}
+
+\paragraph{ICLR.}
+From 2021 to 2025 a three-review panel shared 1.26--1.44 critiques and 17.9--19.5 were distinct; the share of claims in a shared cluster stayed between 0.175 and 0.193. In 2026 the panel shares 1.70 critiques ($+0.275$ vs.\ 2023, SE 0.024, $+19\%$; $+0.29$ vs.\ 2021--2023 pooled), the share of claims shared is 0.235 ($+0.045$, SE 0.003), the hit rate is 0.115 ($+0.017$, SE 0.002) and the share of critiques raised by one reviewer falls from 0.916 to 0.899. Distinct critiques do not fall relative to 2023 ($D_3$: $-0.11$, SE 0.13), though 2023 itself was 1.3 below 2021--2022, and claims per review do not change ($+0.08$, SE 0.05): reviewers raise as many critiques as in 2023, and more of them twice. The year the form added a questions field, 2024, sits below 2023 ($S_3$ $-0.17$) with 17\% of reviews flagged, and 2025 is 0.08 below with 32\%; inside the same-form window the rise is $+0.44$ from 2024 to 2026. Before 2021, shorter reviews shared more (raw $S_3$ slope $-0.06$ per year over 2017--2023); 2020--2023 is flat ($+0.01$ per year, SE 0.01). A placebo break at 2021 gives $S_3$ shifts of $-0.05$ to $+0.08$ (SE 0.05--0.06) against $+0.33$ for 2026. Embedding similarity between reviews of one paper, the measure of prior work, instead rises every year from 0.73 (2017) to 0.82 (2026), rises between unrelated same-area reviews in 2026 too, and correlates 0.15 with $S_3$ across papers: it tracks style, not content (Appendix~\ref{app:more}).
+
+\begin{table*}[t]
+\centering\scriptsize
+\input{tables/year_effects}
+\caption{ICLR year effects relative to 2023 (coefficient, HC3 heteroskedasticity-robust SE; $^*$: $|t|{>}2.58$). The primary specification has no controls; the others add log length, standardized ratings, confidence and area effects; drop panels with a review that mentions the response or (2024--2025) changed its rating; reweight to the 2017--2022 area mix; keep only specific claims; or cap claims per review at eight.}
+\label{tab:year}
+\end{table*}
+
+\paragraph{What the instrument contributes.}
+Placebo panels show what the pipeline merges when reviews share no paper (Table~\ref{tab:placebo}, Appendix~\ref{app:more}). Same-area panels of three 2026 reviews share 0.10 critiques, down from 0.17--0.31 in 2021--2023: the excess over the placebo is 1.60 in 2026 against 1.17 in 2021--2023 ($+0.43$, SE 0.03). The floor bounds what the pass-1 vocabulary produces on unrelated reviews; the pair adjudication covers the merge step. Re-clustering a random three-review subset from scratch gives $+0.25$ (SE 0.03) from 2023 to 2026 against $+0.29$ rarefied on the same papers (Appendix Table~\ref{tab:variants}). Removing the questions field and re-running both passes on 12,000 papers lowers every level and keeps the same-form rise ($S_3$ $+0.37$ from 2024 to 2026 against $+0.44$ with the full text of the same papers). An eight-claim cap leaves the 2026 effect unchanged ($+0.276$); on specific claims alone it is larger ($+0.42$ on a 2023 base of 1.01); on substantive claims alone, with clarity and typo claims removed, $S_3$ rises from 1.13 to 1.52. Controls, area reweighting and dropping edited panels move the 2026 $S_3$ coefficient between $+0.24$ and $+0.31$ (Table~\ref{tab:year}). The second instrument, \texttt{gpt-6.1-sol} on 100 papers per year, gives $+0.17$ (SE 0.17) for $S_3$ and $+0.37$ (SE 0.13) on specific claims (Appendix~\ref{app:more}).
+
+\paragraph{NeurIPS.}
+NeurIPS, whose reviews are written in summer, shows the same shape: $S_3$ is flat from 2022 to 2024 (1.08--1.11) and rises to 1.27 in 2025 ($+0.16$ vs.\ 2022, SE 0.04), with the share shared up by 0.041 (SE 0.006). The 2025 form returned to a joint strengths-and-weaknesses field, and the opposite change at ICLR 2024 coincided with a dip, so part of this rise may be form.
+
+\subsection{Within the same paper (E3)}
+\label{sec:within}
+
+Table~\ref{tab:within} holds the paper fixed. A flagged ICLR 2024--2026 review makes 1.44 fewer claims than its co-reviews (on a mean of 6.8), has 1.48 fewer claims that no co-reviewer raises, and has a share of shared claims 0.047 higher (SE 0.002, on a mean of 0.24; $+0.030$ with the number of claims as a control, $+0.034$ among reviews with four to eight claims); its claims are less often specific or about clarity, and more often about the scope of the experiments. The flag computed on the summary and strengths fields alone, which feed no claim, gives $+0.027$ (SE 0.002); the independent GPTZero labels for 2024 give $+0.021$ (SE 0.006); and NeurIPS 2023--2025 replicates every coefficient.
+
+\begin{table*}[t]
+\centering\small
+\input{tables/within}
+\caption{Within-paper associations (paper fixed effects; coefficient, SE clustered by paper; $^*$: $|t|{>}2.58$). Top: outcomes of a review regressed on its exposure with log length, rating and confidence as controls; ``Flag'' is the style-detector flag (99th percentile of pre-ChatGPT reviews), ``GPTZero'' the label of \citet{russo2025lottery}, ``S+S fields'' the flag computed on the summary and strengths fields only. Bottom: hit rate of a pair of reviews of the same paper by how many of the two are flagged, relative to pairs with neither flagged (ICLR 2024--2026 on all claims and on specific claims; ICLR 2026; NeurIPS 2023--2025).}
+\label{tab:within}
+\end{table*}
+
+\paragraph{Pairs.}
+Two flagged reviews of the same paper match each other's claims at a hit rate 0.038 above two unflagged reviews of that paper (SE 0.003, on a base of 0.089, $+43\%$), and 0.035 above on specific claims; a pair with one flagged review is only 0.005 above (Appendix Figure~\ref{fig:pairs}). The gap holds in every year from 2024 to 2026 and at NeurIPS ($+0.040$). The 2026 jump, however, is broader than the flagged reviews: in a decomposition into the mix of pair types and the change within types, the mix contributes $-0.003$ of the $+0.018$ from 2023 and $+0.005$ of the $+0.031$ from 2024, and pairs of two unflagged reviews rise from 0.083 in 2024 to 0.100 in 2026. Sub-threshold style explains little of it: the detector score of unflagged reviews rose 2.5-fold since 2023 (mean 0.009 to 0.022) and predicts overlap within the paper, but unflagged pairs in the lowest score tercile rose as much as the rest (0.081 in 2024 to 0.097 in 2026).
+
+\paragraph{Spillover, the pre-period, and a third reader.}
+Unflagged reviews change little when co-reviews are flagged: per additional flagged co-review their share of shared claims moves by $-0.002$ (SE 0.002) and their unique claims by $+0.08$ (0.02). The one percent of 2019--2022 reviews that the detector flags, false positives by construction, show a similar but imprecise pattern ($+0.042$ for the share shared, SE 0.019; $-0.77$ claims): the detector picks out a short, generic style that overlaps more whoever writes it, and LLM use raised that style's share from 1\% to 44\%. When two reviews share a critique, how often does an unflagged third reviewer of the same paper also raise it? The answer is 0.21 for critiques shared by two flagged reviews and 0.20 for those shared by two unflagged reviews (within-paper difference $+0.03$, SE 0.04): agreement between LLM-styled reviews is confirmed by an independent reader no more often than other agreement.
+
+\paragraph{The ceiling (E5).}
+On the same 667 papers, four LLM reviews share 0.50 of their claims against 0.19 for the four human reviews, with a hit rate of 0.275 against 0.091, 15.4 distinct critiques against 24.4 per four reviews, and a specific share of 0.70 against 0.86 (Appendix Table~\ref{tab:llm}). A 2026 ICLR panel (share shared 0.235) is 15\% of the way from the human floor to the all-LLM ceiling.
+
+\subsection{Area-by-year dose (E4)}
+Across primary areas, the share of flagged reviews in an area-year does not predict its overlap: with area and year fixed effects, moving a cell from no flagged reviews to all flagged changes $S_3$ by $-0.58$ (SE 0.35; 95\% upper bound $+0.11$), and an event study by 2026-dose tercile shows neither a pre-trend nor a 2026 divergence (Appendix~\ref{app:more}). A linear dose effect of the size the year trend implies ($+0.62$ per unit) is excluded. Between-area variation in exposure is narrow (2026 flagged shares run from 0.32 to 0.54) and the area labels are noisy, but the result stands: exposure differences \emph{between fields} do not carry the effect that differences \emph{between reviews of one paper} do.
+
+\subsection{What changes (E6)}
+\label{sec:e6}
+
+Table~\ref{tab:cats} shows what a 2026 panel talks about. Clarity and presentation claims fall from 24.5\% of claims in 2021--2023 to 15.3\% in 2026, typo and formatting claims from 5.8\% to 3.1\%, theory claims by a fifth and related-work claims by 30\%; claims about the scope of the experiments, generalization, ablations, computational cost and statistical rigor rise, from a combined 21\% to 34\%. Flagged 2026 reviews are the extreme of the same shift (clarity 10\%, ablations and cost 15\%), and unflagged 2026 reviews have moved the same way. The claims that remain are not vaguer: the share of specific claims rises from 0.86 in 2021--2023 to 0.90, and the template share (claims that closely match a claim about another paper of the same year) falls from 0.27 to 0.20 (Appendix Table~\ref{tab:types}). What narrows is the repertoire: the effective number of fine-grained critique types, on 20{,}000 claims per year, falls from 267 in 2023 to 230 in 2026 with types fitted on 2017--2022, and from 260 to 244 with types fitted on all years; flagged 2026 claims span 214 effective types against 254 for unflagged ones at equal sample size, and NeurIPS follows ICLR (Appendix Figure~\ref{fig:types}). The 2026 reviewer raises a specific, checklist-shaped critique of the experiments, and so does the next reviewer of the same paper.
+
+\begin{table}[t]
+\centering\scriptsize
+\input{tables/categories}
+\caption{Pass-1 categories with the largest change in share of ICLR claims (\%), and the 2026 shares of unflagged and flagged reviews.}
+\label{tab:cats}
+\end{table}
+
+
+\section{Discussion}
+\label{sec:discussion}
+
+\paragraph{Reliability or homogenization?}
+More agreement among reviewers could mean that panels now converge on the real flaws. Three results argue against that reading. A critique that two LLM-styled reviews share is confirmed by a third, unflagged reader no more often than one that two other reviews share, so the extra agreement carries no extra signal. The number of distinct critiques per panel did not grow, so shared critiques replaced unique ones. And the repertoire shrank toward a checklist of evaluation complaints while critiques of writing, theory and related work fell. A panel whose members all ask for one more ablation and none reads the proof covers less of the paper.
+
+\paragraph{Mechanism.}
+The within-paper designs locate a review-level effect: an LLM-styled review raises fewer claims, fewer that nobody else raises, and more that a co-reviewer also raises, and two such reviews of one paper overlap 43\% more than two others, in every year since 2024. Flagged reviews do not change their unflagged co-reviews, so this part is substitution, not contagion through discussion. The same association appears, imprecisely, in the one percent of pre-ChatGPT reviews that have the style, and the detector score predicts overlap below the flag threshold: the finding is about a kind of review, short and checklist-shaped, that LLMs made more than forty times more common. The 2026 jump is larger than this mechanism explains through the flagged reviews alone; sub-threshold styling, LLM-polished papers that leave fewer clarity nitpicks to raise, and ICLR's 2026 rule that authors review may all contribute, and the data cannot separate them.
+
+\paragraph{Why 2026 and not 2024?}
+Flagged reviews overlapped more in 2024, but their share was 17\% and only pairs of two such reviews overlap much more, so composition moved the yearly average within noise, and the 2024 form change coincided with lower overlap. An effect that is clear within papers in 2024 is invisible at the corpus level until adoption is high.
+
+\paragraph{Implications.}
+Venues that let reviewers draft with LLMs should expect panels that agree more and cover less. The remedy is not detection, which cannot tell polishing from drafting \citep{saha2026policies}, but design: area chairs can weigh a critique by how many independent readings it survived rather than by how many reviews repeat it, and forms can ask for the one point no other reviewer is likely to raise. The ICML 2026 trial \citep{kim2026use} measured scores, not what the panels said; its assignment table would let the pipeline test an assigned policy (Appendix~\ref{app:icml}).
+
+\section*{Limitations}
+\paragraph{The measuring instrument is an LLM.}
+Claims are extracted and clustered by \texttt{gpt-6-luna}. We show that a second extractor (\texttt{gpt-6.1-sol}) and blind reference annotations by a different model family (Claude Opus 5.5) rank papers the same way, that the merge decision is no more lenient on LLM-styled claims in 600 adjudicated pairs, and that the placebo panels bound what the instrument produces on reviews with no paper in common. The 40-paper reference cannot exclude a year drift of the pipeline's bias as large as the 2026 effect (95\% CI $\pm0.06$ on the share shared), and the adjudicators are two runs of one model. Still, every model in this chain was trained on text of the same era as the reviews it reads, and none is a human. We did not run a human adjudication of the 600 claim pairs; the pair set, the pipeline, prompts and reference annotations are released so that others can rerun the study with human labels or open models; the open-weight replication the proposal planned was not run, because no GPU was available.
+
+\paragraph{Public reviews are final versions.}
+OpenReview shows reviews as edited after the author response. Discussion can import a co-reviewer's point into a review and so raise overlap. We flag reviews that mention the response, and for ICLR 2024--2025 reviews whose rating changed after it, and show that the trend survives their exclusion; but we cannot recover first drafts, and the ICLR 2026 modification stamps are bulk timestamps.
+
+\paragraph{Exposure is measured, not assigned.}
+No design here randomizes LLM use. The style detector and GPTZero labels are noisy, cannot separate polishing from drafting, and apply to a review, not a reviewer; reviewers who use LLMs may differ in care or expertise. The within-paper and area-by-year designs remove paper-level and area-level confounds, not reviewer-level ones. The randomized ICML 2026 policy trial \citep{kim2026use} is the right instrument; its assignment table is not public, so the randomized analysis is a plan (Appendix~\ref{app:icml}) and needs the organizers' data; the public author-chosen policy field allows only an observational comparison.
+
+\paragraph{Authors use LLMs too.}
+Papers polished by LLMs leave fewer clarity and typo critiques to raise, which could shrink the repertoire and, by removing idiosyncratic claims, raise the measured share of shared claims without any change in reviewers. The within-paper designs hold the paper fixed, and the trend is larger with clarity and typo claims removed, but E1, E2 and E6 cannot separate author-side from reviewer-side LLM use.
+
+\paragraph{Selection on withdrawal.}
+The ICLR 2024--2026 dumps omit withdrawn submissions, and authors withdraw after reading the reviews. If LLM-era panels that agree on a flaw cause more withdrawals, the surviving panels under-represent agreement. The ICLR 2026 dump includes withdrawn papers with reviews, and 1{,}000 of them that we re-ran have more overlap than the kept ones ($S_3$ 2.05 against 1.70; share shared 0.264 against 0.235), so the omission biases the trend toward zero.
+
+\paragraph{One field, one platform.}
+ICLR and NeurIPS are large, public and LLM-heavy; results may not transfer to journals, to venues with closed reviews, or to fields where reviewers use LLMs differently. ICLR 2026 also changed its reviewer guidelines, required authors to review, and reset scores after an access-control incident; we cannot separate these from LLM use in a single year, which is why the within-paper and dose designs matter.
+
+\paragraph{What we do not measure.}
+We count distinct critiques and which kinds disappear; we do not measure whether each critique is correct or useful. A panel that raises fewer, more similar critiques could still be right about them. Our evidence is about coverage, the quantity a panel of several reviewers is meant to provide.
+
+\section*{Ethics Statement}
+We use only public, anonymous OpenReview notes, released under CC~BY~4.0 by OpenReview's terms of use and redistributed by the three Hugging Face dumps under the same licence; the raw API records we use carry no reviewer identity fields and were collected after the November 2025 incident. We never link reviews to reviewer identities, and we do not use any data from the November 2025 OpenReview access-control incident. Our exposure measures classify reviews, not people; we report them only in aggregate and release no per-review LLM labels, because such labels are noisy and could be read as accusations against individual reviewers. The claim tables we release contain paraphrases of public review text with paper identifiers, which allows replication without redistributing paper PDFs. The study used about 210 USD of commercial API calls (\texttt{gpt-6-luna} and \texttt{gpt-6.1-sol}, structured JSON output, October 2026, one run each; Claude Opus 5.5 for reference annotation) and no GPU training; no human subjects were involved. Released review identifiers together with the described detector would let anyone rebuild per-review labels, so we release the detector's training recipe but not its scores. LLMs were used as annotators as described; the authors wrote the text, with an LLM assistant used for code and editing.
+
+\bibliography{refs}
+
+\appendix
+
+\section{Corpus Details}
+\label{app:corpus}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{llrrrl}
+\toprule
+Venue & Year & Papers & Reviews & R/paper & Form \\
+\midrule
+ICLR & 2017 & 490 & 1,775 & 3.6 & single \\
+ICLR & 2018 & 922 & 2,779 & 3.0 & single \\
+ICLR & 2019 & 1,419 & 4,508 & 3.2 & single \\
+ICLR & 2020 & 2,213 & 6,718 & 3.0 & single \\
+ICLR & 2021 & 2,594 & 10,021 & 3.9 & single \\
+ICLR & 2022 & 2,617 & 10,202 & 3.9 & summary+main \\
+ICLR & 2023 & 3,792 & 14,327 & 3.8 & S\&W joint \\
+ICLR & 2024 & 5,716 & 22,098 & 3.9 & S, W, Q \\
+ICLR & 2025 & 8,639 & 34,993 & 4.1 & S, W, Q \\
+ICLR & 2026 & 17,283 & 67,281 & 3.9 & S, W, Q \\
+NeurIPS & 2021 & 2,768 & 10,736 & 3.9 & summary+main \\
+NeurIPS & 2022 & 2,824 & 10,330 & 3.7 & S\&W joint \\
+NeurIPS & 2023 & 3,394 & 15,168 & 4.5 & S, W, Q \\
+NeurIPS & 2024 & 4,236 & 16,643 & 3.9 & S, W, Q \\
+NeurIPS & 2025 & 5,529 & 22,324 & 4.0 & S\&W joint \\
+\bottomrule
+\end{tabular}
+\caption{Public reviews after filtering (official reviews longer than 200 characters; ICLR 2026 without the 2,187 withdrawn papers that have reviews). ``Form'' names the free-text fields: a single review field; a summary plus main review; strengths and weaknesses in one field (S\&W joint); or separate strengths (S), weaknesses (W) and questions (Q) fields.}
+\label{tab:corpus}
+\end{table}
+
+The ICLR 2017--2025 and NeurIPS 2021--2025 reviews come from the \texttt{ulab-ai/ResearchArcade-openreview-reviews} dump; ICLR 2026 reviews from \texttt{davidheineman/iclr-2026}, with the questions field and the creation and modification timestamps added from the raw API records in \texttt{JerMa88/ICLR\_Peer\_Reviews\_2026}. The ICLR 2024 and 2025 dumps omit withdrawn submissions; ICLR 2026 includes them and we drop them. NeurIPS publishes reviews mainly for accepted papers (95\% of papers in the dump). Review text in the ResearchArcade dump has line breaks removed; bullet markers remain.
+
+\section{Area Labels}
+\label{app:areas}
+ICLR 2023--2026 submissions carry an OpenReview primary area, but the taxonomy changed in 2024 (13 areas in 2023, 20--21 since). For a scheme that is constant across all years we embed title and abstract (\texttt{text-embedding-3-small}) and fit a 21-class logistic regression on the ICLR 2026 labels; five-fold accuracy is 0.59, and agreement with the true 2025 labels is 0.61. The DiD design (E4) uses the predicted area for all years; results with the true 2024--2026 areas are reported as a robustness check.
+
+\section{Prompts}
+\label{app:prompts}
+Both passes use structured JSON output with a strict schema and low reasoning effort (pass 1) or medium (pass 2).
+\input{prompts}
+
+\section{Analysis Plan for the ICML 2026 Trial}
+\label{app:icml}
+ICML 2026 assigned a conservative (no LLM) or permissive (understand and polish, no drafting) policy to a random subset of papers and reviewers, with 22.5\% self-reported non-compliance under the conservative policy \citep{kim2026use}. Given the assignments, the pipeline gives three estimates that the trial's published outcomes do not: (1) the intention-to-treat effect of the paper-level policy on $S_3$, $D_3$, the share of claims shared, the specific share and the category mix of the panel, with the paper-level randomization as the design and the same-area placebo of the same venue-year as the floor; (2) the effect of the reviewer-level policy on a review's number of claims, unique claims and share of shared claims, with paper fixed effects, which is E3 under assignment rather than observation; (3) a bound on the within-paper effect of actual use, using the detector flag as a measured mediator and the policy as an instrument. Reviews of accepted ICML 2026 papers are public on OpenReview, and each submission shows which policy its authors chose (Policy A required, or Policy B allowed), so a paper-level comparison of author-chosen policies can be run with an OpenReview login (\texttt{src/fetch\_icml2026.py}); it is observational, because authors chose. The randomized contrasts, (1) on the 10\% of Policy-B papers switched to A and (2) on randomized reviewers, need the assignment table from the organizers; a rejected-paper sample would need their consent.
+
+\section{Additional Results}
+\label{app:more}
+
+\begin{table}[h]
+\centering\small
+\input{tables/pairs_validation}
+\caption{Pipeline merge decisions against 600 claim pairs on which two independent adjudication runs agree. Pairs are stratified by the pipeline's decision, so precision is estimated on random merged pairs and is comparable across rows; recall and FPR are computed on the stratified sample and are shown for completeness.}
+\label{tab:pairs}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figs/pairs_gpt-6-luna.pdf}
+\caption{Left: hit rate between two reviews of the same ICLR paper by how many of the two are flagged (95\% CIs; 2023 has 30 both-flagged pairs, 2026 has 7,312). Right: panels of four human, two human plus two LLM, and four LLM reviews of the same 667 ICLR 2022--2024 papers (E5).}
+\label{fig:pairs}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figs/types_gpt-6-luna.pdf}
+\caption{Breadth of the critique repertoire (shaded: ChatGPT era): effective number of the 300 pre-period critique types (exponential of the entropy, 20{,}000 claims per venue-year) and share of claims in the 150 rarest pre-period types.}
+\label{fig:types}
+\end{figure}
+
+\begin{table*}[h]
+\centering\scriptsize
+\input{tables/placebo}
+\caption{Observed overlap against the same-area placebo (300 panels per year of three reviews of three different ICLR papers in the same primary area) and the excess, with its SE.}
+\label{tab:placebo}
+\end{table*}
+
+\begin{table}[h]
+\centering\scriptsize
+\input{tables/types}
+\caption{Cross-paper measures for ICLR claims (Section~\ref{sec:method}): effective number of fine-grained types, tail-type share, template share, and specific share.}
+\label{tab:types}
+\end{table}
+
+\begin{table*}[h]
+\centering\scriptsize
+\input{tables/type_shift}
+\caption{Fine-grained critique types with the largest change in share (\%) of ICLR claims between 2023 and 2026; labels were written by \texttt{gpt-6-luna} from 15 pre-period example claims per type.}
+\label{tab:shift}
+\end{table*}
+
+\begin{table*}[h]
+\centering\scriptsize
+\input{tables/variants}
+\caption{Re-clustering a random three-review subset from scratch (all ICLR 2023 and 2026 papers with four or more reviews, 2,622 and 4,918; 400 papers in other years) against the rarefied value from the full-panel clustering of the same papers, and the pipeline re-run with the questions field removed (3,000 papers per year, 6,000 in 2026) against the full text of the same papers. SEs in parentheses.}
+\label{tab:variants}
+\end{table*}
+
+\begin{table*}[h]
+\centering\scriptsize
+\input{tables/llm_panels}
+\caption{E5: panels of reviews of the same 667 ICLR 2022--2024 papers from the paired corpus of \citet{yu2026reviewed}.}
+\label{tab:llm}
+\end{table*}
+
+\paragraph{Generic versus specific.} On 300 claims (150 from ICLR 2017--2022, 150 from 2024--2026) two independent Opus annotators label 0.78 and 0.77 as specific and agree with each other on 99\% ($\kappa{=}0.96$). The pipeline labels 0.88 as specific: against the 296 claims on which the annotators agree, its accuracy is 0.83, precision 0.85 and recall 0.96 ($\kappa{=}0.41$), so the pipeline's specific label is lenient. The leniency is similar in both periods (accuracy 0.85 before and 0.82 after, pipeline minus annotator share $+0.09$ and $+0.12$, SE about 0.05), so it shifts the level of the specific share rather than its change; the specific-only outcomes should be read with this bias in mind (\texttt{reports/spec\_validation.txt}).
+
+\paragraph{Embedding-level similarity.} For every sampled review we embed the full text (\texttt{text-embedding-3-small}) and compute, per venue-year, the mean cosine between reviews of the same paper (IntraSim) and between reviews of different papers in the same primary area (InterSim, 300 random pairs per area-year), the measures of \citet{baumann2026stop}. ICLR IntraSim rises in every year: 0.727, 0.730, 0.745, 0.749, 0.761, 0.784, 0.784, 0.791, 0.806, 0.824 from 2017 to 2026 (SE at most 0.003), so the 2026 value is $+0.040$ (SE 0.001) above 2023 on a pre-trend of $+0.010$ per year. InterSim is flat at 0.49--0.51 from 2017 to 2025 and rises to 0.530 in 2026, so the excess of IntraSim over InterSim (0.272 in 2023, 0.308 in 2025, 0.294 in 2026) does not rise in 2026. NeurIPS IntraSim rises from 0.789 (2021) to 0.822 (2025) with InterSim flat. Across the 30,937 ICLR papers, paper-level IntraSim correlates with $S_3$ at Spearman 0.15, with the share shared at 0.17 and with $D_3$ at 0.06. Embedding similarity therefore moves with the form and style of reviews, including between reviews that share no paper, while the claim-level outcomes are flat through 2025 and move in 2026 (\texttt{reports/embed}).
+
+\paragraph{Placebo break at 2021.} A level shift for 2021--2022 against a linear trend fitted inside the pre-period, with the same model applied to the 2026 break on 2020--2026 (2024, the form-change year, dropped). $S_3$: $+0.06$ (SE 0.05), $-0.05$ (0.05) and $+0.08$ (0.06) for pre-periods starting in 2017, 2018 and 2019, against $+0.33$ (0.03) for 2026. Hit rate: $+0.010$ (0.004), $-0.010$ (0.004), $-0.005$ (0.004) against $+0.024$ (0.002). The share shared is less stable: $+0.07$, $+0.02$ and $+0.04$ (SE 0.006) against $+0.027$ (0.003), because the 2018--2020 years swing between 0.15 and 0.20 with the form and with claims per review; $D_3$ shifts by $+1.2$ to $+1.3$ (SE 0.3) at 2021 for the 2018 and 2019 windows, when reviews grew longer, and by $-0.4$ (0.3) for the 2017 window. The 2026 break is therefore clear on $S_3$ and the hit rate, which hold the panel size fixed, and not on the share shared alone (\texttt{reports/prebreak}).
+
+\paragraph{Second instrument.} With \texttt{gpt-6.1-sol} on 100 ICLR papers per year, the raw 2026 effects relative to 2023 are $+0.17$ (SE 0.17) for $S_3$, $+0.029$ (0.018) for the share shared, $+0.37$ (0.13) for $S_3$ on specific claims and $+0.057$ (0.018) for the share shared on specific claims. Within papers (ICLR 2024--2026, 1{,}177 reviews), a flagged review has a share of shared claims $+0.042$ higher (SE 0.015) and 1.5 fewer claims (0.25).
+
+\paragraph{Blind reference, by year.} Pipeline minus reference, mean (SE) over 10 papers per year, for the share of claims shared: 2018 $-0.109$ (0.039), 2022 $-0.074$ (0.032), 2024 $-0.049$ (0.045), 2026 $-0.093$ (0.014); for $S_3$: $-0.70$ (0.37), $-0.20$ (0.24), $-0.10$ (0.19), $-0.25$ (0.17). Reference against its replicate on 20 papers: $S_3$ 1.80 against 1.88 ($\rho{=}0.96$), $D_3$ 17.1 against 17.0 (0.97), share shared 0.269 against 0.269 (0.94).
+
+\paragraph{Dose design.} Effect of the share of flagged reviews in an area-year (0 to 1) with area and year fixed effects: $S_3$ $-0.58$ (0.35); with area trends $-0.25$ (0.43); 2024--2026 only $-0.21$ (0.39); share shared $-0.058$ (0.039). The minimum detectable effect at 80\% power is 0.98. Event-study coefficients (year $\times$ 2026-dose tercile, reference 2023 and the low tercile) for $S_3$ lie between $-0.09$ and $+0.24$ with SEs of 0.05--0.21, and none is significant.
+
+\paragraph{Dose variants.} With the share of both-flagged review pairs in an area-year as the dose, the effect on $S_3$ is $-1.07$ (SE 0.50) with predicted areas; with the true 2023--2026 areas and the share of review pairs with a flagged review, $-0.23$ (0.44). Within ICLR 2026, pairs of two unflagged reviews have hit rates of 0.097, 0.098 and 0.103 across terciles of the pair's mean detector score (0.081, 0.082, 0.090 in 2024).
+
+\paragraph{Decomposition and third-reader test.} Change in the ICLR pair hit rate to 2026, split into the mix of pair types (shares change, rates held at the base year) and within-type change (rates change, shares held at 2026): from 2023, total $+0.018$, mix $-0.003$, within $+0.020$; from 2024, total $+0.031$, mix $+0.005$, within $+0.025$. Share of a pair's shared critiques that one given unflagged third reviewer also raises (ICLR 2024--2026): neither flagged 0.201 (SE 0.002, 26{,}150 critique-reader pairs), one flagged 0.214 (0.003), both flagged 0.211 (0.005). The fine-grained types of Table~\ref{tab:shift} are $k$-means clusters and several are near-synonyms, so single-type shifts are indicative; the category shifts in Table~\ref{tab:cats} are the robust version.
+
+\end{document}

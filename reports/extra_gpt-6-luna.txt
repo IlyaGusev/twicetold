@@ -1,0 +1,53 @@
+Hit-rate change decomposition (ICLR, to 2026):
+    base   total  composition  within_type  share_LL_2026  share_HL_2026  hit_HH_base  hit_HH_2026  hit_LL_2026
+0  2023  0.0178      -0.0026       0.0204         0.2131         0.4635       0.0975       0.1003       0.1429
+1  2024  0.0308       0.0054       0.0254         0.2131         0.4635       0.0832       0.1003       0.1429
+
+ICLR 2026 vs pooled 2021-2023 (raw):
+  S3                   1.415 -> 1.704: +0.289 (SE 0.019)
+  share_shared_claims  0.184 -> 0.235: +0.051 (SE 0.002)
+  hit_rate_strict      0.093 -> 0.115: +0.022 (SE 0.001)
+  D3                   18.877 -> 18.018: -0.859 (SE 0.105)
+  U3                   0.921 -> 0.899: -0.021 (SE 0.001)
+
+Raw pre-trend slope per year (ICLR):
+  (2017, 2023): S3 -0.0641 (SE 0.0073)
+  (2018, 2023): S3 -0.0432 (SE 0.0077)
+  (2020, 2023): S3 +0.0146 (SE 0.0106)
+  (2021, 2025): S3 -0.0226 (SE 0.0065)
+
+E4 S3: -0.575 (SE 0.350); 95% upper bound +0.111; MDE (80% power) 0.980; linear dose implied by the 2026 year effect: 0.62 per unit
+
+E3 share_shared on flag, ICLR 2024-26, with claim-count control (paper FE by demeaning):
+  controls ['log_chars', 'rating', 'confidence']: +0.0474 (SE 0.0023)
+  controls ['log_chars', 'rating', 'confidence', 'n_claims']: +0.0302 (SE 0.0023)
+  reviews with 4-8 claims only: +0.0341 (SE 0.0030), n=27046
+
+Category shares (% of ICLR claims):
+ year                      pre21_23   2023   2024   2025   2026  d_2026_vs_pre  unflagged_2026  flagged_2026
+category                                                                                                   
+clarity/presentation         24.54  24.46  23.19  21.96  15.26          -9.29           18.74         10.12
+typo/formatting               5.77   5.05   4.33   4.51   3.11          -2.66            4.09          1.67
+theory/correctness            7.79   7.39   6.96   6.14   6.35          -1.43            6.53          6.09
+related-work                  4.80   4.35   4.47   3.94   3.37          -1.43            4.11          2.28
+novelty                       5.60   6.66   4.82   4.60   4.83          -0.77            4.62          5.15
+unsupported-claim             4.69   4.47   4.24   4.19   4.22          -0.47            4.67          3.54
+weak-results                  3.11   3.05   3.13   2.75   2.73          -0.38            2.74          2.72
+other                         0.39   0.41   0.46   0.46   0.39          -0.00            0.37          0.42
+baselines/comparisons         8.62   8.31   9.16   9.21   9.21           0.59            9.34          9.02
+limitations/societal          1.01   1.10   1.58   1.64   1.70           0.69            1.32          2.27
+assumptions                   5.03   5.09   5.20   5.18   5.85           0.82            5.58          6.24
+reproducibility/details       7.51   8.86   7.73   8.27   8.49           0.98            8.69          8.20
+statistical-rigor             1.52   1.40   1.46   1.59   2.65           1.13            2.49          2.89
+compute-cost/scalability      2.49   2.62   3.47   3.95   5.23           2.74            3.84          7.29
+ablation                      3.48   3.39   3.89   4.11   6.27           2.79            5.04          8.07
+generalization                2.17   2.17   3.04   3.68   4.98           2.81            3.82          6.69
+experiments-scope            11.48  11.21  12.86  13.83  15.36           3.88           14.02         17.34
+
+Share of a pair's shared critiques also raised by an unflagged third reviewer (ICLR 2024-26):
+           n  confirmed  papers     se
+kind                                 
+HH    15695      0.292    5244  0.004
+HL    13124      0.285    5063  0.004
+LL     5570      0.273    2770  0.006
+  within-paper LL - HH: +0.256 (SE 0.054), n=21265
