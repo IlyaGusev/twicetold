@@ -1,10 +1,10 @@
-"""Panel-level outcomes from pass-1 claims and pass-2 clusters."""
+"""Panel-level outcomes from pass-1 claims and pass-2 clusters (library, no CLI; import with src/ on sys.path).
+
+assign() turns one pass-2 panel into a claim table with strict cluster and lenient target ids; panel_metrics() computes
+the panel outcomes (shared claims, rarefied distinct/shared counts, pair and hit rates, category shares, variants).
+"""
 
 import json
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 from collections import Counter
 from itertools import combinations
 

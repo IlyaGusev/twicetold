@@ -1,0 +1,124 @@
+data/other_reviews.parquet: 41123 reviews, 17535 papers; sources: scipost, f1000, bmc, plos, copernicus
+
+Per source x year
+                 papers  reviews  rev_per_paper  median_chars  share_rated
+conf       year                                                           
+BMC-Med    2018     178      442           2.48        2521.5          0.0
+           2019     193      454           2.35        2527.0          0.0
+           2020     334      847           2.54        2259.0          0.0
+           2021     327      893           2.73        2310.0          0.0
+           2022     463     1159           2.50        2397.0          0.0
+           2023     485     1264           2.61        2320.0          0.0
+           2024     500     1274           2.55        2118.5          0.0
+           2025     132      331           2.51        2126.0          0.0
+Copernicus 2018     300      673           2.24        4439.0          1.0
+           2019     300      658           2.19        4392.5          1.0
+           2020     300      653           2.18        4712.0          1.0
+           2021     300      650           2.17        4465.0          1.0
+           2022     500     1097           2.19        4366.0          1.0
+           2023     500     1083           2.17        4321.0          1.0
+           2024     500     1110           2.22        4238.5          1.0
+           2025     500     1083           2.17        4554.0         0.98
+           2026     500     1075           2.15        4877.0         0.99
+F1000      2018     450     1094           2.43        1991.5          1.0
+           2019     500     1174           2.35        2182.5          1.0
+           2020     500     1159           2.32        1875.0          1.0
+           2021     500     1130           2.26        1750.5          1.0
+           2022     450     1003           2.23        1751.0         0.99
+           2023     500     1202           2.40        1716.5         0.98
+           2024     500     1235           2.47        1455.0         0.96
+           2025     500     1264           2.53        1506.0         0.98
+           2026     500     1244           2.49        1779.0         0.99
+PLOS       2019     500     1185           2.37        2129.0         0.75
+           2020     500     1202           2.40        2182.0         0.77
+           2021     500     1182           2.36        2104.0         0.76
+           2022     500     1176           2.35        1962.0         0.81
+           2023     500     1208           2.42        1852.5          0.8
+           2024     500     1191           2.38        1937.0         0.77
+           2025     500     1239           2.48        2262.0          0.7
+           2026     256      637           2.49        2397.0         0.73
+SciPost    2018     111      249           2.24        2777.0          1.0
+           2019     137      303           2.21        2954.0          0.9
+           2020     229      519           2.27        2544.0         0.82
+           2021     378      853           2.26        2609.0         0.77
+           2022     435      960           2.21        2707.5         0.77
+           2023     416      924           2.22        2633.0         0.78
+           2024     450      999           2.22        2633.0         0.77
+           2025     500     1119           2.24        2690.0         0.78
+           2026     411      926           2.25        3007.0          0.8
+
+Totals by source
+            papers  reviews
+conf                       
+BMC-Med       2612     6664
+Copernicus    3700     8082
+F1000         4400    10505
+PLOS          3756     9020
+SciPost       3067     6852
+
+Exact-duplicate texts within a paper in the merged file: 0 (dropped)
+  scipost fetch stats: {'parsed_reviews': 8603, 'short_dropped': 169, 'dup_dropped': 15}
+  f1000 fetch stats: {'parsed_reviews': 11846, 'short_dropped': 0, 'dup_dropped': 0}
+  bmc fetch stats: {'parsed_reviews': 8109, 'short_dropped': 306, 'dup_dropped': 2}
+  plos fetch stats: {'resubmission': 134, 'letters': 4993, 'letters_split_2plus': 4423, 'parsed_reviews': 11054, 'short_dropped': 0, 'dup_dropped': 1}
+  copernicus fetch stats: {'parsed_reviews': 9682, 'short_dropped': 22, 'dup_dropped': 0}
+PLOS: letters where reviewer splitting found 2+ reviewers: 4423/4993 = 88.6%
+
+Licences (papers)
+conf        licence               
+BMC-Med     CC BY 4.0                 2612
+Copernicus  CC BY 4.0                 3700
+F1000       CC BY (stated in text)    2496
+            CC BY 3.0                    5
+            CC BY 4.0                 1899
+PLOS        CC BY 3.0                    1
+            CC BY 4.0                 3630
+            CC0 1.0                    125
+SciPost     CC BY 4.0                 3067
+
+Journals
+conf        journal                          
+PLOS        PLOS ONE                             2875
+SciPost     SciPost Physics                      2648
+BMC-Med     BMC Medicine                         2612
+F1000       F1000Research                        2452
+Copernicus  EGUsphere                            1536
+F1000       Wellcome Open Research               1499
+            Open Research Europe                  449
+Copernicus  ACP                                   374
+            ESSD                                  234
+            AMT                                   223
+PLOS        PLOS Computational Biology            210
+Copernicus  GMD                                   174
+            HESS                                  156
+SciPost     SciPost Physics Core                  138
+PLOS        PLOS Neglected Tropical Diseases      138
+            PLOS Global Public Health             135
+            PLOS Pathogens                        127
+            PLOS Genetics                         101
+SciPost     SciPost Physics Lecture Notes          90
+            SciPost Physics Codebases              74
+            SciPost Physics Proceedings            51
+            SciPost Physics Community Reports      23
+
+Random snippets (first 300 chars)
+[BMC-Med 2020 10.1186/s12916-020-01846-w Reviewer 1 rating=<NA>] This is a very nice and very important study. D´Tha data are analyzed correctly and limitations of the study are discussed adequately.A comparision with available published studies was conducted.results are concincing and may have an impact on the view upon sleep disturbances as amodifiable factor
+[BMC-Med 2024 10.1186/s12916-024-03808-y Reviewer 2 rating=<NA>] This is a multi-database cohort study using data from the United Kingdom and Hong Kong to assess the risk of all-cause and cause-specific mortality associated with use of warfarin compared with use of direct oral anticoagulants (DOACs). The secondary objective was to assess the same associations aft
+[BMC-Med 2021 10.1186/s12916-021-01963-0 Reviewer 1 rating=<NA>] This is a very important re view article for understanding the current status and challenges of hypertension treatment worldwide. It is significant in that it analyzes the possibility that guideline recommendations are related to the economic status of each country. Although the latest guidelines in
+
+[Copernicus 2021 10.5194/mr-2021-13 Referee 3 rating=minor-revision] The authors report highly intriguing DNP MAS NMR spectra of tubular assemblies made up by the HIV-1 capsid protein. They study the effects of biradical concentration and of different excitation schemes (CP, direct and SCREAM). In line with work by the group of Corzilius, different DNP polarization t
+[Copernicus 2024 10.5194/egusphere-2024-636 Referee 101 rating=minor-revision] \Paper entitled “ Description and validation of VERT 1.0, an R-based framework for estimating road transport emissions from traffic flows” , describes VERT (Vehicular Emissions from Road Traffic) created in R package, that allows estimating traffic emissions. This topic is essential for improving em
+[Copernicus 2026 10.5194/egusphere-2026-217 Referee 1 rating=minor-revision] The authors provide a straightforward analysis of soil CO 2 and CH 4 emissions under different soil water content and salinity levels. The results suggest that both greenhouse gases peak at ~45% water content and increase as salinity levels increase. The results also show that soil water content and
+
+[F1000 2020 10.12688/f1000research.27096 Reviewer 3 rating=Approved with Reservations] This is an excellent genetic study of comparisons between AD and DS-related AD by Delprato and collaborators. Overall, this is an interesting and timely publication. The GeneSet overlay in Figure 1 is an excellent demonstration of the findings. There are only a few comments to be made and these are 
+[F1000 2018 10.12688/wellcomeopenres.14241 Reviewer 3 rating=Approved with Reservations] This is a well-conducted set of preregistered analyses, addressing important research questions, and using an impressive longitudinal data set. While the chosen latent growth model generally is standard for analyzing questions pertaining average longitudinal change (and individual differences therei
+[F1000 2021 10.12688/f1000research.28033 Reviewer 3 rating=approve] HGNChelper is a particularly valuable tool in the toolbox of a bioinformatics practicioneer. It addresses a real problem, which while superficially trivial, actually affects the quality of analyses. I use HGNChelper ALL THE TIME especially if a dataset ends up being garbled by Excel. It is easy to u
+
+[PLOS 2019 10.1371/journal.pone.0223917 Reviewer 3 rating=Q1=Partly;Q2=No;Q3=Yes;Q4=Yes] This is a single institution, retrospective cohort study that examines 570 patients with a history of primary lung cancer surgery in 2006 and 2017 designed to determine the risk factors related to the onset of postoperative delirium, to construct a clinically useful scoring system, and to investigat
+[PLOS 2019 10.1371/journal.pone.0225046 Reviewer 2 rating=Q1=Yes;Q2=Yes;Q3=Yes;Q4=Yes] This manuscript reviews the success and bone loss around narrow diameter implants. The introduction is well structured and prevents the case for this review well. Methods are appropriate and well documented. What is called "success" is actually survival. Some assessment of clinical parameters would 
+[PLOS 2020 10.1371/journal.pone.0243601 Reviewer 1 rating=Q1=Yes;Q2=I Don't Know;Q3=Yes;Q4=Yes] The authors have done a remarkable work on the concept, which has potential for attenuating ventilator shortages. They have also addressed the limitation of the system which, as intriguing as it sounds, can be also very challenging especially using in high risk population.
+
+[SciPost 2021 scipost_202011_00017v1 Reviewer 1 rating=<NA>] [REPORT] This paper is an exploration of Yangian extension of dual conformal symmetry of certain Feynman loop integrals and the differential equations which follow from it. The symmetry is verified on the integral form and then exploited to derive constraints for series representations of the result
+[SciPost 2025 scipost_202503_00003v1 Reviewer 1 rating=validity=high;significance=high;originality=high;clarity=high;formatting=excellent;grammar=good] [STRENGTHS] 1. The paper gives a complete solution of a complicated and essential problem. 2. Detailed presentation of a complicated proof. 3. Explanation of the relations with the known cases, namely the $Y(\mathfrak{0}_3)$ case. 4. Extremely efficient choice of notations making several steps of th
+[SciPost 2022 2202.05191v1 Reviewer 1 rating=validity=good;significance=good;originality=good;clarity=good;formatting=good;grammar=excellent] [STRENGTHS] 1.In the paper, a variant of the SM extension with the use of the symplectic symmetry group, Sp(4), is formulated in sufficient detail and mathematically accurately. 2. Some estimates of the mass spectrum of the model obtained in lattice calculations are presented. 3. In the work, dark q
+
