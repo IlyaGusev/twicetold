@@ -249,15 +249,17 @@ def categories(figs=FIGS):
     for yi, r in zip(y, d.itertuples()):
         ax.text(27.5, yi, f"{r.change:+.1f}".replace("-", "−"), ha="right", va="center", fontsize=7, color=C["ink"])
     top = len(d) - 1
-    end_label(ax, d.pre.iloc[top], top, f"{ICLR_FROM}–22", C["grey"], dx=0, dy=6, ha="center", va="bottom")
-    end_label(ax, d.post.iloc[top], top, "2026", C["ink"], dx=0, dy=6, ha="center", va="bottom")
-    ax.text(27.5, top + 1.1, "change", ha="right", va="center", fontsize=7, color=C["grey"])
+    handles = [plt.Line2D([], [], ls="", marker="o", ms=3.5, mfc="white", color=C["grey"]),
+               plt.Line2D([], [], ls="", marker="o", ms=3.5, color=C["ink"])]
+    ax.legend(handles, [f"{ICLR_FROM}–2022 (mean of years)", "2026"], loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2,
+              handletextpad=0.3, columnspacing=1.2, borderaxespad=0.0, frameon=False)
+    ax.text(27.5, top + 0.9, "change", ha="right", va="center", fontsize=7, color=C["grey"])
     few_ticks(ax, "x")
     ax.set_yticks(y, [CATEGORY_NAMES.get(c, c) for c in d.index])
     ax.tick_params(axis="y", length=0, pad=2)
     ax.spines["left"].set_visible(False)
     ax.set_xlim(0, 28)
-    ax.set_ylim(-0.7, top + 1.6)
+    ax.set_ylim(-0.7, top + 1.4)
     ax.set_xlabel("Share of ICLR critique claims (%)")
     save(fig, figs, "fig3_categories.pdf", COL)
 
@@ -271,7 +273,7 @@ def fields(figs=FIGS):
     pts = {}
     for conf in JOURNALS:
         g = T[T.conf == conf]
-        pre, last = g[g.year.between(2018, 2023)], g[g.year == g.year.max()].iloc[0]
+        pre, last = g[g.year.between(2019, 2023)], g[g.year == g.year.max()].iloc[0]
         dx = last.ai_wordshare - pre.ai_wordshare.mean()
         dy = last.match_std - pre.match_std.mean()
         se = np.sqrt(last.match_std_se ** 2 + (pre.match_std_se ** 2).sum() / len(pre) ** 2)
@@ -301,9 +303,9 @@ def journals(figs=FIGS):
         chatgpt(ax)
         std_line(ax, S, conf, C["ink"])
         ax.set_ylim(0, 19)
-        ax.set_xlim(2017.4, 2026.6)
+        ax.set_xlim(2018.4, 2026.6)
         few_ticks(ax, n=4)
-        years(ax, (2018, 2022, 2026))
+        years(ax, (2019, 2022, 2026))
         ax.set_title(name)
     for ax in (axes[0], axes[3]):
         ax.set_ylabel("Std. match rate (%)")
@@ -313,7 +315,7 @@ def journals(figs=FIGS):
 
 def journals_cross(figs=FIGS):
     """Appendix figure: match rate between reports on different papers of one journal source and year."""
-    O = pd.read_parquet(DATA / f"other_panel_outcomes_{MODEL}.parquet")
+    O = in_window(pd.read_parquet(DATA / f"other_panel_outcomes_{MODEL}.parquet"))
     fig, grid = plt.subplots(2, 3, figsize=(PAGE - 0.1, 2.45))
     fig.subplots_adjust(left=0.075, right=0.995, top=0.92, bottom=0.13, wspace=0.28, hspace=0.65)
     axes = grid.ravel()
@@ -321,9 +323,9 @@ def journals_cross(figs=FIGS):
         chatgpt(ax)
         line(ax, O[(O.conf == conf) & O.placebo], "hit_rate_strict", C["ink"])
         ax.set_ylim(-0.2, 3.4)
-        ax.set_xlim(2017.4, 2026.6)
+        ax.set_xlim(2018.4, 2026.6)
         few_ticks(ax, n=4)
-        years(ax, (2018, 2022, 2026))
+        years(ax, (2019, 2022, 2026))
         ax.set_title(name)
     for ax in (axes[0], axes[3]):
         ax.set_ylabel("Match rate (%)")

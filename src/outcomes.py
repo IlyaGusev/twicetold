@@ -14,7 +14,7 @@ standardize: match rate per source-year that does not move with review length an
     hit ~ C(year) + C(size) + cubic splines (4 df) in log chars of the shorter and of the longer review, with
     size = reviews in the panel clipped to the source's smallest size + 2; the rate of year y is the mean prediction
     over all the source's pairs with year set to y. SE: delta method with panel-clustered covariance (exact, the model is linear).
-    ICLR starts in ICLR_FROM (2020). Writes reports/match_std.csv (conf, year, pairs, raw, std, std_se in %).
+    ICLR starts in 2020, other sources in 2019 (in_window). Writes reports/match_std.csv (conf, year, pairs, raw, std, std_se in %).
 withdrawals: ICLR standardized rate with the withdrawn share equalized across years, rating ICC and match rate by
     rating quintile: reports/match_std_withdrawals.csv.
 
@@ -241,12 +241,14 @@ def review_chars(data, ids):
 
 
 # Before 2020 the public ICLR data hold almost no withdrawn papers (later 13-26%), and withdrawn papers' reviews match
-# more, so earlier ICLR years are not comparable (see `withdrawals`).
+# more, so earlier ICLR years are not comparable (see `withdrawals`). Every other source starts in 2019.
 ICLR_FROM = 2020
+FROM_YEAR = {"ICLR": ICLR_FROM}
+DEFAULT_FROM = 2019
 
 
 def in_window(df):
-    return df[(df.conf != "ICLR") | (df.year >= ICLR_FROM)]
+    return df[df.year >= df.conf.map(FROM_YEAR).fillna(DEFAULT_FROM)]
 
 
 def pair_design(model, data, all_years=False):
