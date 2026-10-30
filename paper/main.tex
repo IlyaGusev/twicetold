@@ -28,21 +28,21 @@ A paper gets several reviewers so that it gets several different readings. We as
 
 \section{Introduction}
 
-Peer review asks several people to read a paper so that they catch different problems. In a classic study, two reviewers of the same paper usually shared no critical point at all \citep{fiske1990reviewers}. That disagreement is partly noise, but disagreement is also coverage: three reviewers are worth more than one reviewer read three times only if they raise different points.
+Peer review asks several people to read a paper so that they catch different problems. In a classic study, two reviewers of the same paper usually shared no critical point at all \citep{fiske1990reviewers}. Disagreement is partly noise, but also coverage: three reviewers are worth more than one read three times only if they raise different points.
 
 LLMs now take part in this work. A corpus-level word-use index puts the AI-likeness of ICLR review text at 11--34\% since 2024 (\citealp{liang2024monitoring}; Section~\ref{sec:ai}), and one detector labels 21\% of ICLR 2026 reviews fully AI-generated \citep{pangram2025iclr}. Prior work compares whole reviews in embedding space \citep{liang2024monitoring,baumann2026stop} or studies synthetic LLM reviews \citep{hou2026converge,kim2026limits}. Embeddings mix wording and content, so they cannot tell whether reviewers now raise the same \emph{problems}. LLM extraction of review critiques exists \citep{liang2024feedback,kim2026limits}; new here are the same-paper against cross-paper contrast, the within-paper comparison of flagged and unflagged reviews, and the 2020--2026 trend on real reviews. We ask five questions; the short answers, all from Section~\ref{sec:results}, are:
 
 \begin{figure*}[t]
 \centering
 \includegraphics{figs/fig1_ai.pdf}
-\caption{Within a paper, two AI-flagged reviews share more critiques than two unflagged ones; every check gives the same sign, and all but one of the nine non-placebo 95\% intervals exclude zero. (a) ICLR word-use AI-likeness index and share of reviews the style detector flags (3--6k papers per year). (b) ICLR match rate (not standardized) of review pairs with neither, one or both reviews flagged; intervals over papers. (c) Within-paper gap, both minus neither flagged, with paper fixed effects: circles, our pipeline (12.0k ICLR papers); squares, blind Claude Opus annotation of panels, of panels after rewriting flagged reviews plain and unflagged ones polished, and of review pairs without the pipeline; open circles, placebos that flag the top 45\% of detector scores before ChatGPT. Dotted line: main estimate. Grey band: review cycles from 2023 on; ICLR 2023 reviews predate ChatGPT. Bars: 95\% confidence intervals.}
+\caption{Within a paper, two AI-flagged reviews share more critiques than two unflagged ones; every check gives the same sign, and all but one of the nine non-placebo 95\% intervals exclude zero. (a) ICLR match rate (not standardized) of review pairs with neither, one or both reviews flagged; intervals over papers. (b) Within-paper gap, both minus neither flagged, with paper fixed effects: circles, our pipeline (12.0k ICLR papers); squares, blind Claude Opus annotation of panels, of panels after rewriting flagged reviews plain and unflagged ones polished, and of review pairs without the pipeline; open circles, placebos that flag the top 45\% of detector scores before ChatGPT. Dotted line: main estimate. Bars: 95\% confidence intervals.}
 \label{fig:ai}
 \end{figure*}
 
 \begin{description}\itemsep0pt
 \item[RQ1] Do two AI-flagged reviews of one paper raise the same critiques more often than two other reviews of it? \emph{Yes, by 3.8 points; every check gives the same sign (Fig.~\ref{fig:ai}).}
-\item[RQ2] Do reviewers of the \emph{same} paper raise the same critiques more often over time? \emph{ICLR and ICML rose in 2026 and NeurIPS in 2025; the ICLR rise (+1.8 points) depends on the extraction model (Fig.~\ref{fig:overlap}a).}
-\item[RQ3] Do reviews of \emph{different} papers raise the same critiques more often? \emph{No: 0.7\% to 0.2\% (Fig.~\ref{fig:overlap}b).}
+\item[RQ2] Do reviewers of the \emph{same} paper raise the same critiques more often over time? \emph{ICLR and ICML rose in 2026 and NeurIPS in 2025; the ICLR rise (+1.8 points) depends on the extraction model (Fig.~\ref{fig:overlap}).}
+\item[RQ3] Do reviews of \emph{different} papers raise the same critiques more often? \emph{No: 0.7\% to 0.2\% (Fig.~\ref{fig:cross}).}
 \item[RQ4] Which critiques gain ground? \emph{Requests for more experiments; clarity critiques fell from 25\% to 15\% of claims (Fig.~\ref{fig:categories}).}
 \item[RQ5] Does the pattern hold outside ML? \emph{In two of five journal sources, those whose AI-likeness index rose most (Fig.~\ref{fig:fields}).}
 \end{description}
@@ -53,7 +53,7 @@ LLMs now take part in this work. A corpus-level word-use index puts the AI-liken
 \label{sec:data}
 
 \paragraph{Reviews.}
-Table~\ref{tab:data} lists the sources. ICLR (2020--2026) and NeurIPS (2021--2025) reviews are public on OpenReview \citep{arcade2025dataset,heineman2026iclr}; we sample 28.1k papers with three or more reviews each (Appendix~\ref{app:data}). We start ICLR in 2020, a choice made after seeing the data: earlier public ICLR data hold almost no withdrawn papers, whose reviews match more (Appendix~\ref{app:data}). ICML (2025--2026): 1.5k accepted papers per year. Five journal sources publish their referee reports (\emph{reports}, against conference \emph{reviews}) with an open license: SciPost (physics), F1000Research and its sister platforms (biomedicine), PLOS (biomedicine and social science), BMC Medicine \citep{jerma2026bmc} and the Copernicus/EGU discussion journals (geoscience); we take up to 500 papers per journal-year with two or more first-round reports. ICLR 2023 reviews predate ChatGPT (30 November 2022); journal reports of 2023 are mixed.
+Table~\ref{tab:data} lists the sources. ICLR (2020--2026) and NeurIPS (2021--2025) reviews are public on OpenReview \citep{arcade2025dataset,heineman2026iclr}; we sample 28.1k papers with three or more reviews each (Appendix~\ref{app:data}). We start ICLR in 2020, a choice made after seeing the data: earlier public ICLR data hold almost no withdrawn papers, whose reviews match more (Appendix~\ref{app:data}). ICML (2025--2026): 1.5k accepted papers per year. Five journal sources publish their referee reports (\emph{reports}, against conference \emph{reviews}) with an open license: SciPost, F1000Research and its sister platforms (F1000), PLOS, BMC Medicine \citep{jerma2026bmc} and the Copernicus/EGU discussion journals (fields in Table~\ref{tab:data}); we take up to 500 papers per journal-year with two or more first-round reports. ICLR 2023 reviews predate ChatGPT (30 November 2022); journal reports of 2023 are mixed.
 
 \begin{table}[t]
 \centering\footnotesize
@@ -80,7 +80,7 @@ Copernicus & geoscience & 2018--26 & 3,696 & 7,961 \\
 An LLM (\texttt{gpt-6-luna}) reads one review at a time and lists its critique claims: one claim is one problem that the authors would answer with one fix (``no comparison with DPO'', ``Theorem~2 assumes bounded gradients''). Praise and summary are not claims. A second call receives the claims of all reviews of one paper, without the review texts, and groups claims that point to the same problem in the same part of the paper. The pipeline gives 6.8 claims per ML review.
 
 \paragraph{The measure.}
-For two reviews $A$ and $B$, the \emph{match rate} is the share of $A$'s claims that are in a group with a claim of $B$, averaged over both directions (Appendix~\ref{app:robust}). For RQ1 and RQ2 we average it over the review pairs of a paper; for RQ3 we compute it on pairs of reviews of \emph{different} papers of the same venue, year and area, put through the same grouping call. Larger panels match less and grew over time, so for trends we report the \emph{standardized match rate}: the rate each year would have with the pooled mix of panel sizes and review lengths (a regression on pairs). Published rates for the same quantity are 3\% with a strict rule \citep{kim2026limits} and 35\% with a lenient one \citep{liang2024feedback}.
+For two reviews $A$ and $B$, the \emph{match rate} is the share of $A$'s claims that are in a group with a claim of $B$, averaged over both directions (Appendix~\ref{app:robust}). For RQ1 and RQ2 we average it over the review pairs of a paper; for RQ3 we compute it on pairs of reviews of \emph{different} papers of the same venue, year and area, put through the same grouping call. Larger panels match less and grew over time, so for trends we report the \emph{standardized match rate}: the rate each year would have with the pooled mix of panel sizes and review lengths (a regression on pairs).
 
 \paragraph{AI-flagged.}
 A review is \emph{flagged} when a style detector, trained on paired human and LLM reviews, scores it above the 99th percentile of pre-2023 reviews (Appendix~\ref{app:ai}). A flag describes the text, not who wrote it.
@@ -91,7 +91,7 @@ On 40 ICLR papers annotated end to end by a different model family (Claude Opus)
 \begin{figure}[t]
 \centering
 \includegraphics{figs/fig2_overlap.pdf}
-\caption{Under the main extraction model, the same-paper match rate rose at ICLR and ICML in 2026 and at NeurIPS in 2025; the second model finds a smaller ICLR rise. The rate across papers did not rise. (a) Standardized match rate between reviews of the same paper (1--6k papers per venue-year). (b) Match rate (not standardized) between reviews of different papers of one venue and year, or of one research area (dashed; 300 panels per venue-year). ICML is shifted right to keep markers apart. Grey band: review cycles from 2023 on; ICLR 2023 reviews predate ChatGPT. Bars: 95\% confidence intervals.}
+\caption{Under the main extraction model, the same-paper match rate rose at ICLR and ICML in 2026 and at NeurIPS in 2025; the second model finds a smaller ICLR rise. Standardized match rate between reviews of the same paper, 1--6k papers per venue-year. ICML is shifted right. Grey band: review cycles from 2023 on; ICLR 2023 reviews predate ChatGPT. Bars: 95\% confidence intervals.}
 \label{fig:overlap}
 \end{figure}
 
@@ -102,35 +102,35 @@ On 40 ICLR papers annotated end to end by a different model family (Claude Opus)
 \label{fig:categories}
 \end{figure}
 
-\begin{figure*}[t]
+\begin{figure}[t]
 \centering
 \includegraphics{figs/fig4_fields.pdf}
-\caption{Exploratory: the two journal sources whose AI-likeness index rose most had the largest rise in match rate. Left: standardized match rate between reports on the same paper (filled) and match rate between reports on different papers of one source and year (open); 100--500 papers per source-year, 2026 covers January to October. Right: change of the standardized match rate from the 2018--2023 mean (PLOS 2019--2023) to the last year (2026; BMC Medicine 2025), against the change in the source's word-use AI-likeness index (its interval is narrower than the marker). Grey band: 2023 on. Bars: 95\% confidence intervals.}
+\caption{Exploratory: the two journal sources whose AI-likeness index rose most had the largest rise in match rate. Change of the standardized same-paper match rate from the 2018--2023 mean (PLOS 2019--2023) to the last year (2026; BMC Medicine 2025), against the change in the source's word-use AI-likeness index (interval within the marker); 100--500 papers per source-year. Bars: 95\% confidence intervals.}
 \label{fig:fields}
-\end{figure*}
+\end{figure}
 
 \section{Results}
 \label{sec:results}
 
 \paragraph{RQ1: Flagged pairs share 3.8 points more.}
 \label{sec:ai}
-We measure AI-likeness three ways; each is an index whose level depends on its reference (Appendix~\ref{app:ai}). A word-use estimate \citep{liang2024monitoring} puts ICLR review text at 0\% in 2020--2022, 0.5\% in 2023, 11\% in 2024, 26\% in 2025 and 34\% in 2026 (Figure~\ref{fig:ai}a). The style detector flags 44\% of ICLR 2026 reviews; CoCoDet, a second detector trained to separate AI-written content from AI polishing \citep{chen2025coconuts}, labels 13\% AI-written (24\% with mixed; Table~\ref{tab:byyear}). Within a paper, two flagged reviews match 3.8 points more often than two unflagged ones (95\% CI 3.3--4.3; $+43\%$; 12.0k papers; Figure~\ref{fig:ai}b), in every year since 2024, and $+4.0$ (SE 0.4) in the 2,711 papers that hold both kinds of pair. The gap compares reviews of one paper and one year, so drift of the extraction model over time cannot produce the gap. The gap has the same sign at NeurIPS, with CoCoDet labels, with length and claim-count controls and under the second model (Figure~\ref{fig:ai}c). Blind Opus annotators find +5.6 to +7.3 (pooled +5.3, 95\% CI 1.4--9.2). Placebo flags before ChatGPT give +0.2 to +0.5. AI-likeness alone does not explain the timing, though: the AI-likeness index rose steadily from 2024 while the match rate stayed flat until 2026, and in 2026 pairs of two unflagged reviews also rose, from 8.3--8.4\% to 10.0\%.
+We measure AI-likeness three ways; each is an index whose level depends on its reference (Appendix~\ref{app:ai}). A word-use estimate \citep{liang2024monitoring} puts ICLR review text at 0\% in 2020--2022, 0.5\% in 2023, 11\% in 2024, 26\% in 2025 and 34\% in 2026 (Figure~\ref{fig:likeness}). The style detector flags 44\% of ICLR 2026 reviews; CoCoDet, a second detector trained to separate AI-written content from AI polishing \citep{chen2025coconuts}, labels 13\% AI-written (24\% with mixed; Table~\ref{tab:byyear}). Within a paper, two flagged reviews match 3.8 points more often than two unflagged ones (95\% CI 3.3--4.3; $+43\%$; 12.0k papers; Figure~\ref{fig:ai}a), in every year since 2024, and $+4.0$ (SE 0.4) in the 2,711 papers that hold both kinds of pair. The gap compares reviews of one paper and one year, so drift of the extraction model over time cannot produce the gap. The gap has the same sign at NeurIPS, with CoCoDet labels, with length and claim-count controls and under the second model (Figure~\ref{fig:ai}b). Blind Opus annotators find +5.6 to +7.3 (pooled +5.3, 95\% CI 1.4--9.2). Placebo flags before ChatGPT give +0.2 to +0.5. AI-likeness alone does not explain the timing, though: the AI-likeness index rose steadily from 2024 while the match rate stayed flat until 2026, and in 2026 pairs of two unflagged reviews also rose, from 8.3--8.4\% to 10.0\%.
 
 \paragraph{RQ2: ICLR rose 1.8 points in 2026; the rise is uncertain.}
-At ICLR the standardized match rate moved between 8.4\% and 9.7\% from 2020 to 2025 and rose to 11.5\% in 2026: $+1.8$ points over 2023 (95\% CI 1.4--2.2; $+19\%$), above every year since 2020 (Figure~\ref{fig:overlap}a). NeurIPS was flat at 7.4--7.7\% from 2021 to 2024 and rose to 8.6\% in 2025; ICML rose from 7.8\% in 2025 to 11.3\% in 2026. Reviewers raise 6.6--6.9 critiques per review since 2023, against 6.8--7.3 in 2020--2022, and more of them twice. The rise survives restricting to specific claims, a lenient matching rule, regrouping three-review subsets and dropping the questions field (Table~\ref{tab:robust}). The top-rated fifth of papers, closest to what NeurIPS publishes, rose from 6.1--7.0\% to 9.6\%. The 2026 rise is the least robust of our results. The second model finds $+0.5$ points (SE 0.5) against $+2.0$ for the main model on the same 500 papers per year, and the blind reference allows drift of this size, so we treat the rise as suggestive.
+At ICLR the standardized match rate moved between 8.4\% and 9.7\% from 2020 to 2025 and rose to 11.5\% in 2026: $+1.8$ points over 2023 (95\% CI 1.4--2.2; $+19\%$), above every year since 2020 (Figure~\ref{fig:overlap}). NeurIPS rose from 7.4--7.7\% to 8.6\% in 2025, ICML from 7.8\% to 11.3\% in 2026. Reviewers raise 6.6--6.9 critiques per review since 2023, against 6.8--7.3 in 2020--2022, and more of them twice. The rise survives restricting to specific claims, a lenient matching rule, regrouping three-review subsets and dropping the questions field (Table~\ref{tab:robust}). The top-rated fifth of papers, closest to what NeurIPS publishes, rose from 6.1--7.0\% to 9.6\%. The 2026 rise is the least robust of our results. The second model finds $+0.5$ points (SE 0.5) against $+2.0$ for the main model on the same 500 papers per year, and the blind reference allows drift of this size, so we treat the rise as suggestive.
 
 \paragraph{RQ3: Different papers did not grow more alike.}
-Reviews of different papers did not raise the same concrete problem more often (Figure~\ref{fig:overlap}b): their match rate fell from 0.7\% in 2023 to 0.2\% in 2026 (the grouping prompt assumes one paper, so these rates compare across years only; Appendix~\ref{app:prompts}), and the share of claims that nearly repeat a claim about another paper of the same year fell from 27\% to 21\% (Appendix~\ref{app:more}). Whole-review embeddings, which mix wording and content, grew more similar within papers in every year since 2020, and across papers only in 2026 (Figure~\ref{fig:embedding}).
+Reviews of different papers did not raise the same concrete problem more often (Figure~\ref{fig:cross}): their match rate fell from 0.7\% in 2023 to 0.2\% in 2026, and stayed at 0.7--2.2\% with no rise for papers of one research area (Figure~\ref{fig:area}; the grouping prompt assumes one paper, so these rates compare across years only), and the share of claims that nearly repeat a claim about another paper of the same year fell from 27\% to 21\% (Appendix~\ref{app:more}). Whole-review embeddings grew more similar within papers every year since 2020 and across papers only in 2026 (Figure~\ref{fig:embedding}).
 
 \paragraph{RQ4: Experiment requests up, clarity down.}
 Clarity and presentation fell from 25\% of ICLR claims in 2020--2022 to 15\% in 2026, typos and formatting from 6\% to 3\%, related work from 4.9\% to 3.4\% and theory from 7.9\% to 6.4\%, while the scope of experiments, ablations, generalization and compute cost rose together (Figure~\ref{fig:categories}). Claims did not get vaguer: 88\% named a concrete part of the paper in 2020--2022, 90\% in 2026. The repertoire is narrower: the effective number of critique types (the exponential of their entropy) falls from 262 in 2023 to 240 in 2026 (ratio 0.91, SE 0.005; Appendix~\ref{app:more}).
 
 \paragraph{RQ5: Two of five journal sources rose.}
-We run the same pipeline on journal reports and estimate each journal's AI-likeness against AI rewrites of its own pre-2022 reports, matched in length (Appendix~\ref{app:ai}). Before 2023 the standardized match rate was 5.7--6.9\% in BMC Medicine, 8--9\% in PLOS and 10--11\% in F1000 and Copernicus, the same range as ML; SciPost, the smallest source, varied between 10\% and 14\% (Figure~\ref{fig:fields}). F1000 and PLOS, where the index reached 25\% in 2026, rose by 6.4 points (SE 1.0) and 3.2 points (0.9). Copernicus, SciPost and BMC Medicine, at 5--14\%, rose by 0.9--1.2 points, within two standard errors. Across the five sources the rise tracks the index (Pearson 0.82, but $n{=}5$: 95\% CI $-0.2$ to 0.99). These results are exploratory: five sources, one extraction model, no drift check; and ICML's rate rose while CoCoDet labels only 6\% of its reviews (Appendix~\ref{app:more}).
+We run the same pipeline on journal reports and estimate each journal's AI-likeness against AI rewrites of its own pre-2022 reports, matched in length (Appendix~\ref{app:ai}). Before 2023 the standardized match rate was 5.7--6.9\% in BMC Medicine, 8--9\% in PLOS and 10--11\% in F1000 and Copernicus, the same range as ML; SciPost varied between 10\% and 14\% (Figure~\ref{fig:journals}), and the rate between reports on different papers stayed at 0--2\% (Figure~\ref{fig:journals_cross}). F1000 and PLOS, where the index reached 25\% in 2026, rose by 6.4 points (SE 1.0) and 3.2 points (0.9). Copernicus, SciPost and BMC Medicine, at 5--14\%, rose by 0.9--1.2 points, within two standard errors. Across the five sources the rise tracks the index (Figure~\ref{fig:fields}; Pearson 0.82, but $n{=}5$: 95\% CI $-0.2$ to 0.99). These results are exploratory: five sources, one extraction model, no drift check; and ICML's rate rose while CoCoDet labels only 6\% of its reviews (Appendix~\ref{app:more}).
 
 \section{Discussion}
 
-The data show more repeated critiques, not worse reviews. More agreement could also mean more reliable panels; we cannot judge correctness. Distinct critiques per paper did not grow, so shared critiques replaced unique ones, and a test of whether a third, unflagged reviewer confirms a critique shared by two flagged reviews more often than one shared by two unflagged reviews is inconclusive ($+3.3$ points, 95\% CI $-5.1$ to 11.7; Appendix~\ref{app:more}). Speculation: reviewers who draft with the same models get the same salient critiques; our data cannot test this mechanism.
+The data show more repeated critiques, not worse reviews. More agreement could also mean more reliable panels; we cannot judge correctness. Distinct critiques per paper did not grow, so shared critiques replaced unique ones, and a test of whether a third, unflagged reviewer confirms a critique shared by two flagged reviews more often than one shared by two unflagged reviews is inconclusive ($+3.3$ points, 95\% CI $-5.1$ to 11.7; Appendix~\ref{app:more}). Speculation: reviewers who draft with the same models get the same salient critiques; we cannot test this.
 
 \section*{Limitations}
 \textbf{The extraction model is an LLM.} An LLM extracts and groups the claims; we validate it against blind annotations from another model family and two independent adjudication runs, not against humans, and release the 600 claim pairs for human labels. \textbf{The trend depends on the extraction model.} A second model finds a smaller rise over time, and a blind reference cannot exclude upward drift of the main model; the within-paper comparisons are not affected by drift over time, though they could be affected if extraction or grouping treats AI-like prose differently, which only human labels can rule out. \textbf{Public reviews are final versions.} Discussion can import a co-reviewer's point into a review; we cannot recover first drafts, and dropping reviews that mention the author response does not change the result. In open journals (F1000, Copernicus) reviewers can read earlier reports; at PLOS they cannot, and its rate also rose. \textbf{AI use is measured, not assigned.} Detectors are noisy and cannot fully separate polishing from drafting; within-paper comparisons remove paper-level confounds, not reviewer-level ones. All AI results are associations. Detector flags describe text, not people, and must not be used as evidence against an individual reviewer; detectors may also err more for non-native writers and for disciplines and templates unlike their training data, and an unflagged review is not thereby human-written. \textbf{Other changes in 2026.} ICLR 2026 also required authors to review and changed its guidelines; authors also use LLMs, which may leave fewer typos to report. \textbf{Selection.} NeurIPS and most journal sources publish reports of accepted papers only. \textbf{Scope.} All texts are in English, and most are from one field.
@@ -200,7 +200,7 @@ The data show more repeated critiques, not worse reviews. More agreement could a
 m(A,B)=\frac12\left(\frac{n_{A\to B}}{|C_A|} + \frac{n_{B\to A}}{|C_B|}\right),
 \end{equation}
 where $n_{A\to B}=|\{c\in C_A: g(c)\in G_B\}|$ counts $A$'s claims whose group also holds a claim of $B$.
-Reviews without claims enter no pair. A paper's rate is the mean over its review pairs, and a year's rate the mean over papers. Two claims of one review in the same group both count; counting each review's distinct groups once instead gives the same 2023--2026 changes ($+1.9$ and $+0.5$ points for the two models). The \emph{share of claims in shared groups}, used for the second model, is the fraction of a paper's claims whose group also holds a claim of another review of the paper; unlike the pairwise match rate, it counts a claim as shared if any co-reviewer raises it, so it is higher and grows with panel size (the model comparison uses the same papers). A third quantity, shared groups per claim (groups holding claims of two or more reviews, divided by claims), gives the same order: $+1.5$ (SE 0.4) for the second model and $+2.2$ (0.4) for the main model.
+Reviews without claims enter no pair. A paper's rate is the mean over its review pairs, and a year's rate the mean over papers. Published rates for the same quantity are 3\% with a strict same-problem rule \citep{kim2026limits} and 35\% with a lenient GPT-4 matcher \citep{liang2024feedback}. Two claims of one review in the same group both count; counting each review's distinct groups once instead gives the same 2023--2026 changes ($+1.9$ and $+0.5$ points for the two models). The \emph{share of claims in shared groups}, used for the second model, is the fraction of a paper's claims whose group also holds a claim of another review of the paper; unlike the pairwise match rate, it counts a claim as shared if any co-reviewer raises it, so it is higher and grows with panel size (the model comparison uses the same papers). A third quantity, shared groups per claim (groups holding claims of two or more reviews, divided by claims), gives the same order: $+1.5$ (SE 0.4) for the second model and $+2.2$ (0.4) for the main model.
 
 \paragraph{Standardized match rate.} Per source, we fit an OLS regression on review pairs of the pair's match rate on year, panel size (3, 4, 5+ reviews; 2, 3, 4+ for journals) and B-splines of the log length of the shorter and of the longer review. The standardized rate of a year is the mean prediction over all of the source's pairs with the year set to it; standard errors use the delta method with covariance clustered by paper. The regression weights review pairs equally, so a five-review paper counts more than in the paper-weighted raw rate; for ICLR 2020--2026 the standardized and raw rates differ by at most 0.5 points. A fourth reviewer lowers the rate by 0.4 points and a fifth by 0.7. Since 2020, review length matters little: across eighths of the mean length of a pair, the ICLR rate varies between 9.4\% and 10.2\%. The adjustment lowers ICLR 2020 by 0.5 points and moves other years by less than 0.2.
 
@@ -260,6 +260,49 @@ Table~\ref{tab:evidence} summarizes the evidence for each research question.
 \paragraph{Third reviewer.} For each critique that two reviews of an ICLR 2024--2026 paper share, we check whether a given unflagged third reviewer of the paper also raises it. It does for 20.1\% (SE 0.2) of critiques shared by two unflagged reviews (5.2k papers), 21.4\% (0.3) for one flagged and one unflagged, and 21.1\% (0.5) for two flagged (2.8k papers); within paper, two flagged minus two unflagged is $+3.3$ points (SE 4.3).
 
 \paragraph{Near repeats across papers.} For each claim we take the highest cosine similarity of its embedding to a claim about another paper in a fixed-size random pool of claims of the same venue and year. A claim nearly repeats one about another paper when this similarity exceeds the 75th percentile of ICLR 2017--2022 claims, a threshold fixed before the analysis window was chosen. The ICLR share of such claims fell from 27\% in 2023 to 21\% in 2026.
+
+\paragraph{AI-likeness by year.} Figure~\ref{fig:likeness} shows the ICLR word-use index and the share of flagged reviews by year.
+
+\begin{figure}[h]
+\centering
+\includegraphics{figs/figA_likeness.pdf}
+\caption{AI-likeness of ICLR reviews rose from 2024 on: word-use index and share of reviews the style detector flags (about 1\% before 2023 by design); 2.1--6k papers per year. Grey band: review cycles from 2023 on.}
+\label{fig:likeness}
+\end{figure}
+
+\paragraph{Different papers.} Figure~\ref{fig:cross} shows the match rate between reviews of different papers of one venue and year.
+
+\begin{figure}[h]
+\centering
+\includegraphics{figs/figA_cross.pdf}
+\caption{Reviews of different papers did not share more critiques over time. Match rate between reviews of different papers of one venue and year; 300 panels of four papers per venue-year. Grey band: review cycles from 2023 on. Bars: 95\% confidence intervals.}
+\label{fig:cross}
+\end{figure}
+
+\paragraph{Same research area.} Figure~\ref{fig:area} compares the ICLR cross-paper match rate for panels drawn from one venue and year with panels drawn from one research area and year; the area panels match more but show no rise.
+
+\begin{figure}[h]
+\centering
+\includegraphics{figs/figA_area.pdf}
+\caption{Reviews of different ICLR papers of one research area share more critiques than those of any two papers of the year, and neither rate rose. Match rate between reviews of different papers; 300 panels of four papers per year (venue) and 300 panels of three papers per area-year (dashed). Grey band: review cycles from 2023 on. Bars: 95\% confidence intervals.}
+\label{fig:area}
+\end{figure}
+
+\paragraph{Journal sources by year.} Figures~\ref{fig:journals} and~\ref{fig:journals_cross} give each source's standardized same-paper match rate and its rate between reports on different papers.
+
+\begin{figure*}[h]
+\centering
+\includegraphics{figs/figA_journals.pdf}
+\caption{F1000 and PLOS rose after 2023; the other three sources stayed within their earlier range. Standardized match rate between reports on the same paper, 100--500 papers per source-year; 2026 is January--October. Grey band: 2023 on. Bars: 95\% confidence intervals.}
+\label{fig:journals}
+\end{figure*}
+
+\begin{figure*}[h]
+\centering
+\includegraphics{figs/figA_journals_cross.pdf}
+\caption{Reports on different papers of one journal source and year share 0--2\% of critiques; only F1000 rose, to 2\% in 2026 with a wide interval. Match rate between reports on different papers; 150 panels per source-year. Grey band: 2023 on. Bars: 95\% confidence intervals.}
+\label{fig:journals_cross}
+\end{figure*}
 
 \paragraph{Embeddings.} Figure~\ref{fig:embedding} shows the cosine similarity of whole-review embeddings (\texttt{text-embedding-3-small}).
 

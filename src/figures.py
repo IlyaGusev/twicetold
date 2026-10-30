@@ -9,7 +9,8 @@ claims table and detector scores.
 
 Usage:
   uv run python -I src/figures.py all [--figs DIR]          # every figure below
-  uv run python -I src/figures.py ai|overlap|categories|fields|embedding [--figs DIR]
+  uv run python -I src/figures.py ai|overlap|categories|fields [--figs DIR]   # main figures
+  uv run python -I src/figures.py likeness|cross|area|journals|journals_cross|embedding   # appendix figures
   uv run python -I src/figures.py table [--csv reports/by_year.csv --tables paper/tables]
 """
 
@@ -114,20 +115,14 @@ def with_pair_type(pairs, flags):
     return pairs.assign(pair_type=n.map({0: "HH", 1: "HL", 2: "LL"}))
 
 
-def ai(figs=FIGS):
-    """Fig. 1: AI-likeness of ICLR reviews, match rate by pair type, and every estimate of the within-paper gap."""
+def likeness(figs=FIGS):
+    """Appendix figure: ICLR AI-likeness index and share of flagged reviews by year."""
     A = pd.read_csv(REPORTS / "llm_share.csv").query("conf == 'ICLR' and year >= @ICLR_FROM")
     D = pd.read_parquet(DATA / "detector_scores.parquet", columns=["review_id", "llm_flag"])
     R = pd.read_parquet(DATA / "reviews.parquet", columns=["review_id", "conf", "year"]).merge(D, on="review_id")
     flag = R.query("conf == 'ICLR' and year >= @ICLR_FROM").groupby("year").llm_flag.mean() * 100
-    P = with_pair_type(pd.read_parquet(DATA / f"pairs_{MODEL}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]),
-                       D.set_index("review_id").llm_flag.astype(int))
-    E = pd.read_csv(REPORTS / "rq1_evidence.csv")
-
-    fig = plt.figure(figsize=(PAGE - 0.15, 2.15))
-    # manual positions: (a) and (b) carry labels right of their axes, (c) carries long row labels on its left
-    axes = [fig.add_axes(r) for r in ([0.05, 0.14, 0.18, 0.74], [0.35, 0.14, 0.2, 0.74], [0.76, 0.14, 0.235, 0.74])]
-    ax = axes[0]
+    fig, ax = plt.subplots(figsize=(COL - 0.1, 1.8))
+    fig.subplots_adjust(left=0.12, right=0.84, top=0.97, bottom=0.14)
     chatgpt(ax)
     ax.plot(A.year, A.alpha * 100, "o-", ms=3, color=C["ink"])
     ax.plot(flag.index, flag, "s--", ms=3, color=C["flag"])
@@ -137,9 +132,21 @@ def ai(figs=FIGS):
     ax.set_ylim(0, 50)
     few_ticks(ax)
     years(ax)
-    ax.set_title("(a) AI-likeness, ICLR (%)")
+    ax.set_ylabel("Share of ICLR reviews (%)")
+    save(fig, figs, "figA_likeness.pdf", COL)
 
-    ax = axes[1]
+
+def ai(figs=FIGS):
+    """Fig. 1: match rate by pair type, and every estimate of the within-paper gap."""
+    D = pd.read_parquet(DATA / "detector_scores.parquet", columns=["review_id", "llm_flag"])
+    P = with_pair_type(pd.read_parquet(DATA / f"pairs_{MODEL}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]),
+                       D.set_index("review_id").llm_flag.astype(int))
+    E = pd.read_csv(REPORTS / "rq1_evidence.csv")
+
+    fig = plt.figure(figsize=(PAGE - 0.15, 2.15))
+    # manual positions: (a) carries labels right of its axis, (b) long row labels on its left
+    axes = [fig.add_axes(r) for r in ([0.06, 0.14, 0.3, 0.74], [0.66, 0.14, 0.33, 0.74])]
+    ax = axes[0]
     p = P[(P.conf == "ICLR") & (P.year >= 2024)]
     styles = {"HH": ("neither", C["grey"], "o"), "HL": ("one", C["flag_light"], "s"), "LL": ("both", C["flag"], "D")}
     for k, (t, (lab, color, marker)) in enumerate(styles.items()):
@@ -152,9 +159,9 @@ def ai(figs=FIGS):
     ax.set_xlim(2023.6, 2027.6)
     ax.set_ylim(7, 17)
     ax.set_xticks([2024, 2025, 2026], ["'24", "'25", "'26"])
-    ax.set_title("(b) Match rate by pair, ICLR (%)")
+    ax.set_title("(a) Match rate by pair, ICLR (%)")
 
-    ax = axes[2]
+    ax = axes[1]
     groups = list(dict.fromkeys(E.group))
     y, ticks, labels, bold = 0, [], [], []
     for gname in groups:
@@ -183,43 +190,44 @@ def ai(figs=FIGS):
     ax.set_ylim(y + 0.6, 0.6)
     ax.set_xlim(-2.5, 15)
     ax.set_xlabel("Match rate, both minus neither flagged")
-    ax.set_title("(c) Within-paper gap (points)")
+    ax.set_title("(b) Within-paper gap (points)")
     save(fig, figs, "fig1_ai.pdf", PAGE)
 
 
 def overlap(figs=FIGS):
-    """Fig. 2: standardized same-paper match rate by venue, and the rate between reviews of different papers."""
+    """Fig. 2: standardized same-paper match rate by venue."""
     S = pd.read_csv(REPORTS / "match_std.csv")
-    Q = in_window(pd.read_parquet(DATA / f"placebo_outcomes_{MODEL}.parquet"))
-    fig, axes = plt.subplots(1, 2, figsize=(COL + 0.32, 1.9), gridspec_kw={"wspace": 0.4})
-    ax = axes[0]
+    fig, ax = plt.subplots(figsize=(COL - 0.1, 1.9))
+    fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.13)
     chatgpt(ax)
     s = {conf: std_line(ax, S, conf, C[conf], dx) for conf, dx in [("ICLR", 0), ("NeurIPS", 0), ("ICML", 0.25)]}
     end_label(ax, ICLR_FROM, s["ICLR"].iloc[0], "ICLR", C["ICLR"], dx=-2, dy=13, ha="left")
     end_label(ax, 2022, s["NeurIPS"].loc[2022], "NeurIPS", C["NeurIPS"], dx=0, dy=-11, ha="center")
     end_label(ax, 2025.25, s["ICML"].iloc[0], "ICML", C["ICML"], dx=4, dy=-4, ha="left")
     ax.set_ylim(6.5, 12.5)
-    few_ticks(ax)
     ax.set_xlim(2019.6, 2026.5)
-    years(ax)
-    ax.set_title("(a) Same paper (%)")
-
-    ax = axes[1]
-    chatgpt(ax)
-    q = {}
-    for conf in ["ICLR", "NeurIPS"]:
-        q[conf] = line(ax, Q[(Q.conf == conf) & (Q.placebo_kind == "shuffled4")], "hit_rate_strict", C[conf])
-    q["area"] = line(ax, Q[(Q.conf == "ICLR") & (Q.placebo_kind == "same_area3")], "hit_rate_strict", C["ICLR"],
-                     ls="--", mfc="white")
-    end_label(ax, 2023, q["area"].loc[2023], "ICLR,\nsame area", C["ICLR"], dx=0, dy=12, ha="center", va="bottom")
-    end_label(ax, 2025, q["NeurIPS"].loc[2025], "NeurIPS", C["NeurIPS"], dx=0, dy=-8, ha="center", va="top")
-    end_label(ax, 2022, q["ICLR"].loc[2022], "ICLR", C["ICLR"], dx=0, dy=-8, ha="center", va="top")
-    ax.set_ylim(-0.4, 4.3)
     few_ticks(ax)
-    ax.set_xlim(2019.6, 2026.5)
     years(ax)
-    ax.set_title("(b) Different papers (%)")
+    ax.set_ylabel("Standardized match rate (%)")
     save(fig, figs, "fig2_overlap.pdf", COL)
+
+
+def cross(figs=FIGS):
+    """Appendix figure: match rate between reviews of different papers of one venue and year."""
+    Q = in_window(pd.read_parquet(DATA / f"placebo_outcomes_{MODEL}.parquet"))
+    fig, ax = plt.subplots(figsize=(COL - 0.1, 1.7))
+    fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.14)
+    chatgpt(ax)
+    q = {conf: line(ax, Q[(Q.conf == conf) & (Q.placebo_kind == "shuffled4")], "hit_rate_strict", C[conf])
+         for conf in ["ICLR", "NeurIPS"]}
+    end_label(ax, 2025, q["NeurIPS"].loc[2025], "NeurIPS", C["NeurIPS"], dx=0, dy=-8, ha="center", va="top")
+    end_label(ax, ICLR_FROM, q["ICLR"].loc[ICLR_FROM], "ICLR", C["ICLR"], dx=-2, dy=8, ha="left", va="bottom")
+    ax.set_ylim(-0.3, 1.8)
+    ax.set_xlim(2019.6, 2026.5)
+    few_ticks(ax)
+    years(ax)
+    ax.set_ylabel("Match rate (%)")
+    save(fig, figs, "figA_cross.pdf", COL)
 
 
 def categories(figs=FIGS):
@@ -253,28 +261,11 @@ def categories(figs=FIGS):
 
 
 def fields(figs=FIGS):
-    """Fig. 4: standardized match rate in five journals, and its change against the change in AI-likeness."""
-    O = pd.read_parquet(DATA / f"other_panel_outcomes_{MODEL}.parquet")
+    """Fig. 4: change of each journal source's standardized match rate against the change in its AI-likeness index."""
     T = pd.read_csv(REPORTS / "by_year.csv")
-    S = pd.read_csv(REPORTS / "match_std.csv")
-    fig, axes = plt.subplots(1, 6, figsize=(PAGE + 0.9, 1.75), gridspec_kw={"width_ratios": [1] * 5 + [2.3], "wspace": 0.18})
-    for ax, (conf, name) in zip(axes, JOURNALS.items(), strict=False):
-        chatgpt(ax)
-        s = std_line(ax, S, conf, C["ink"])
-        o = line(ax, O[(O.conf == conf) & O.placebo], "hit_rate_strict", C["grey"], mfc="white")
-        ax.set_ylim(0, 19)
-        ax.set_xlim(2017.4, 2026.6)
-        years(ax, (2018, 2022, 2026))
-        ax.set_title(name, fontsize=7.5)
-        if ax is not axes[0]:
-            ax.set_yticklabels([])
-        if conf == "SciPost":
-            end_label(ax, 2019.6, 16.2, "same paper", dx=0, ha="left")
-            end_label(ax, 2018, o.iloc[0] + 3, "different papers", C["grey"], dx=0, ha="left")
-    axes[0].set_ylabel("Match rate (%)")
-    # change from the pre-ChatGPT mean to the last year; journals only, since their AI-likeness comes from one
-    # field-matched reference and the ML venues' from another
-    ax = axes[5]
+    fig, ax = plt.subplots(figsize=(COL - 0.1, 2.0))
+    fig.subplots_adjust(left=0.15, right=0.98, top=0.97, bottom=0.17)
+    # journal sources only: their AI-likeness comes from one field-matched reference, the ML venues' from another
     pts = {}
     for conf in JOURNALS:
         g = T[T.conf == conf]
@@ -282,7 +273,7 @@ def fields(figs=FIGS):
         dx = last.ai_wordshare - pre.ai_wordshare.mean()
         dy = last.match_std - pre.match_std.mean()
         se = np.sqrt(last.match_std_se ** 2 + (pre.match_std_se ** 2).sum() / len(pre) ** 2)
-        ax.errorbar(dx, dy, yerr=1.96 * se, fmt="o", ms=3.2, color=C["ink"], elinewidth=0.9)
+        ax.errorbar(dx, dy, yerr=1.96 * se, fmt="o", ms=3.5, color=C["ink"], elinewidth=1.0)
         pts[conf] = (dx, dy, se)
     for conf, (dx, dy, se) in pts.items():
         # BMC Medicine and SciPost sit close together, so their labels go above and below the error bars
@@ -290,15 +281,71 @@ def fields(figs=FIGS):
                           "Copernicus": (dy, (4, -3), "left", "top")}.get(conf, (dy, (4, 0), "left", "center"))
         ax.annotate(JOURNALS[conf], (dx, y), xytext=off, textcoords="offset points", fontsize=7, ha=ha, va=va)
     ax.axhline(0, color=C["light"], lw=0.6, zorder=0)
-    ax.set_xlim(-4, 30)
+    ax.set_xlim(-4, 32)
     ax.set_ylim(-3, 9)
+    few_ticks(ax, n=4)
+    ax.set_xlabel("Change in AI-likeness index (points)")
+    ax.set_ylabel("Change in std. match rate (points)")
+    save(fig, figs, "fig4_fields.pdf", COL)
+
+
+def journals(figs=FIGS):
+    """Appendix figure: standardized same-paper match rate per journal source and year."""
+    S = pd.read_csv(REPORTS / "match_std.csv")
+    fig, grid = plt.subplots(2, 3, figsize=(PAGE - 0.1, 2.45))
+    fig.subplots_adjust(left=0.075, right=0.995, top=0.92, bottom=0.13, wspace=0.28, hspace=0.65)
+    axes = grid.ravel()
+    for ax, (conf, name) in zip(axes, JOURNALS.items(), strict=False):
+        chatgpt(ax)
+        std_line(ax, S, conf, C["ink"])
+        ax.set_ylim(0, 19)
+        ax.set_xlim(2017.4, 2026.6)
+        few_ticks(ax, n=4)
+        years(ax, (2018, 2022, 2026))
+        ax.set_title(name)
+    for ax in (axes[0], axes[3]):
+        ax.set_ylabel("Std. match rate (%)")
+    axes[5].remove()
+    save(fig, figs, "figA_journals.pdf", PAGE)
+
+
+def journals_cross(figs=FIGS):
+    """Appendix figure: match rate between reports on different papers of one journal source and year."""
+    O = pd.read_parquet(DATA / f"other_panel_outcomes_{MODEL}.parquet")
+    fig, grid = plt.subplots(2, 3, figsize=(PAGE - 0.1, 2.45))
+    fig.subplots_adjust(left=0.075, right=0.995, top=0.92, bottom=0.13, wspace=0.28, hspace=0.65)
+    axes = grid.ravel()
+    for ax, (conf, name) in zip(axes, JOURNALS.items(), strict=False):
+        chatgpt(ax)
+        line(ax, O[(O.conf == conf) & O.placebo], "hit_rate_strict", C["ink"])
+        ax.set_ylim(-0.2, 3.4)
+        ax.set_xlim(2017.4, 2026.6)
+        few_ticks(ax, n=4)
+        years(ax, (2018, 2022, 2026))
+        ax.set_title(name)
+    for ax in (axes[0], axes[3]):
+        ax.set_ylabel("Match rate (%)")
+    axes[5].remove()
+    save(fig, figs, "figA_journals_cross.pdf", PAGE)
+
+
+def area(figs=FIGS):
+    """Appendix figure: ICLR match rate between reviews of different papers, same venue-year against same research area."""
+    Q = in_window(pd.read_parquet(DATA / f"placebo_outcomes_{MODEL}.parquet"))
+    Q = Q[Q.conf == "ICLR"]
+    fig, ax = plt.subplots(figsize=(COL - 0.1, 1.7))
+    fig.subplots_adjust(left=0.13, right=0.99, top=0.97, bottom=0.14)
+    chatgpt(ax)
+    v = line(ax, Q[Q.placebo_kind == "shuffled4"], "hit_rate_strict", C["ink"])
+    a = line(ax, Q[Q.placebo_kind == "same_area3"], "hit_rate_strict", C["ink"], ls="--", mfc="white")
+    end_label(ax, 2023, a.loc[2023], "same research area", dx=0, dy=10, ha="center", va="bottom")
+    end_label(ax, 2022, v.loc[2022], "same venue and year", dx=0, dy=-9, ha="center", va="top")
+    ax.set_xlim(2019.6, 2026.4)
+    ax.set_ylim(-0.3, 3.4)
     few_ticks(ax)
-    ax.set_xlabel("Change in AI-likeness index (pts)")
-    ax.set_ylabel("Change in std. match rate (pts)", labelpad=1)
-    ax.set_title("Last year vs 2018–23")
-    pos = ax.get_position()
-    ax.set_position([pos.x0 + 0.05, pos.y0, pos.width - 0.05, pos.height])
-    save(fig, figs, "fig4_fields.pdf", PAGE)
+    years(ax)
+    ax.set_ylabel("Match rate (%)")
+    save(fig, figs, "figA_area.pdf", COL)
 
 
 def embedding(figs=FIGS):
@@ -327,6 +374,11 @@ def all_figures(figs=FIGS):
     overlap(figs)
     categories(figs)
     fields(figs)
+    likeness(figs)
+    cross(figs)
+    area(figs)
+    journals(figs)
+    journals_cross(figs)
     embedding(figs)
 
 
@@ -394,4 +446,5 @@ def table(csv=REPORTS / "by_year.csv", tables=TABLES):
 
 if __name__ == "__main__":
     fire.Fire({"all": all_figures, "ai": ai, "overlap": overlap, "categories": categories, "fields": fields,
-               "embedding": embedding, "table": table})
+               "embedding": embedding, "area": area, "likeness": likeness, "cross": cross, "journals": journals,
+               "journals_cross": journals_cross, "table": table})

@@ -61,7 +61,7 @@ Confidence: claim 1 is systematic (all instruments, detectors, blind references)
 | 3 | Clarity and typo critiques fell while requests for more experiments rose. |
 | 4 | Exploratory: the two journal sources whose AI-likeness index rose most had the largest rise in match rate. |
 
-Fig 1a shows ICLR AI-likeness as context for the gap. Appendix figure: whole-review embedding similarity.
+Appendix figures, one message each: AI-likeness by year; cross-paper rate by venue; same-area control; journal sources by year; journal cross-paper rates; whole-review embedding similarity.
 
 ## Color map
 
