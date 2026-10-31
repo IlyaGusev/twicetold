@@ -34,3 +34,14 @@ torch = [{ index = "pytorch-cpu" }]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
+
+[tool.ruff]
+line-length = 130
+
+[tool.ruff.lint]
+select = ["F", "E9"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.3",
+]

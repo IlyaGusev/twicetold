@@ -1,29 +1,3 @@
-"""Outcome tables from the pipeline output (pass-1 claims, pass-2 clusters) plus review and paper metadata.
-
-panels: panel-level and review-level outcomes.
-    tag "" / "_noq" / "_wd" (ICLR, NeurIPS): data/panel_outcomes_<model><tag>.parquet,
-        review_outcomes_<model><tag>.parquet, and placebo_outcomes_ / sub3_outcomes_<model><tag>.parquet when the
-        clusters file has such panels.
-    tag "_icml" / "_other": data/icml_panel_outcomes_<model>.parquet, data/other_panel_outcomes_<model>.parquet
-        (real and placebo panels).
-pairs: one row per pair of reviews of the same paper, all sources (real panels only): data/pairs_<model>.parquet with
-    panel_id, conf, year, a, b, hit (mean share of one review's strict clusters matched in the other, both directions)
-    and hit_spec (same on specific claims). AI flags are joined by the consumers.
-standardize: match rate per source-year that does not move with review length and panel size (g-computation), so
-    year-to-year changes are not driven by longer reviews or bigger panels. Per source an OLS on pairs,
-    hit ~ C(year) + C(size) + cubic splines (4 df) in log chars of the shorter and of the longer review, with
-    size = reviews in the panel clipped to the source's smallest size + 2; the rate of year y is the mean prediction
-    over all the source's pairs with year set to y. SE: delta method with panel-clustered covariance (exact, the model is linear).
-    ICLR starts in 2020, other sources in 2019 (in_window). Writes reports/match_std_<model>.csv (conf, year, pairs, raw, std, std_se in %).
-withdrawals: ICLR standardized rate with the withdrawn share equalized across years, rating ICC and match rate by
-    rating quintile: reports/match_std_withdrawals.csv.
-
-Usage: outcomes.py panels [--model gpt-6-luna] [--tag _noq]
-       outcomes.py pairs [--model gpt-6-luna]
-       outcomes.py standardize [--model gpt-6-luna]
-       outcomes.py withdrawals [--model gpt-6-luna --target 0.23]
-"""
-
 import json
 import re
 import sys
@@ -44,21 +18,18 @@ from extract import CATEGORIES
 from metrics import assign, load_jsonl, panel_metrics
 from settings import settings
 
-PANEL_FILES = ["panels.jsonl", "panels_icml.jsonl", "panels_other.jsonl"]  # real panels of the pair table
-# review metadata per non-ML source tag: file and extra columns copied to the panel table
+PANEL_FILES = ["panels.jsonl", "panels_icml.jsonl", "panels_other.jsonl"]
 SOURCES = {"_icml": ("icml_sample.parquet", []), "_other": ("other_reviews.parquet", ["field", "journal"])}
 MARKERS = ["commendable", "meticulous", "intricate", "delve", "showcas", "noteworthy", "underscore", "pivotal",
            "seamless", "invaluable", "notably", "realm", "comprehensive", "crucial", "robust", "leverag", "nuanced",
            "multifaceted", "paramount", "elucidat", "garner", "tapestry", "landscape", "holistic", "valuable insights"]
 MARKER_RX = re.compile(r"\b(" + "|".join(MARKERS) + ")", re.IGNORECASE)
-# Text that marks a review edited after the author response (public reviews are final versions).
 EDIT_RX = re.compile(r"(after|post)[- ]?(the )?(rebuttal|discussion|response)|concerns? (have been|were|was|are) (addressed|resolved)"
                      r"|thank(s| you)[^.]{0,40}(response|rebuttal|clarification)|(rais|updat|increas|lower|revis)(e|ed|ing) (my|the) (score|rating|review)"
                      r"|\[?(update|revision|edit)d?[:\]]", re.IGNORECASE)
 
 
 def load_claims(path):
-    # claim text is not needed for outcomes; dropping it keeps the run small (the machine is shared)
     keep = ("category", "target", "specific")
     with open(path) as f:
         rows = map(json.loads, f)
@@ -66,7 +37,6 @@ def load_claims(path):
 
 
 def batches(path, columns, ids, desc):
-    """Stream a parquet file in batches, keeping rows whose review_id is in ids (full texts do not fit in memory)."""
     f = pq.ParquetFile(path)
     keep = pa.array(list(ids), type=f.schema_arrow.field("review_id").type)
     for b in tqdm(f.iter_batches(batch_size=20000, columns=columns), total=-(-f.metadata.num_rows // 20000), desc=desc):
@@ -85,8 +55,6 @@ def review_meta(ids, data=settings.DATA_DIR):
     r = pd.concat(parts, ignore_index=True)
     r["any_marker"] = r.n_markers > 0
     r["marker_rate"] = r.n_markers / (r.chars / 1000)
-    # modified_time is a bulk timestamp (99.8% of ICLR 2026 reviews share two dates), so it cannot flag edits.
-    # ICLR 2024-2025: a rating that changed after the rebuttal marks an edited review; other years: text markers only.
     r["edited"] = False
     c = pd.read_parquet(data / "review_cdates.parquet", columns=["review_id", "ext_rating_before", "ext_rating_after"])
     c = c.dropna().query("ext_rating_before != ext_rating_after")
@@ -121,11 +89,10 @@ def ml_panels(model, tag, data, out):
 
     rows, reviews = {"panel": [], "placebo": [], "sub3": []}, []
     for pid, p in tqdm(load_jsonl(data / f"clusters_{model}{tag}.jsonl", "panel_id").items(), desc="panels"):
-        # panel ids: <paper_id> (real), noq_ / wd_ / sub3_<paper_id> (variants), placebo(A)_<conf>_<year>_<k> (shuffled)
         kind = "placebo" if pid.startswith("placebo") else "sub3" if pid.startswith("sub3_") else "panel"
         paper = re.sub(r"^(noq|wd|sub3)_", "", pid)
         if kind == "panel" and paper not in pmeta.index:
-            continue  # blind-set panels (B00...) share the clusters file
+            continue
         df = assign(p, claims)
         m = panel_metrics(df)
         rv = rmeta.reindex(p["review_ids"])
@@ -227,8 +194,6 @@ def review_chars(data, ids):
     return L[~L.index.duplicated()]
 
 
-# Before 2020 the public ICLR data hold almost no withdrawn papers (later 13-26%), and withdrawn papers' reviews match
-# more, so earlier ICLR years are not comparable (see `withdrawals`). Every other source starts in 2019.
 ICLR_FROM = 2020
 FROM_YEAR = {"ICLR": ICLR_FROM}
 DEFAULT_FROM = 2019
@@ -257,10 +222,8 @@ STD_FORMULA = "hit ~ C(year) + C(size) + bs(log_short, df=4) + bs(log_long, df=4
 
 
 def year_rates(S, weights=None):
-    """Standardized rate per year for one source's pairs S: {year: (std, std_se)} in %."""
     import statsmodels.formula.api as smf
 
-    # splines: in ICLR both short and long reviews match more than mid-length ones
     model = smf.ols(STD_FORMULA, data=S) if weights is None else smf.wls(STD_FORMULA, data=S, weights=weights)
     fit = model.fit(cov_type="cluster", cov_kwds={"groups": pd.factorize(S.panel_id)[0]})
     names, V = pd.Index(fit.model.exog_names), fit.cov_params().to_numpy()
@@ -268,7 +231,6 @@ def year_rates(S, weights=None):
     x_mean = np.average(fit.model.exog, axis=0, weights=weights)
     out = {}
     for year in sorted(S.year.unique()):
-        # mean design row of all the source's pairs with year set to `year`
         x = np.where(is_year, names == f"C(year)[T.{year}]", x_mean)
         out[year] = (x @ fit.params.to_numpy() * 100, np.sqrt(x @ V @ x) * 100)
     return out
@@ -287,22 +249,12 @@ def standardize(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=N
     print(T.round(2).to_string(index=False))
 
 
-# Withdrawn ICLR submissions per year (OpenReview counts as tabulated by reviewer3.com, accessed 2026-10-30). The source
-# dump has no reviews of withdrawn papers before 2026; our 2026 data has them and the pairs drop them.
 ICLR_SUBMITTED = {2017: 490, 2018: 1018, 2019: 1579, 2020: 2594, 2021: 3014, 2022: 3422, 2023: 4955, 2024: 7404,
                   2025: 11672}
 ICLR_WITHDRAWN = {2017: 0, 2018: 83, 2019: 160, 2020: 369, 2021: 403, 2022: 779, 2023: 1145, 2024: 1661, 2025: 2991}
 
 
 def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DATA_DIR), out=str(settings.REPORTS_DIR / "match_std_withdrawals.csv")):
-    """ICLR standardized rate with the share of withdrawn submissions equalized across years.
-
-    Withdrawn papers are mostly the weakest, and their reviews match more, so years whose data still hold them (2017-2019)
-    look higher. Each year y with withdrawn share w_y < target loses a further (target - w_y) / (1 - w_y) of its papers:
-    "drop" removes the lowest-rated papers (an upper bound on the correction); "weight" downweights papers by the ICLR 2026
-    withdrawal rate of their rating decile, scaled to the same share. Also writes rating ICC and the match rate by rating
-    quintile per year, both free of the claim pipeline's selection of papers.
-    """
     data = Path(data)
     R = pd.read_parquet(data / "reviews.parquet", columns=["paper_id", "review_id", "rating", "year", "withdrawn"],
                         filters=[("conf", "==", "ICLR")])

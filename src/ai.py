@@ -1,39 +1,3 @@
-"""AI-text measures for reviews.
-
-reference         AI-written reference reviews for the word-use estimate in every source (two-stage recipe of Liang et
-                  al., 2024). Stage 1 condenses a pre-2022 human review into its key points; stage 2 writes a full review
-                  from those points only. The result keeps the human's judgment and replaces the wording, which is what
-                  the estimator needs as its AI side. Writes data/ai_reference.jsonl (review_id, conf, year, outline,
-                  text); resumes from it.
-wordshare         Corpus-level share of LLM-written text per ML venue-year (ICLR, NeurIPS, ICML; distributional MLE of
-                  Liang et al., 2024). Each review is a binary word-occurrence vector; a venue-year's alpha maximizes
-                  sum_d log((1 - alpha) P(d) + alpha Q(d)). P = occurrence rates in human reviews 2018-2022 (half the
-                  papers, the rest held out), Q = rates in IntelLabs LLM reviews of the same papers.
-                  Checks: held-out pre-ChatGPT years give alpha near 0; known held-out mixtures are recovered.
-                  Writes reports/llm_share.csv.
-wordshare_fields  Same estimator with a field-matched reference for every source: P = the source's human reviews up to
-                  2021, Q = their AI rewrites (data/ai_reference.jsonl). Writes reports/llm_share_all.csv.
-cocodet           Per-review AI-content scores from CoCoDet (Chen et al., ACL 2026; ModernBERT-base, MIT licence,
-                  khaaaaaan/CoCoDet). It is trained on ICLR/NeurIPS reviews to classify the *content* of a review as
-                  human, mix or AI, so polishing alone should stay "human". INPUT.parquet (review_id, text) ->
-                  data/cocodet_<NAME>.jsonl; resumes from it. Needs the `detect` extra.
-style             Style-based LLM-text detector, trained on the IntelLabs paired human/LLM reviews (ICLR 2021-2023),
-                  tested on the 2024 pairs, calibrated on our pre-ChatGPT reviews (ICLR 2017-2022), compared with
-                  GPTZero on ICLR 2023-2024. Only surface features (hashed word 1-2-grams, character 3-4-grams), never
-                  similarity to an LLM review of the same paper, so it is not circular with claim overlap. Writes
-                  data/detector_scores.parquet (p_llm; llm_flag: above the pre-period 99th percentile; llm_grade 0: below
-                  pre-period 90th percentile, 1: 90-99th, 2: above 99th, 3: p_llm > 0.95; the same on summary+strengths
-                  as p_llm_ss, llm_flag_ss) and reports/detector_by_cell.csv.
-
-Usage:
-  OPENAI_API_KEY comes from .env via settings.py; HF_TOKEN in the environment is optional for cocodet.
-  uv run python -I src/ai.py reference [--model gpt-6-luna --threads 32 --per_source 3000]
-  uv run python -I src/ai.py wordshare
-  uv run python -I src/ai.py wordshare_fields
-  uv run python -I src/ai.py cocodet INPUT.parquet [NAME] [--max_len 512 --batch 8 --threads 2 --limit N]
-  uv run python -I src/ai.py style
-"""
-
 import json
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -91,7 +55,6 @@ def done_ids(path):
 
 
 def load_ml(columns):
-    """Non-withdrawn ICLR/NeurIPS reviews, in file order."""
     return pd.read_parquet(settings.DATA_DIR / "reviews.parquet", columns=columns, filters=[("withdrawn", "==", False)])
 
 
@@ -107,7 +70,6 @@ def rewrite(row, model):
     if "error" in o:
         return None
     outline = "\n".join(f"- {p}" for p in o["points"])
-    # Unmatched length makes short human reviews look AI-written to the word-occurrence estimator.
     words = round(len(row.text.split()), -1)
     w = extract.call(render("ai_write", venue=VENUE[row.conf], words=words), outline, REVIEW_SCHEMA, "review", model=model)
     if "error" in w:
@@ -130,7 +92,6 @@ def reference(model=settings.DEFAULT_MODEL, threads=32, per_source=3000, out=set
 
 
 def doc_loglik(X, rate):
-    """log P(d) under independent Bernoulli occurrences; X is a binary sparse matrix."""
     lp, lq = np.log(rate), np.log1p(-rate)
     return X @ (lp - lq) + lq.sum()
 
@@ -155,7 +116,6 @@ def half(paper_ids, rng):
 
 
 def fit_rates(human, ai, n_fit):
-    """Vocabulary from up to n_fit texts per side, then Laplace-smoothed occurrence rates P (human) and Q (AI)."""
     def rates(texts):
         X = vec.transform(clean(texts))
         return (np.asarray(X.sum(0)).ravel() + 1) / (X.shape[0] + 2)
@@ -172,7 +132,6 @@ def loglik(rates, texts):
 
 
 def recovered(human, ai, alpha, n, rng):
-    """Estimated alpha on a mix of n held-out texts with true AI share alpha; human and ai are loglik() outputs."""
     (lh, lqh), (ll, lql) = human, ai
     ih = rng.choice(len(lh), int(n * (1 - alpha)), replace=False)
     il = rng.choice(len(ll), int(n * alpha), replace=False)
@@ -209,7 +168,6 @@ def wordshare(out=settings.REPORTS_DIR / "llm_share.csv"):
 
 
 def wordshare_fields(reference=settings.DATA_DIR / "ai_reference.jsonl", out=settings.REPORTS_DIR / "llm_share_all.csv"):
-    # The bootstrap drew from a separate seed-0 generator (llm_share.py's) in the original script; kept for identical output.
     rng, boot_rng = np.random.default_rng(1), np.random.default_rng(0)
     cols = ["conf", "year", "paper_id", "review_id", "text"]
     reviews = pd.concat([load_ml(cols), pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=cols)], ignore_index=True)
@@ -238,7 +196,6 @@ def wordshare_fields(reference=settings.DATA_DIR / "ai_reference.jsonl", out=set
 
 
 def load_cocodet():
-    """Model class mirrors icip-cas/CoCoNUTS script/infer.py (cosine main head, scale 30)."""
     import torch
     import torch.nn.functional as F
     from huggingface_hub import hf_hub_download
@@ -266,7 +223,6 @@ def load_cocodet():
 
 
 def cocodet_order(df):
-    # random order so partial output is a fair sample; sort by length inside chunks of 256 to cut padding
     df = df.assign(text=df.text.str.replace(TAGS + r"\s*", "", regex=True)).sample(frac=1, random_state=0)
     df["chunk"] = range(len(df))
     df["chunk"] //= 256
@@ -274,7 +230,6 @@ def cocodet_order(df):
 
 
 def cocodet(input, name=None, max_len=512, batch=8, threads=2, limit=None):
-    """max_len 512 tokens: 1024 and 2048 gave identical labels on a 120-review check. limit: first N reviews, for timing."""
     import torch
     from transformers import AutoTokenizer
 
@@ -336,7 +291,6 @@ def style(out=settings.DATA_DIR / "detector_scores.parquet", by_cell=settings.RE
                                           g2plus=("llm_grade", lambda g: (g >= 2).mean()),
                                           g3=("llm_grade", lambda g: (g == 3).mean())).round(3).to_string())
 
-    # exposure measured on fields that feed no claims (summary + strengths), for the 2024+ structured forms
     ss = S.text.str.extractall(r"\[(SUMMARY|STRENGTHS)\](.*?)(?=\[[A-Z]+\]|\Z)")[1].groupby(level=0).apply(" ".join)
     S["p_llm_ss"] = np.nan
     has = ss.index[ss.str.len() > 200]

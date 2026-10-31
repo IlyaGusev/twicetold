@@ -1,28 +1,3 @@
-"""Choose the reviews to annotate and write the panels (lines {panel_id, review_ids}) that pass 2 clusters.
-
-ml: all ICLR 2017-2023 non-withdrawn papers with 3+ reviews, 3,000 each from ICLR 2024 and 2025, 6,000 from ICLR 2026,
-    1,000 per year from NeurIPS 2021-2025; at most 5 random reviews per paper. Placebo panels take 4 reviews of 4
-    different papers of the same venue-year (300 per cell).
-    -> sample_reviews.parquet, panels.jsonl, panels_placebo.jsonl
-icml: ICML 2025-2026, 1,500 random papers per year with 3+ reviews, at most 5 reviews each.
-    -> icml_pass1.parquet, icml_sample.parquet, panels_icml.jsonl
-other: non-ML sources, one panel per paper (at most 5 reviews); per source-year 150 placebo panels of 3 reviews of 3
-    different papers of the same journal.
-    -> other_pass1.parquet, panels_other.jsonl, panels_other_placebo.jsonl
-robust: robustness panels requested in review, from sample_reviews.parquet (ICLR only):
-    panels_placebo_area.jsonl  3 reviews of 3 different papers of the same area and year (300 per year);
-    panels_sub3.jsonl          a random 3-review subset of papers with 4-5 reviews, re-clustered (400 per year);
-    panels_noq.jsonl + noq_reviews.parquet  ICLR 2024-2026 (400 papers per year) with the [QUESTIONS] field removed;
-    then the full-scale versions, skipping panels already covered: panels_sub3_full.jsonl (all ICLR 2023 and 2026
-    papers with 4+ reviews), panels_noq_full.jsonl + noq_full_reviews.parquet (all ICLR 2024-2026 papers).
-
-sol: second-model check: more ICLR papers per year (default 400 for 2023 and 2026) that panels_sol.jsonl does not
-    have yet, with the same reviews as their main-model panels.
-    -> panels_sol2.jsonl, sol2_reviews.parquet
-
-Usage: panels.py {ml,icml,other,robust,sol} [--data data] [--out data]   (data: input dir, out: output dir)
-"""
-
 import sys
 import json
 import re
@@ -56,7 +31,6 @@ def by_paper_panels(reviews, prefix="", sort=False):
 
 
 def texts(path, ids):
-    """review_id -> text for the given ids, streamed so the full-text corpus never sits in memory."""
     parts = []
     for b in pq.ParquetFile(path).iter_batches(batch_size=20000, columns=["review_id", "text"]):
         b = b.to_pandas()
@@ -207,7 +181,6 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
     noq[["conf", "year", "paper_id", "review_id", "text"]].to_parquet(out / "noq_reviews.parquet")
     print("noq reviews", len(noq), "chars dropped share",
           1 - noq.text.str.len().sum() / sel[sel.review_id.isin(noq.review_id)].text.str.len().sum())
-    # the merge above resets the index; the full-scale files keep the sample_reviews index
     robust_full(iclr, out, np.random.default_rng(full_seed))
 
 

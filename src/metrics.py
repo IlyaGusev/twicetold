@@ -1,9 +1,3 @@
-"""Panel-level outcomes from pass-1 claims and pass-2 clusters (library, no CLI; import with src/ on sys.path).
-
-assign() turns one pass-2 panel into a claim table with strict cluster and lenient target ids; panel_metrics() computes
-the panel outcomes (shared claims, rarefied distinct/shared counts, pair and hit rates, category shares, variants).
-"""
-
 import json
 from collections import Counter
 from itertools import combinations
@@ -13,7 +7,7 @@ import pandas as pd
 
 from extract import CATEGORIES
 
-M_MATCH = 8  # claim-count matched variant: at most this many claims per review
+M_MATCH = 8
 
 
 def load_jsonl(path, key):
@@ -26,10 +20,6 @@ def load_jsonl(path, key):
 
 
 def assign(panel, claims_by_review):
-    """Return a DataFrame of claims with review index, strict cluster id and lenient target id.
-
-    Claims the model left out become singleton clusters; a claim listed twice keeps its first assignment.
-    """
     rows = []
     for j, rid in enumerate(panel["review_ids"]):
         for k, c in enumerate(claims_by_review.get(rid, [])):
@@ -55,8 +45,6 @@ def assign(panel, claims_by_review):
 
 
 def rarefy(df, col, ks):
-    """For k randomly chosen reviews (averaged over all k-subsets): expected number of distinct groups (D),
-    expected number of groups raised by 2+ of the k reviews (S), and expected share of groups raised by one review (U)."""
     sets = df.groupby("review")[col].agg(set).to_dict()
     reviews = sorted(sets)
     out = {}
@@ -75,8 +63,6 @@ def rarefy(df, col, ks):
 
 
 def pair_rates(df, col):
-    """Share of cross-review claim pairs that fall in the same group (Kim et al. style), and mean pairwise hit rate
-    (share of one review's claims that have a match in the other, Liang et al. style)."""
     reviews = sorted(df.review.unique())
     pair_hits, pair_total, hits = 0, 0, []
     for a, b in combinations(reviews, 2):
@@ -90,7 +76,7 @@ def pair_rates(df, col):
 
 
 def panel_metrics(df, ks=(1, 2, 3, 4)):
-    if df.empty:  # assign() gives no columns when no review in the panel has a claim
+    if df.empty:
         return dict(n_reviews=0, n_claims=0)
     n_reviews = df.review.nunique()
     m = dict(n_reviews=n_reviews, n_claims=len(df))

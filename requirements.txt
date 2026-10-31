@@ -175,6 +175,7 @@ requests==2.34.2
     #   twicetold
 rich==15.0.0
     # via typer
+ruff==0.17.3
 safetensors==0.8.0
     # via transformers
 scikit-learn==1.9.1

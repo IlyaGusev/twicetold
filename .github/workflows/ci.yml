@@ -1,0 +1,15 @@
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv python install 3.14
+      - run: uv sync --all-extras
+      - run: uv run ruff check src scripts
+      - run: uv run python scripts/check_no_comments.py
+      - run: for m in extract ai outcomes validate figures between corpus panels fetch; do uv run python -I src/$m.py --help > /dev/null; done

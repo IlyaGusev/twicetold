@@ -1,20 +1,3 @@
-"""Two-pass claim pipeline.
-
-Pass 1 (per review): split one review into atomic critique claims, each with category, target and specificity.
-Pass 2 (per panel): cluster the claims of a set of reviews by "same target" (lenient) and "same target and same
-criticism" (strict). Reviews are extracted independently, so pass 1 cannot harmonize claims across co-reviewers.
-Both resume from existing output and stop at the budget (USD).
-
-Usage:
-  extract.py pass1 INPUT.parquet [--model gpt-6-luna --tag "" --threads 48 --budget 60 --paper_kind ml --effort low]
-      # columns review_id, text -> data/claims_<model><tag>.jsonl
-  extract.py pass2 PANELS.jsonl [--claims_files claims_a.jsonl,claims_b.jsonl --effort medium ...]
-      # lines {panel_id, review_ids} -> data/clusters_<model><tag>.jsonl
-  --local_model_path data/local/<model>.gguf runs an open-weight model on CPU instead of the API.
-  Models in settings.OPENROUTER_ROUTES go through OpenRouter chat completions under their short name.
-Prompts are prompts/pass1.j2 and prompts/pass2.j2; keys and paths come from settings.py (.env).
-"""
-
 import json
 import os
 import sys
@@ -28,10 +11,9 @@ import fire
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from prompts import render  # noqa: E402
-from settings import settings  # noqa: E402
+from prompts import render
+from settings import settings
 
-# Other fields (tag _other) use paper_kind="general"; the default keeps the exact ML wording of the main run.
 PAPER_KIND = {"ml": ("machine-learning conference paper", "machine-learning paper"),
               "general": ("scientific paper submitted to a journal", "scientific paper")}
 
@@ -85,7 +67,7 @@ PASS2_SCHEMA = {
 _client = None
 _openrouter = None
 _llm = None
-spent = {}  # model -> token counts {"in", "out", "calls"}
+spent = {}
 lock = threading.Lock()
 
 
@@ -116,7 +98,6 @@ def openrouter_call(instructions, text, schema, name, model, effort):
     else:
         fmt = {"type": "json_object"}
         instructions += f"\n\nReturn one JSON object that follows this JSON schema exactly:\n{json.dumps(schema)}"
-    # reasoning models (sol, opus, kimi) reject a temperature, and the strict schema needs no retry
     for temperature in ((None,) if spec.strict else (0.0, 0.8, 0.8, 0.8)):
         r = openrouter_client().chat.completions.create(
             model=spec.id, **({} if temperature is None else {"temperature": temperature}),
@@ -133,7 +114,7 @@ def openrouter_call(instructions, text, schema, name, model, effort):
 
 def parse_object(text, schema=None):
     out = json.loads(text)
-    if not isinstance(out, dict):  # GLM sometimes returns a bare list despite the strict schema; retry instead of crashing
+    if not isinstance(out, dict):
         raise ValueError(f"response is not a JSON object: {text[:80]}")
     if schema is not None and not conforms(out, schema):
         raise ValueError(f"response does not follow the schema: {text[:80]}")
@@ -141,7 +122,6 @@ def parse_object(text, schema=None):
 
 
 def conforms(x, s):
-    """Minimal JSON-schema check (object/array/string/integer/boolean/enum/required), enough for PASS1/PASS2_SCHEMA."""
     if "enum" in s:
         return x in s["enum"]
     t = s["type"]
@@ -162,9 +142,8 @@ def record(model, n_in, n_out):
 
 
 def cost():
-    """Total USD spent in this process over all models called (local models count as free)."""
     total = 0.0
-    with lock:  # record() may add a model key while another thread iterates
+    with lock:
         for m, s in spent.items():
             price_in, price_out = settings.PRICES_USD_PER_MTOK.get(m, (0.0, 0.0))
             total += (s["in"] * price_in + s["out"] * price_out) / 1e6
@@ -172,11 +151,10 @@ def cost():
 
 
 def local_call(instructions, text, schema, max_tokens, model, local_model_path):
-    """Grammar-constrained JSON from a local GGUF model (llama.cpp); same prompts and schema as the API path."""
     global _llm
     from llama_cpp import Llama
 
-    with lock:  # one model, one generation at a time
+    with lock:
         if _llm is None:
             _llm = Llama(model_path=local_model_path, n_ctx=8192, n_threads=os.cpu_count(), verbose=False)
         r = _llm.create_chat_completion(
@@ -190,7 +168,7 @@ def call(instructions, text, schema, name, model=settings.DEFAULT_MODEL, effort=
     if local_model_path:
         try:
             return local_call(instructions, text, schema, 1200 if name == "claims" else 2500, model, local_model_path)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             return {"error": repr(e)[:300]}
     for attempt in range(4):
         try:
@@ -202,14 +180,13 @@ def call(instructions, text, schema, name, model=settings.DEFAULT_MODEL, effort=
             )
             record(model, resp.usage.input_tokens, resp.usage.output_tokens)
             return parse_object(resp.output_text)
-        except Exception as e:  # noqa: BLE001 - retry on any transport/parse error
+        except Exception as e:
             if attempt == 3:
                 return {"error": repr(e)[:300]}
             time.sleep(5 * (attempt + 1))
 
 
 def done_ids(path, key):
-    """Ids already answered; error rows are retried on the next run."""
     if not path.exists():
         return set()
     rows = (json.loads(line) for line in open(path) if line.strip())
@@ -223,7 +200,7 @@ def run(items, worker, out_path, key, model, threads, budget, local_model_path):
     todo = [it for it in items if it[key] not in skip]
     print(f"{model}: {len(skip)} done, {len(todo)} to do -> {out_path}", flush=True)
 
-    def capped(item):  # over budget, queued items return at once and in-flight answers are still written
+    def capped(item):
         return None if cost() > budget else worker(item)
 
     pool = ThreadPoolExecutor(threads)
@@ -237,7 +214,7 @@ def run(items, worker, out_path, key, model, threads, budget, local_model_path):
                     f.flush()
                 bar.set_postfix(cost=f"${cost():.2f}")
     finally:
-        pool.shutdown(cancel_futures=True)  # plain shutdown would keep paying for the queue after Ctrl-C or a crash
+        pool.shutdown(cancel_futures=True)
     if cost() > budget:
         print("budget cap reached", flush=True)
     s = spent.get(model, {"in": 0, "out": 0, "calls": 0})
@@ -281,11 +258,9 @@ def pass1(reviews, model=settings.DEFAULT_MODEL, tag="", threads=48, budget=60.0
 
 def pass2(panels, model=settings.DEFAULT_MODEL, tag="", threads=48, budget=60.0, paper_kind="ml", local_model_path=None,
           claims_files=None, effort=settings.PASS2_REASONING_EFFORT, data=str(settings.DATA_DIR), different=False):
-    """claims_files: comma-separated file names in data/, default claims_<model><tag>.jsonl.
-    different: tell the model the claims come from reviews of different papers (control-prompt check)."""
     if claims_files is None:
         claims_files = f"claims_{model}{tag}.jsonl"
-    if isinstance(claims_files, str):  # fire passes "a,b" as a string but may pass a tuple
+    if isinstance(claims_files, str):
         claims_files = claims_files.split(",")
     claims = {}
     for name in claims_files:

@@ -1,8 +1,4 @@
 #!/bin/bash
-# Post-extraction chain for one model: panel outcomes, pair table, standardized rates, validation reports, tables
-# and figures. Without OUT_DIR the tables and figures overwrite the paper's (main model). With OUT_DIR they go to
-# OUT_DIR/tables and OUT_DIR/figs, and the model-named reports still land in reports/.
-# Usage: scripts/post.sh MODEL [OUT_DIR]
 set -eu
 cd "$(dirname "$0")/.." || exit 1
 M=$1; OUT=${2:-}

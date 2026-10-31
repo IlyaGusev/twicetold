@@ -1,10 +1,7 @@
 #!/bin/bash
-# Every extraction pass for one model, as five independent chains in parallel. Each pass resumes from its output
-# file, so a rerun after a crash is safe. Logs: logs/extract_<model>/<chain>.log.
-# Usage: scripts/extract_all.sh MODEL [PASS1_EFFORT=low] [PASS2_EFFORT=medium] [BUDGET_USD=300]
 set -u
 cd "$(dirname "$0")/.." || exit 1
-M=$1; E1=${2:-low}; E2=${3:-medium}; B=${4:-300}
+M=$1; E1=${2:-high}; E2=${3:-high}; B=${4:-300}
 LOGS=logs/extract_$M
 mkdir -p "$LOGS"
 p1() { local t=$1; shift; uv run python -I src/extract.py pass1 "$@" --model "$M" --threads "$t" --budget "$B" --effort "$E1" 2>&1 | grep -v "it/s\]"; }
@@ -36,7 +33,6 @@ p2() { local t=$1; shift; uv run python -I src/extract.py pass2 "$@" --model "$M
 
 ( p1 48 data/wd_reviews.parquet --tag _wd; p2 48 data/panels_wd.jsonl --tag _wd
   p1 48 data/llm_reviews.parquet --tag _llm
-  # LLM-written panels mix rewritten and original reviews, so pass 2 needs both claim files
   p2 48 data/panels_llm.jsonl --tag _llm --claims_files "claims_${M}_llm.jsonl,claims_${M}.jsonl"
   p1 32 data/ampere_reviews.parquet --tag _ampere
   echo "CHAIN small DONE $(date)" ) > "$LOGS/small.log" 2>&1 &

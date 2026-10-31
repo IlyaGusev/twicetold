@@ -1,19 +1,3 @@
-"""Paper figures (paper/figs/*.pdf) and the per-source-year table (reports/by_year_<model>.csv, paper/tables/by_year_*.tex).
-
-Style follows paper/FIGURE_GUIDE.md; the color map is in paper/PAPER_NOTES.md. Figures are drawn at their final width
-(COL or PAGE inches) and included in LaTeX without scaling. ICLR years before outcomes.ICLR_FROM are left out.
-
-Inputs: reports/match_std_<model>.csv (outcomes.py standardize), reports/rq1_evidence_<model>.csv (validate.py rq1_evidence),
-reports/by_year_<model>.csv (run `table` first), reports/embed_<model>.csv, reports/llm_share.csv, data/ pairs, placebo panels,
-claims table and detector scores. Every model-specific input follows --model; regenerate them with the same model first.
-
-Usage:
-  uv run python -I src/figures.py all [--figs DIR] [--model M]          # every figure below
-  uv run python -I src/figures.py ai|overlap|categories|fields [--figs DIR]   # main figures
-  uv run python -I src/figures.py likeness|cross|area|journals|journals_cross|embedding   # appendix figures
-  uv run python -I src/figures.py table [--csv reports/by_year_<model>.csv --tables paper/tables --model M]
-"""
-
 import sys
 from pathlib import Path
 
@@ -41,12 +25,10 @@ plt.rcParams.update({
     "xtick.major.width": 0.6, "ytick.major.width": 0.6, "xtick.major.size": 2.5, "ytick.major.size": 2.5,
     "lines.linewidth": 1.2, "lines.markersize": 3.5, "errorbar.capsize": 0, "pdf.fonttype": 42,
 })
-# Okabe-Ito; meanings fixed across the paper (PAPER_NOTES.md)
 C = {"ICLR": "#0072B2", "NeurIPS": "#D55E00", "ICML": "#009E73", "flag": "#E69F00", "flag_light": "#F3CF7F",
      "grey": "#8C8C8C", "light": "#C8C8C8", "ink": "#222222", "band": "#EFEFEF"}
 ORDER = ["ICLR", "NeurIPS", "ICML", "SciPost", "F1000", "PLOS", "BMC-Med", "Copernicus"]
 JOURNALS = {"SciPost": "SciPost", "F1000": "F1000", "PLOS": "PLOS", "BMC-Med": "BMC Medicine", "Copernicus": "Copernicus"}
-# the main CoCoDet runs; other cocodet_*.jsonl files are truncation and style-swap checks
 COCODET = ["cocodet_main.jsonl", "cocodet_icml.jsonl", "cocodet_other.jsonl"]
 SHORT = {"+ length and claim count": "+ length, claim count", "CoCoDet labels, ICLR": "CoCoDet labels",
          "Main model, 500 ICLR 2026 papers": "Main model, 500 papers", "Second model, same papers": "Second model, same 500",
@@ -63,7 +45,6 @@ CATEGORY_NAMES = {"clarity/presentation": "Clarity, presentation", "experiments-
 
 
 def chatgpt(ax, right=2026.5):
-    """The same light band in every time plot: review cycles from 2023 on (ICLR 2023 reviews predate ChatGPT)."""
     ax.axvspan(2022.6, right, color=C["band"], zorder=0, lw=0)
 
 
@@ -93,11 +74,8 @@ def few_ticks(ax, axis="y", n=5):
 
 
 def save(fig, figs, name, width):
-    """Crop to the drawn content, then pad to exactly `width` inches so LaTeX includes the figure unscaled."""
-    # axis limits are fixed by hand, so warn when another model's numbers fall outside them
     for ax in fig.axes:
         d, (x0, x1), (y0, y1) = ax.dataLim, sorted(ax.get_xlim()), sorted(ax.get_ylim())
-        # the ChatGPT band (the only patch) runs past the x limits by design
         if d.y0 < y0 or d.y1 > y1 or not ax.patches and (d.x0 < x0 or d.x1 > x1):
             print(f"WARNING {name}: data x {d.x0:.2f}..{d.x1:.2f}, y {d.y0:.2f}..{d.y1:.2f} outside the axis limits")
     figs = Path(figs)
@@ -111,7 +89,6 @@ def save(fig, figs, name, width):
 
 
 def likeness(figs=settings.FIGURES_DIR):
-    """Appendix figure: ICLR AI-likeness index and share of flagged reviews by year."""
     A = pd.read_csv(settings.REPORTS_DIR / "llm_share.csv").query("conf == 'ICLR' and year >= @ICLR_FROM")
     D = pd.read_parquet(settings.DATA_DIR / "detector_scores.parquet", columns=["review_id", "llm_flag"])
     R = pd.read_parquet(settings.DATA_DIR / "reviews.parquet", columns=["review_id", "conf", "year"]).merge(D, on="review_id")
@@ -132,26 +109,22 @@ def likeness(figs=settings.FIGURES_DIR):
 
 
 def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    """Fig. 1: match rate by pair type, and every estimate of the within-paper gap."""
     flags = pd.read_parquet(settings.DATA_DIR / "detector_scores.parquet", columns=["review_id", "llm_flag"]).set_index("review_id").llm_flag.astype(int)
     P = pd.read_parquet(settings.DATA_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     P["pair_type"] = (P.a.map(flags) + P.b.map(flags)).map({0: "HH", 1: "HL", 2: "LL"})
     E = pd.read_csv(settings.REPORTS_DIR / f"rq1_evidence_{model}.csv")
 
     fig = plt.figure(figsize=(PAGE - 0.15, 2.15))
-    # manual positions: (a) carries labels right of its axis, (b) long row labels on its left
     axes = [fig.add_axes(r) for r in ([0.06, 0.14, 0.3, 0.74], [0.66, 0.14, 0.33, 0.74])]
     ax = axes[0]
     p = P[(P.conf == "ICLR") & (P.year >= 2024)]
     styles = {"HH": ("neither", C["grey"], "o"), "HL": ("one", C["flag_light"], "s"), "LL": ("both", C["flag"], "D")}
     last = {}
     for k, (t, (lab, color, marker)) in enumerate(styles.items()):
-        # one value per paper and type first, so the CI reflects papers, not correlated pairs within a paper
         g = p[p.pair_type == t].groupby(["year", "panel_id"]).hit.mean().groupby("year")
         m, e = g.mean() * 100, 196 * g.std() / np.sqrt(g.count())
         ax.errorbar(m.index + (k - 1) * 0.16, m, yerr=e, fmt=marker, ms=3.5, color=color, elinewidth=1.0)
         last[t] = m.iloc[-1]
-    # "one" and "neither" sit close on a zero-based axis, so their labels are pushed apart
     lo, hi = sorted(["HH", "HL"], key=last.get)
     for t, dy in {lo: -0.5, hi: 0.5, "LL": 0}.items():
         ax.text(2026.5, last[t] + dy, styles[t][0], fontsize=7, va="center", color=C["ink"])
@@ -194,7 +167,6 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    """Fig. 2: standardized same-paper match rate by venue."""
     S = pd.read_csv(settings.REPORTS_DIR / f"match_std_{model}.csv")
     fig, ax = plt.subplots(figsize=(COL - 0.1, 1.9))
     fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.13)
@@ -212,7 +184,6 @@ def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    """Appendix figure: match rate between reviews of different papers of one venue and year."""
     Q = in_window(pd.read_parquet(settings.DATA_DIR / f"placebo_outcomes_{model}.parquet"))
     fig, ax = plt.subplots(figsize=(COL - 0.1, 1.7))
     fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.14)
@@ -230,7 +201,6 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    """Fig. 3: share of ICLR critique claims by category, 2020-2022 against 2026."""
     T = pd.read_parquet(settings.DATA_DIR / f"claims_table_{model}.parquet", columns=["review_id", "conf", "year", "category"])
     keep = set(pd.read_parquet(settings.DATA_DIR / "reviews.parquet", columns=["review_id"]).review_id)
     T = T[(T.conf == "ICLR") & T.review_id.isin(keep) & (T.category != "other")]
@@ -262,11 +232,9 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    """Fig. 4: change of each journal source's standardized match rate against the change in its AI-likeness index."""
     T = pd.read_csv(settings.REPORTS_DIR / f"by_year_{model}.csv")
     fig, ax = plt.subplots(figsize=(COL - 0.1, 2.0))
     fig.subplots_adjust(left=0.15, right=0.98, top=0.97, bottom=0.17)
-    # journal sources only: their AI-likeness comes from one field-matched reference, the ML venues' from another
     for conf, name in JOURNALS.items():
         g = T[T.conf == conf]
         pre, last = g[g.year.between(2019, 2023)], g[g.year == g.year.max()].iloc[0]
@@ -274,7 +242,6 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         dy = last.match_std - pre.match_std.mean()
         se = np.sqrt(last.match_std_se ** 2 + (pre.match_std_se ** 2).sum() / len(pre) ** 2)
         ax.errorbar(dx, dy, yerr=1.96 * se, fmt="o", ms=3.5, color=C["ink"], elinewidth=1.0)
-        # BMC Medicine and SciPost sit close together, so their labels go above and below the error bars
         y, off, ha, va = {"BMC-Med": (dy + 1.96 * se, (0, 2), "center", "bottom"), "SciPost": (dy - 1.96 * se, (0, -2), "center", "top"),
                           "Copernicus": (dy, (4, -3), "left", "top")}.get(conf, (dy, (4, 0), "left", "center"))
         ax.annotate(name, (dx, y), xytext=off, textcoords="offset points", fontsize=7, ha=ha, va=va)
@@ -288,7 +255,6 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def journal_grid(figs, name, ylabel, ylim, draw):
-    """One panel per journal source; draw(ax, conf) plots the series."""
     fig, grid = plt.subplots(2, 3, figsize=(PAGE - 0.1, 2.45))
     fig.subplots_adjust(left=0.075, right=0.995, top=0.92, bottom=0.13, wspace=0.28, hspace=0.65)
     axes = grid.ravel()
@@ -307,20 +273,17 @@ def journal_grid(figs, name, ylabel, ylim, draw):
 
 
 def journals(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    """Appendix figure: standardized same-paper match rate per journal source and year."""
     S = pd.read_csv(settings.REPORTS_DIR / f"match_std_{model}.csv")
     journal_grid(figs, "figA_journals.pdf", "Std. match rate (%)", (0, 19), lambda ax, conf: std_line(ax, S, conf, C["ink"]))
 
 
 def journals_cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    """Appendix figure: match rate between reports on different papers of one journal source and year."""
     other = in_window(pd.read_parquet(settings.DATA_DIR / f"other_panel_outcomes_{model}.parquet"))
     journal_grid(figs, "figA_journals_cross.pdf", "Match rate (%)", (-0.2, 3.4),
                  lambda ax, conf: line(ax, other[(other.conf == conf) & other.placebo], "hit_rate_strict", C["ink"]))
 
 
 def area(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    """Appendix figure: ICLR match rate between reviews of different papers, same venue-year against same research area."""
     Q = in_window(pd.read_parquet(settings.DATA_DIR / f"placebo_outcomes_{model}.parquet"))
     Q = Q[Q.conf == "ICLR"]
     fig, ax = plt.subplots(figsize=(COL - 0.1, 1.7))
@@ -339,7 +302,6 @@ def area(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    """Appendix figure: cosine similarity of whole-review embeddings, same paper and different papers of one area."""
     E = in_window(pd.read_csv(settings.REPORTS_DIR / f"embed_{model}.csv"))
     fig, ax = plt.subplots(figsize=(COL - 0.5, 1.8))
     chatgpt(ax)
@@ -373,7 +335,6 @@ def summarize(df, placebo):
 
 
 def by_year(model=settings.DEFAULT_MODEL):
-    """One row per source-year: sample size, claims per review, match rates and AI-text measures."""
     ml = pd.read_parquet(settings.DATA_DIR / f"panel_outcomes_{model}.parquet")
     ml_placebo = pd.read_parquet(settings.DATA_DIR / f"placebo_outcomes_{model}.parquet").query("placebo_kind == 'shuffled4'")
     icml = pd.read_parquet(settings.DATA_DIR / f"icml_panel_outcomes_{model}.parquet")
@@ -420,7 +381,6 @@ def latex(T):
 
 
 def table(csv=None, tables=settings.TABLES_DIR, model=settings.DEFAULT_MODEL):
-    """reports/by_year_<model>.csv plus two LaTeX tables: by_year_ml.tex (conferences) and by_year_journals.tex."""
     T = by_year(model)
     T.to_csv(csv or settings.REPORTS_DIR / f"by_year_{model}.csv", index=False)
     print(T.round(2).to_string(index=False))

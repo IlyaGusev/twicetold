@@ -1,17 +1,3 @@
-"""Fetch peer reviews: five non-ML open-review sources and ICML from OpenReview.
-
-Non-ML sources (scipost f1000 bmc plos copernicus): polite cached HTTP, text cleanup and one sampling rule (see
-`finalize`). Raw responses are cached under /home/yallen/data/peer-review/other/<source>/, so a rerun resumes and an
-interrupted run loses nothing. Each writes <out>/<source>_reviews.parquet, <source>_papers.parquet and
-<source>_stats.json (default out: data/other); `corpus.py other` merges them.
-
-icml: needs OPENREVIEW_USERNAME and OPENREVIEW_PASSWORD (anonymous API access is behind a challenge), so run
-OpenReview credentials come from .env via settings.py. Caches the download in data/icml<YEAR>_raw.jsonl.
-
-Usage: fetch.py scipost|f1000|bmc|plos|copernicus [--out data/other]
-       fetch.py icml [--year 2026] [--out data]
-"""
-
 import sys
 import io
 import json
@@ -42,7 +28,7 @@ UA = "twicetold-research"
 SEED = 0
 YEARS = range(2018, 2027)
 MAX_PAPERS = 500
-MIN_CHARS = 100  # drops "see attached file" stubs before the 2+ reviews rule
+MIN_CHARS = 100
 WORKERS = 4
 EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 
@@ -65,7 +51,6 @@ class Blocked(Exception):
 
 
 def fetch(url, path, params=None):
-    """Return the body of url (bytes), cached at path; None on 404/410. Raises Blocked on 403 so callers skip."""
     path = Path(path)
     if path.exists():
         return path.read_bytes() or None
@@ -90,7 +75,7 @@ def pmap(fn, items, desc, workers=WORKERS):
 
 
 def clean(text):
-    text = (text or "").encode("utf-16", "surrogatepass").decode("utf-16", "replace")  # PDF text can hold split surrogate pairs
+    text = (text or "").encode("utf-16", "surrogatepass").decode("utf-16", "replace")
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -101,11 +86,6 @@ def shuffled(items):
 
 
 def finalize(source, reviews, papers, out, max_papers=MAX_PAPERS, stats=None):
-    """Apply the common rules and save. reviews: one dict per first-round review; papers: one dict per paper.
-
-    Paper year = year of its earliest first-round review. Drops short stubs and exact duplicate texts within a paper,
-    keeps papers with 2+ reviews, then samples up to max_papers (int or year -> int) per year with a fixed seed.
-    """
     rv = pd.DataFrame([dict(r, text=clean(r["text"])) for r in reviews])
     pp = pd.DataFrame(papers).drop_duplicates("paper_id")
     rv["n_chars"] = rv.text.str.len()
@@ -140,7 +120,6 @@ def finalize(source, reviews, papers, out, max_papers=MAX_PAPERS, stats=None):
 
 
 def epmc_search(query, cache):
-    """All Europe PMC hits for query as lite records, cached as one JSON file."""
     cache = Path(cache)
     if cache.exists():
         return json.loads(cache.read_text())
@@ -164,7 +143,7 @@ def epmc_search(query, cache):
 def epmc_xml(pmcid, folder):
     try:
         raw = fetch(f"{EPMC}/{pmcid}/fullTextXML", Path(folder) / f"{pmcid}.xml")
-    except requests.RequestException as e:  # a few records return 500 on every try; cache as missing
+    except requests.RequestException as e:
         print("skip", pmcid, type(e).__name__)
         (Path(folder) / f"{pmcid}.xml").write_bytes(b"")
         return None
@@ -191,10 +170,6 @@ def licence_of(root):
 
 
 def collect(candidates, parse, desc, batch=100):
-    """Parse shuffled candidate PMCIDs in batches until MAX_PAPERS papers with 2+ first-round reviews are found.
-
-    parse(pmcid) -> (paper dict, list of review dicts) or None.
-    """
     papers, reviews, found, i = [], [], 0, 0
     cands = shuffled(candidates)
     for i in range(0, len(cands), batch):
@@ -213,7 +188,6 @@ def collect(candidates, parse, desc, batch=100):
 
 
 def epmc_collect(source, journals, parse, extra=""):
-    """collect() over each year's Europe PMC hits for the given journals."""
     query = " OR ".join(f'JOURNAL:"{j}"' for j in journals)
     papers, reviews = [], []
     for y in YEARS:
@@ -237,15 +211,6 @@ def scipost_page(offset):
 
 
 def scipost(out=OUT):
-    """SciPost first-round referee reports from the public API (https://scipost.org/api/submissions/).
-
-    First round = submissions that are not resubmissions; reports kept: vetted, report_type report_normal.
-    text = tagged STRENGTHS / WEAKNESSES / REPORT / REQUESTED CHANGES fields. Reports that are only an attached PDF drop
-    out (too short). reviewer = "Reviewer <report_nr>".
-    rating = round(mean of validity, significance, originality, clarity) with top=6, high=5, good=4, ok=3, low=2,
-    poor=1; null when none of the four is given. rating_raw keeps all six criteria (incl. formatting, grammar) as
-    key=value pairs. Licence: SciPost reports and papers are CC BY 4.0.
-    """
     count = json.loads(fetch(f"{SCIPOST_API}?format=json&limit=1", settings.RAW_JOURNAL_REVIEWS_DIR / "scipost" / "count.json"))["count"]
     subs = [s for p in pmap(scipost_page, range(0, count, SCIPOST_PAGE), "scipost pages") for s in p]
     reviews, papers = [], []
@@ -330,7 +295,6 @@ def f1000_parse(pmcid):
             m = re.search(r"Recommendation:\s*([^.]+)", text_of(sa.find(".//notes")) or "")
             label = m.group(1) if m else None
         if label is None and sa.find("body") is not None:
-            # newer reports carry the verdict only in the closing confirmation sentence
             m = re.search(r"I confirm that I have read this submission[^.]*", text_of(sa.find("body")))
             s = m.group(0) if m else ""
             label = ("Not Approved" if "do not consider" in s else "Approved with Reservations" if "reservations" in s
@@ -347,20 +311,8 @@ def f1000_parse(pmcid):
 
 
 def f1000(out=OUT):
-    """F1000Research, Wellcome Open Research and Open Research Europe referee reports on version 1, via Europe PMC.
-
-    Reports are JATS sub-articles of type reviewer-report (newer) or peer-review (older) titled "Reviewer response for
-    version 1". text = report body without the journal's Yes/Partly/No checklist, "Reviewer Expertise" and the closing
-    confirmation; author responses are nested sub-articles and are skipped. Referee names are dropped; reviewer =
-    "Reviewer <k>" in report order. paper_id = article DOI without the version suffix (PMC can hold one record per
-    version). review_time = report pub-date.
-    rating: Approved = 3, Approved with Reservations = 2, Not Approved = 1 (rating_raw keeps the label). When the XML
-    has no recommendation field (most reports from 2023 on), the verdict comes from the closing confirmation sentence.
-    Caveats: PMC only indexes articles after they pass review, so Not Approved reports are rare; PMC XML before ~2019
-    often lacks the reports. Licence: reports CC BY 4.0; articles mostly CC BY 4.0 (stored per paper).
-    """
     papers, reviews = epmc_collect("f1000", F1000_JOURNALS, f1000_parse)
-    uniq = {}  # PMC holds one record per article version, each with the version-1 reports
+    uniq = {}
     for r in sorted(reviews, key=lambda r: (r["paper_id"], r["review_time"] or "", r["review_id"])):
         uniq.setdefault(r["review_id"], r)
     k = Counter()
@@ -374,12 +326,10 @@ BMC_URL = "https://huggingface.co/datasets/JerMa88/BMC_Medicine_Peer_Reviews/res
 
 
 def fuzzy(phrase):
-    """Regex for phrase that tolerates the stray spaces PDF extraction puts inside words."""
     return r"\s?".join(re.escape(c) if c not in " '" else (r"\s+" if c == " " else r"[’']") for c in phrase)
 
 
 BMC_START = re.compile(fuzzy("Reviewer's report") + r"\s?:", re.I)
-# case-sensitive: reviewers write "a statistical review" or "the quality of written English" mid-report
 BMC_STOPS = re.compile("|".join(fuzzy(s) for s in [
     "Are the methods appropriate", "Are you able to assess", "Quality of written English", "Declaration of competing",
     "Level of interest", "Statistical review", "Statement on potential review bias", "I agree to the open peer review",
@@ -398,14 +348,6 @@ def bmc_body(t):
 
 
 def bmc(out=OUT):
-    """BMC Medicine first-round reviewer reports from the HF dataset JerMa88/BMC_Medicine_Peer_Reviews (CC BY 4.0).
-
-    The dataset holds one PDF-extracted report per row; review_src "<ms>_ReviewerReport_V<v>_R<n>.pdf". First round =
-    V0. text = the part after "Reviewer's report:" up to the journal's form questions (statistics, English quality,
-    competing interests, open-review consent). The "Reviewer: <name>" header line is dropped; reviewer = "Reviewer <n>".
-    review_time = the report's "Date:" field. No rating in this source (rating null).
-    PDF extraction leaves stray spaces inside words ("lesso n"); left as is.
-    """
     fetch(BMC_URL, settings.RAW_JOURNAL_REVIEWS_DIR / "bmc" / "train.parquet")
     df = pd.read_parquet(settings.RAW_JOURNAL_REVIEWS_DIR / "bmc" / "train.parquet", columns=["title", "review", "review_src", "year"])
     df = df[df.review_src.str.contains(r"_V0_R\d+\.pdf$")]
@@ -428,7 +370,6 @@ PLOS_JOURNALS = ["PLoS One", "PLoS Biol", "PLoS Comput Biol", "PLoS Genet", "PLo
                  "PLOS Glob Public Health", "PLOS Digit Health"]
 PLOS_SEP = "**********"
 PLOS_START = re.compile(r"Reviewers?['’]? (?:comments|Responses to Questions)|Comments to the Author", re.I)
-# "Reproducibility:" and dash rules also occur inside reviews; only the journal's own forms are cut
 PLOS_END = re.compile("|".join([r"PLOS authors have the option to publish", r"Do you want your identity to be public",
                                 r"\[NOTE: If reviewer comments", r"While revising your submission", r"\[Note: HTML markup is below",
                                 r"To ensure your figures meet", r"Figure Files:", r"Data Requirements:",
@@ -442,7 +383,6 @@ MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
 
 
 def plos_letters(root):
-    """Decision letters in order: [(k, sub-article)]."""
     out = []
     for sa in root.iter("sub-article"):
         m = re.fullmatch(r"Decision Letter (\d+)", text_of(sa.find(".//article-title")))
@@ -452,7 +392,6 @@ def plos_letters(root):
 
 
 def plos_split_letter(text):
-    """-> ({reviewer n: text}, {reviewer n: {question k: (answer, is_soundness_question)}})."""
     m = PLOS_START.search(text)
     text = text[m.start():] if m else text
     texts, answers = {}, {}
@@ -480,9 +419,8 @@ def plos_parse(pmcid):
     if root is None:
         return None
     if any(text_of(sa.find(".//article-title")) == "Author response to previous submission" for sa in root.iter("sub-article")):
-        PLOS_SKIPPED["resubmission"] += 1  # earlier reviews of this manuscript exist but are not published
+        PLOS_SKIPPED["resubmission"] += 1
         return None
-    # first letter that carries reviewer comments; PLOS Biology/Medicine often send a pre-review editor letter first
     sa = next((sa for _, sa in plos_letters(root) if PLOS_REV.search(text_of(sa.find("body")))), None)
     if sa is None:
         return None
@@ -512,17 +450,6 @@ def plos_parse(pmcid):
 
 
 def plos(out=OUT):
-    """PLOS first-round reviews from the published peer-review history, via Europe PMC fullTextXML.
-
-    Source: sub-article "Decision Letter 0" (aggregated-review-documents, Submission Version 0). The letter is split per
-    reviewer on "Reviewer #N:" inside the "Review Comments to the Author" block; the editor's text, journal
-    requirements, the identity question and the closing notes are cut. reviewer = "Reviewer N" (names given in the
-    identity question are never kept). review_time = the letter date (individual review dates are not published).
-    rating (PLOS ONE-style forms only): answer to "Is the manuscript technically sound, and do the data support the
-    conclusions?" Yes = 3, Partly = 2, No = 1; null otherwise. rating_raw = all structured answers, "Q1=Yes;Q2=No;...".
-    Journals: PLOS ONE (field multidisciplinary) plus the other PLOS research journals (field biomed), pooled per year.
-    Licence: PLOS articles and review histories are CC BY 4.0 (stored per paper from the XML).
-    """
     papers, reviews = epmc_collect("plos", PLOS_JOURNALS, plos_parse, extra=' AND "Decision Letter 0"')
     for r in reviews:
         r["review_time"] = pd.to_datetime(r["review_time"], format="%d %b %Y", errors="coerce")
@@ -568,7 +495,6 @@ def crossref_index():
 
 
 def copernicus_page(url, ms):
-    """Discussion page HTML, following the meta refresh from preprint to published-article discussion."""
     html = fetch(url, COP / "html" / f"{ms}.html")
     if html and b"http-equiv=refresh" in html[:2000]:
         target = re.search(rb'url=([^"\'>]+)', html).group(1).decode()
@@ -586,7 +512,7 @@ def copernicus_pdf_text(url, name):
         return ""
     try:
         text = "\n".join(p.extract_text() or "" for p in PdfReader(io.BytesIO(raw)).pages)
-    except Exception as e:  # malformed PDFs exist; skip the comment
+    except Exception as e:
         print("pdf error", name, e)
         return ""
     m = re.search(r"Received and published:.*\n", text)
@@ -649,18 +575,6 @@ def copernicus_parse(item):
 
 
 def copernicus(out=OUT):
-    """Copernicus / EGU interactive-discussion referee comments (RC*) on preprints.
-
-    Index: Crossref peer-review records under prefix 10.5194 (DOI suffix -rcN = referee comment; -ac/-cc/-sc/-ec
-    dropped). Text: the preprint's discussion page; inline HTML comment bodies (newer) or the RC PDF (older, parsed with
-    pypdf, with the "Interactive comment" page furniture and header removed). Only the first RC of each referee is
-    kept: later RCs are mostly replies to the authors. reviewer = "Referee N" from "Anonymous Referee #N" (named
-    referees get "Referee 101", 102, ... by order; names dropped). review_time = the RC posting date. Referees can read
-    earlier RCs, so the dates matter.
-    rating = Crossref review.recommendation: accept = 4, minor-revision = 3, major-revision = 2, reject = 1.
-    Cap: 500 papers per year from 2022 (inline HTML), 300 per year before (PDF-only comments are slow to fetch).
-    Licence: discussion comments are CC BY 4.0 (stated on every comment).
-    """
     by_ms = defaultdict(list)
     for r in crossref_index():
         by_ms[r["doi"].removeprefix("10.5194/").rsplit("-", 1)[0]].append(r)
@@ -681,7 +595,6 @@ def copernicus(out=OUT):
     finalize("copernicus", reviews, papers, out, max_papers=copernicus_cap, stats=dict(COP_SKIPPED))
 
 
-# 2025 used a guided form with eleven free-text fields; 2026 went back to four.
 ICML_FIELDS = {2025: [("summary", "SUMMARY"), ("claims_and_evidence", "CLAIMS AND EVIDENCE"),
                       ("methods_and_evaluation_criteria", "METHODS AND EVALUATION"), ("theoretical_claims", "THEORY"),
                       ("experimental_designs_or_analyses", "EXPERIMENTS"), ("supplementary_material", "SUPPLEMENT"),
@@ -699,7 +612,7 @@ def val(content, key):
 
 
 def icml_download(year, raw):
-    import openreview  # slow import, only needed for the download
+    import openreview
 
     client = openreview.api.OpenReviewClient(baseurl="https://api2.openreview.net",
                                              username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD)
@@ -726,14 +639,6 @@ def icml_reviews(year, raw):
 
 
 def icml(year=2026, out=settings.DATA_DIR):
-    """ICML accepted papers with their public reviews from OpenReview (API v2).
-
-    Writes data/icml<YEAR>_raw.jsonl (one submission per line, with replies; downloaded only if missing) and
-    <out>/icml<YEAR>_reviews.parquet with paper_id, review_id, text (fields joined with tags), rating, confidence,
-    primary_area, review_time, modified_time. The papers' LLM-policy choice (Policy A/B) is not in the public records
-    (checked on all 6,341 ICML 2026 papers), and every review answers the compliance question with "Affirmed.", so no
-    policy comparison is possible from public data.
-    """
     raw = settings.DATA_DIR / f"icml{year}_raw.jsonl"
     if not raw.exists():
         icml_download(year, raw)

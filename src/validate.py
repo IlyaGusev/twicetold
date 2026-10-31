@@ -1,40 +1,3 @@
-"""Validation sets and checks of the claim pipeline.
-
-Set builders (write the annotation inputs and the hidden keys; annotators never see year or pipeline labels):
-  blind_set: 10 ICLR papers each from 2018, 2022, 2024, 2026 with exactly 4 sampled reviews, full text, year hidden
-    behind codes B00-B39. -> data/blind/blind_key.json, blind_input_{0..3}.jsonl (10 papers each, mixed years),
-    data/panels_blind.jsonl
-  pairs_set: cross-review claim pairs from ICLR 2017-2022 and 2026 panels for calibrating the pass-2 merge decision,
-    stratified by the pipeline's decision (same cluster / same target but different cluster / different target).
-    -> data/pairs/pairs_input_{0..3}.jsonl (two claims, two source review texts), pairs_key.parquet
-  spec_set: 300 claims (150 from ICLR 2017-2022, 150 from 2024-2026) for the generic-vs-specific check.
-    -> data/spec/spec_input.jsonl (claim text only), spec_key.parquet (pipeline labels)
-Checks:
-  blind: pipeline vs the blind Opus reference on the 40 papers: Spearman agreement per outcome, bias by year (the
-    year-dependence check, with TOST equivalence), and the Opus-replicate noise ceiling.
-  pairs: pipeline merge decisions vs the two claim-pair adjudication runs (data/pairs/judgments_{a,b}{0..3}.jsonl):
-    run agreement, precision/recall by period and flag stratum. -> reports/pairs_validation.csv
-  spec: agreement of two specificity annotators (data/spec/judgments_{a,b}.jsonl) with each other and the pipeline.
-  ampere: segmentation check against AMPERE (Hua et al. 2019), 400 ICLR 2018 reviews with human proposition labels:
-    claim counts vs evaluation/request propositions, and coverage of propositions by a claim (cosine >= 0.5,
-    text-embedding-3-small; paid OpenAI API, key from .env via settings.py).
-  detector_placebo: pre-ChatGPT placebo for the within-paper detector gap (top-45% detector scores as pseudo-flags).
-    -> reports/detector_placebo_<model>.csv
-  rq1_evidence: every estimate of the within-paper flagged gap in one table. -> reports/rq1_evidence_<model>.csv
-  variants: robustness variants from the outcome tables: re-clustered 3-review subsets (sub3), questions field
-    dropped (noq), withdrawn 2026 papers (wd). -> reports/variant_{sub3,noq,wd}_<model>.csv
-  instruments: extraction models compared on the second-model set and the blind set. -> reports/instruments.csv
-  reviewer_fe: F1000 rise within signed reviewers (reviewer fixed effects) against the pooled rise.
-    -> reports/reviewer_fe_f1000.csv
-  paper_side: CoCoDet abstract score as a confound of the ICLR rise. -> reports/paper_side.csv
-  drift, flags, swap, swap_detector, pair_audit: checks on the later blind sets (data/blind2-5; their builders are
-    drift_set, flag_set, pair_audit_set). -> reports/{drift_blind2,flags_blind3,swap_blind4,swap_detector,pair_audit_blind5}.csv
-
-Usage: validate.py blind_set | pairs_set [--model=gpt-6-luna] | spec_set [--model=gpt-6-luna]
-       validate.py blind [--model=gpt-6-luna] [--tag=] | pairs | spec | ampere [--model=gpt-6-luna] | variants [--model=gpt-6-luna]
-       (--data, --reports: where inputs/data outputs and reports live)
-"""
-
 import json
 from itertools import combinations
 import sys
@@ -52,7 +15,7 @@ from settings import settings
 
 BLIND_YEARS = [2018, 2022, 2024, 2026]
 BLIND_PER_YEAR = 10
-PAIRS_PER_STRATUM = 100  # x 3 strata x 2 periods = 600 pairs
+PAIRS_PER_STRATUM = 100
 BLIND_OUTCOMES = ["n_claims", "n_clusters", "n_targets", "n_shared_clusters", "share_shared_claims",
                   "share_shared_claims_lenient", "D3", "S3", "U3", "T3", "pair_rate_strict", "hit_rate_strict",
                   "share_specific", "hill_shannon"]
@@ -100,7 +63,6 @@ def clustered(model, *groups):
 
 
 def write_split(items, path_fmt, k=4):
-    """Round-robin split into k annotation files."""
     for i in range(k):
         write_jsonl(str(path_fmt).format(i), items[i::k])
 
@@ -136,7 +98,6 @@ def pairs_set(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
     panels = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
     meta = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "conf", "year"]).set_index("paper_id")
     texts, flag = review_texts(data), load_flags(data)
-    # post-period pairs are split by whether either review is flagged as LLM-styled (half each)
     pools = {(per, s): [] for per in ("pre", "post_flag", "post_noflag") for s in ("same_cluster", "same_target", "different")}
     for pid, p in tqdm(panels.items(), desc="panels"):
         if pid not in meta.index or meta.loc[pid, "conf"] != "ICLR":
@@ -213,8 +174,6 @@ def model_metrics(blind, data, model, tag):
 
 
 def reference_agreement(blind):
-    """Agreement between the original Opus reference and an independent Opus replicate on the same papers:
-    the noise ceiling for the pipeline-vs-reference comparison."""
     from scipy.stats import spearmanr
 
     both = opus_metrics(blind).join(opus_metrics(blind, ["rep0", "rep1"]), how="inner", suffixes=("_a", "_b"))
@@ -262,7 +221,6 @@ def load_judgments(pdir, run):
         f = pdir / f"judgments_{run}{k}.jsonl"
         if not f.exists():
             continue
-        # keep only judgments whose pair_id belongs to this input file (agents shared a scratchpad; guard against mix-ups)
         ids = {r["pair_id"] for r in read_jsonl(pdir / f"pairs_input_{k}.jsonl")}
         js = read_jsonl(f)
         ok = [j for j in js if j["pair_id"] in ids]
@@ -381,7 +339,6 @@ def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setti
     P = pd.read_parquet(data / f"panel_outcomes_{model}.parquet")
     P = P[P.n_claims > 0].set_index("panel_id")
     out = {}
-    # sub3: clustering a 3-review subset from scratch vs rarefied S3 from the full-panel clustering, same papers
     S = pd.read_parquet(data / f"sub3_outcomes_{model}.parquet")
     S = S[S.n_claims > 0].set_index("paper_id")
     j = S.join(P[["S3", "D3", "share_shared_claims", "hit_rate_strict"]], suffixes=("", "_full"))
@@ -389,7 +346,6 @@ def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setti
                                  "D3_recluster": g.D3.mean(), "D3_rarefied": g.D3_full.mean(),
                                  "share_recluster": g.share_shared_claims.mean(), "share_rarefied": g.share_shared_claims_full.mean(),
                                  "se_S3": se(g.S3)} for y, g in j.groupby("year")]).set_index("year")
-    # noq: questions field removed, same papers
     N = pd.read_parquet(data / f"panel_outcomes_{model}_noq.parquet")
     N = N[N.n_claims > 0].set_index("paper_id")
     j = N.join(P[VARIANT_COLS], suffixes=("", "_full"))
@@ -397,7 +353,6 @@ def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setti
     out["noq"] = pd.DataFrame([dict(year=y, n=len(g), **{f"{c}_noq": g[c].mean() for c in cols},
                                     **{f"{c}_full": g[f"{c}_full"].mean() for c in cols}, se_S3=se(g.S3))
                                for y, g in j.groupby("year")]).set_index("year")
-    # withdrawn ICLR 2026 papers vs the non-withdrawn sample
     W = pd.read_parquet(data / f"panel_outcomes_{model}_wd.parquet")
     W = W[W.n_claims > 0]
     nw = P[(P.conf == "ICLR") & (P.year == 2026)]
@@ -410,8 +365,6 @@ def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setti
 
 
 def drift_set(data=settings.DATA_DIR, years=(2023, 2026), per_year=25, seed=7, k=5):
-    """Blind reference set for instrument drift: papers with exactly 4 reviews among those both models processed,
-    shuffled across years -> data/blind2/ (inputs, key; annotate with data/blind/PROTOCOL.md)."""
     data = Path(data)
     out = data / "blind2"
     rng = np.random.default_rng(seed)
@@ -433,9 +386,6 @@ def drift_set(data=settings.DATA_DIR, years=(2023, 2026), per_year=25, seed=7, k
 
 
 def pair_audit_set(data=settings.DATA_DIR, year=2026, n=60, seed=9, k=5):
-    """Pair-level audit set, independent of the pipeline: new ICLR papers with 2 flagged and 2 unflagged reviews
-    (none from data/blind3); for each paper its flagged-flagged and unflagged-unflagged pair, shuffled, with the two
-    reviews of a pair in random order -> data/blind5/ (annotate with data/blind5/PAIR_PROTOCOL.md)."""
     data = Path(data)
     out = data / "blind5"
     rng = np.random.default_rng(seed)
@@ -465,13 +415,9 @@ def pair_audit_set(data=settings.DATA_DIR, year=2026, n=60, seed=9, k=5):
 
 
 def pair_audit(data=settings.DATA_DIR, annotators=("x", "y"), reports=settings.REPORTS_DIR):
-    """Match rate per pair from the pair-level audit (mean of the annotators), flagged minus unflagged pair within
-    paper, and agreement between annotators. Reads every data/blind5/pair_out_<annotator>_*.jsonl, so exports from
-    label.html (human annotators, e.g. --annotators h1,h2) work the same way as the LLM files."""
     from scipy.stats import pearsonr
 
     data = Path(data)
-    # Fire gives a tuple for h1,h2 but one string for names with a hyphen
     annotators = annotators.split(",") if isinstance(annotators, str) else list(annotators)
     blind5 = data / "blind5"
     key = json.loads((blind5 / "pair_key.json").read_text())
@@ -500,8 +446,6 @@ def pair_audit(data=settings.DATA_DIR, annotators=("x", "y"), reports=settings.R
 
 
 def flag_set(data=settings.DATA_DIR, year=2026, n=50, seed=8, k=5):
-    """Blind reference set for the detector contrast: ICLR papers with exactly 4 reviews, 2 flagged and 2 unflagged by
-    the style detector, so each paper has one flagged-flagged and one unflagged-unflagged pair -> data/blind3/."""
     data = Path(data)
     out = data / "blind3"
     rng = np.random.default_rng(seed)
@@ -524,7 +468,6 @@ def flag_set(data=settings.DATA_DIR, year=2026, n=50, seed=8, k=5):
 
 
 def pair_hits(p, claims, real_ids):
-    """Pair match rates (x100) of one panel, keyed by the real review ids of the pair."""
     df = assign(p, claims)
     out = {}
     for a, b in combinations(range(len(p["review_ids"])), 2):
@@ -536,8 +479,6 @@ def pair_hits(p, claims, real_ids):
 
 
 def flags(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
-    """Detector contrast on the flag set: flagged-flagged minus unflagged-unflagged pair match rate within each paper,
-    from the blind Opus reference and from both models."""
     data = Path(data)
     blind3 = data / "blind3"
     key, flag = blind_key(blind3), load_flags(data)
@@ -564,8 +505,6 @@ def flags(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
 
 
 def swap_detector(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
-    """Manipulation check for the style swap: refit the style detector exactly as ai.py style does, confirm it
-    reproduces the stored scores of the original reviews, and score the rewritten reviews."""
     import ai
     from sklearn.feature_extraction.text import TfidfTransformer
     from sklearn.linear_model import LogisticRegression
@@ -600,8 +539,6 @@ def swap_detector(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
 
 
 def swap(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
-    """Style-swap check on the flag set: flagged reviews rewritten plain, unflagged ones polished, content kept
-    (data/blind4/), then annotated blind. Compares the flagged-pair gap and claims per review before and after."""
     data = Path(data)
     key, flag = blind_key(data / "blind3"), load_flags(data)
     rows, sizes = [], []
@@ -633,7 +570,6 @@ def swap(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
 
 
 def drift(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
-    """Match rate of the main model, the second model and the blind Opus reference on the drift set, by year."""
     data = Path(data)
     blind2 = data / "blind2"
     key = blind_key(blind2)
@@ -661,7 +597,6 @@ def drift(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
 
 
 def robust(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR, tex=settings.TABLES_DIR / "robust.tex"):
-    """ICLR same-paper match rate (%) in a base year and in 2026 under each check -> reports/robust_<model>.csv, .tex."""
     data = Path(data)
     P = pd.read_parquet(data / f"panel_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
     pairs = pd.read_parquet(data / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "hit_spec"])
@@ -698,8 +633,6 @@ def robust(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setting
 
 
 def fe_gap(P, flag, controls=()):
-    """Within-paper match-rate gap (pp) of pairs with one / two flagged reviews over pairs with none; SE clustered by paper.
-    `controls`: further columns of P to hold fixed."""
     import statsmodels.api as sm
 
     k = flag.reindex(P.a).to_numpy() + flag.reindex(P.b).to_numpy()
@@ -711,12 +644,6 @@ def fe_gap(P, flag, controls=()):
 
 
 def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
-    """Pre-ChatGPT placebo for the within-paper detector gap at ICLR.
-
-    In each pre-ChatGPT period, the reviews with the top `share` of style-detector scores (about the 2026 flag rate) get a
-    pseudo-flag; if the detector picked reviews whose content overlaps for reasons unrelated to AI, their pairs would
-    match more. Rerun without the papers whose reviews trained the detector. -> reports/detector_placebo_<model>.csv
-    """
     from outcomes import ICLR_FROM
 
     data, reports = Path(data), Path(reports)
@@ -743,8 +670,6 @@ def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.DAT
 
 
 def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
-    """Every estimate of the within-paper gap (two flagged minus two unflagged reviews, pp, with SE) in one table, for the
-    RQ1 figure: pipeline estimates, blind Claude Opus references and pre-ChatGPT placebos. -> reports/rq1_evidence_<model>.csv"""
     from outcomes import pair_design
 
     data, reports = Path(data), Path(reports)
@@ -792,7 +717,6 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
 
 
 def f1000_reviewer_names(xml_dir):
-    """Signing reviewer (first named referee, lower-cased) per F1000 report DOI, from the cached Europe PMC XML."""
     import xml.etree.ElementTree as ET
 
     names = {}
@@ -813,9 +737,6 @@ def f1000_reviewer_names(xml_dir):
 
 
 def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
-    """Within-reviewer change of the F1000 match rate. F1000 reports are signed, so the rise of 2025-26 over 2019-23 can be
-    estimated from the same reviewers' reports (reviewer fixed effects) and compared with the pooled change; 2024 is left
-    out as the transition year. Reviewer names come from fetch.RAW / "f1000". -> reports/reviewer_fe_f1000.csv"""
     import statsmodels.formula.api as smf
     from fetch import RAW
 
@@ -834,7 +755,6 @@ def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=se
     both = rv[rv.name.isin(span.index[(span["min"] == 0) & (span["max"] == 1)])]
     ctrl = " + log_len + log_len_other + C(size)"
 
-    # two-way by paper and reviewer: each pair's hit enters both reviewers' rows; the one unsigned report is its own cluster
     def fit(label, f, d):
         m = clustered(smf.ols(f, data=d), d.panel_id, d.name.fillna(d.rid))
         return dict(label=label, est=m.params["post"], se=m.bse["post"], reports=int(m.nobs), reviewers=d.name.nunique(),
@@ -848,10 +768,6 @@ def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=se
 
 
 def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
-    """Paper-side AI-likeness as a confound of the ICLR rise: CoCoDet P(ai)+P(mix) on each paper's title and abstract
-    (data/cocodet_abstracts.jsonl, from ai.py cocodet data/cocodet_input_abstracts.parquet --name abstracts).
-    Reports the within-year slope of the pair match rate on the standardized score and the standardized ICLR rate by
-    year with and without the score. Partial detector output is a random sample of papers. -> reports/paper_side.csv"""
     import statsmodels.formula.api as smf
     from outcomes import STD_FORMULA, pair_design
 
@@ -889,10 +805,6 @@ def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=set
 
 
 def instruments(models="gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash", data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
-    """Compare extraction models on the second-model ICLR set (panels_sol, panels_sol2) and the blind set: claims per
-    review, raw same-paper match rate by year, the 2023->2026 change, the within-paper gap of two style-flagged over two
-    unflagged reviews (2024-26), panel-level rank agreement with the main model, and bias and rank agreement against the
-    blind Opus reference. Only panels every model grouped count. -> reports/instruments.csv"""
     from scipy.stats import spearmanr
 
     from outcomes import ICLR_FROM, panel_pairs, review_chars, year_rates
@@ -925,7 +837,6 @@ def instruments(models="gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash
         for base in [2023, 2025]:
             a, b = pm[pm.year == base].hit, pm[pm.year == 2026].hit
             rows.append(dict(model=m, stat=f"change {base}-2026", est=(b.mean() - a.mean()) * 100, se=np.hypot(se(a), se(b)) * 100, n=len(a) + len(b)))
-        # standardized as in the paper (length splines, panel size), on this set's 2020-2026 pairs
         S = P[P.year >= ICLR_FROM].copy()
         la, lb = np.log(chars.reindex(S.a).to_numpy()), np.log(chars.reindex(S.b).to_numpy())
         S["log_short"], S["log_long"] = np.minimum(la, lb), np.maximum(la, lb)
@@ -940,7 +851,7 @@ def instruments(models="gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash
         gap = fe_gap(late, flag.astype(float))
         rows.append(dict(model=m, stat="gap: two flagged vs none, 2024-26", est=gap["two"], se=gap["two_se"], n=late.panel_id.nunique()))
         blind = [pid for pid in opus.index if pid in panels]
-        if not blind:  # the second model never ran on the blind set
+        if not blind:
             continue
         bm = pd.DataFrame([dict(panel_id=pid, **panel_metrics(assign(panels[pid], claims))) for pid in blind]).set_index("panel_id")
         both = opus.join(bm, how="inner", suffixes=("_opus", "_model"))

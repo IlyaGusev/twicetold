@@ -1,26 +1,3 @@
-"""Between-paper homogenization: claim templates and critique types, and review-level embedding similarity.
-
-templates: every claim paraphrase is embedded (text-embedding-3-large, 512 dims).
-  Template similarity: for each claim, the max cosine to claims of OTHER papers in the same venue-year (fixed reference
-  pool per cell). template = above the 75th percentile of ICLR 2017-2022 (a calibrated "template" threshold).
-  Critique types: k-means (k=300) on ICLR 2017-2022 claims defines fine-grained types; every claim is assigned to its
-  nearest centroid. Tail share = share of claims in types that fall in the bottom half of the 2017-2022 frequency ranking.
-  -> data/claims_table_<model>.parquet (claim rows + emb_row, template_sim, template, ctype, tail_type),
-     reports/critique_types_<model>.csv, template_by_cell_<model>.csv, type_shift_<model>.csv
-embed (Baumann et al. style, next to the claim-level outcomes): every sampled review text is embedded
-  (text-embedding-3-small). Per venue-year, IntraSim = mean cosine between reviews of the same paper; InterSim = mean
-  cosine between reviews of different papers in the same primary area (300 random pairs per area-year, pooled); plus
-  the per-paper IntraSim regressed on the year like S3 in E1. -> reports/embed_<model>.csv
-
-Both read cached embeddings (data/claim_emb_<model>.npy, data/review_emb.npy, row order = claims table and
-sample_reviews.parquet). --reembed first rebuilds them with the paid OpenAI API (key from .env via settings.py).
-
-Usage:
-  between.py templates [--model=gpt-6-luna] [--reembed]
-  between.py embed [--model=gpt-6-luna] [--reembed] [--threads=4]
-  (--data, --reports: where inputs/data outputs and reports live)
-"""
-
 import sys
 import json
 import time
@@ -35,11 +12,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from settings import settings
 
 K_TYPES = 300
-REF_PER_CELL = 10000  # fixed pool so max-similarity is comparable across cells of different size
+REF_PER_CELL = 10000
 
 
 def openai_embed(texts, model, batch, threads=4, dtype=np.float32, desc=None, **kw):
-    """Embeddings in input order. Retries rate limits; halves texts the API rejects as too long."""
     from openai import APIError, BadRequestError, OpenAI, RateLimitError
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
@@ -61,7 +37,6 @@ def openai_embed(texts, model, batch, threads=4, dtype=np.float32, desc=None, **
 
 
 def claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
-    """One row per claim with paper, venue and year; CLI use writes data/claims_table_<model>.parquet."""
     data = Path(data)
     reviews = pd.read_parquet(data / "reviews.parquet", columns=["review_id", "paper_id", "conf", "year"]).set_index("review_id")
     rows = []
@@ -89,8 +64,7 @@ def embed_claims(model, data):
 def load_claims(model, data):
     T = pd.read_parquet(data / f"claims_table_{model}.parquet")
     T = T[T.review_id.isin(set(pd.read_parquet(data / "reviews.parquet", columns=["review_id"]).review_id))]
-    T = T.reset_index(drop=True)  # drops copied reviews removed from reviews.parquet
-    # emb_row keeps the rewritten (filtered) table aligned with the embedding cache; select before the float32 cast
+    T = T.reset_index(drop=True)
     E = np.load(data / f"claim_emb_{model}.npy", mmap_mode="r")[T.emb_row.to_numpy()].astype(np.float32)
     E /= np.linalg.norm(E, axis=1, keepdims=True) + 1e-9
     return T, E
@@ -113,14 +87,12 @@ def template_similarity(T, E, rng):
 def fit_types(E, pre_idx, rng):
     from sklearn.cluster import MiniBatchKMeans
 
-    # fit on a subsample: the full pre-period matrix would need several GB on this machine
     fit_idx = rng.choice(pre_idx, min(300000, len(pre_idx)), replace=False)
     km = MiniBatchKMeans(K_TYPES, random_state=0, batch_size=4096, n_init=3).fit(E[fit_idx])
     return km, np.concatenate([km.predict(E[s:s + 200000]) for s in range(0, len(E), 200000)])
 
 
 def type_labels(km, pre, E):
-    """A readable label per type: the pre-period claim nearest the centroid."""
     centers = km.cluster_centers_ / np.linalg.norm(km.cluster_centers_, axis=1, keepdims=True)
     labels = {}
     for c in range(K_TYPES):
@@ -134,7 +106,6 @@ def cell_summary(T, rng):
     cell = T.groupby(["conf", "year"]).agg(claims=("claim", "size"), template_sim=("template_sim", "mean"),
                                            template_share=("template", "mean"), tail_share=("tail_type", "mean"),
                                            specific=("specific", "mean"))
-    # effective number of types (Hill-Shannon) per cell, rarefied to 20k claims
     hill = {}
     for key, idx in T.groupby(["conf", "year"]).indices.items():
         sub = rng.choice(idx, min(20000, len(idx)), replace=False)
@@ -145,7 +116,6 @@ def cell_summary(T, rng):
 
 
 def type_shift(T, labels):
-    """Type frequency shifts at ICLR, 2023 -> 2026."""
     iclr = T[T.conf == "ICLR"]
     f = pd.crosstab(iclr.ctype, iclr.year, normalize="columns")
     shift = (f[2026] - f[2023]).sort_values()
@@ -189,7 +159,7 @@ def templates(model=settings.DEFAULT_MODEL, reembed=False, data=settings.DATA_DI
 
 def embed_reviews(data, threads):
     R = pd.read_parquet(data / "sample_reviews.parquet", columns=["review_id", "text"])
-    texts = [t[:12000] for t in R.text.fillna("")]  # 8k-token limit; code or LaTeX can reach 1 token per 2 chars
+    texts = [t[:12000] for t in R.text.fillna("")]
     np.save(data / "review_emb.npy", openai_embed(texts, "text-embedding-3-small", batch=64, threads=threads, desc="embed reviews"))
     print("embedded", len(texts))
 
@@ -201,7 +171,7 @@ def load_reviews(data):
     E = np.load(data / "review_emb.npy")
     E /= np.linalg.norm(E, axis=1, keepdims=True) + 1e-9
     R["row"] = np.arange(len(R))
-    return R[R._merge == "both"].drop(columns="_merge"), E  # drops copied reviews removed from reviews.parquet
+    return R[R._merge == "both"].drop(columns="_merge"), E
 
 
 def intra_paper(R, E):
@@ -240,7 +210,6 @@ def cell_similarity(R, E, intra, rng):
 
 
 def year_effects(intra):
-    """ICLR IntraSim year effects relative to 2023, as in E1."""
     import statsmodels.formula.api as smf
 
     m = smf.ols("intra ~ C(year, Treatment(reference=2023))", data=intra[intra.conf == "ICLR"]).fit(cov_type="HC1")
@@ -251,7 +220,6 @@ def year_effects(intra):
 
 
 def claim_vs_embedding(intra, model, data):
-    """Paper-level correlation of IntraSim with the claim-level outcomes."""
     P = pd.read_parquet(data / f"panel_outcomes_{model}.parquet", columns=["paper_id", "S3", "share_shared_claims", "D3"])
     Q = intra.merge(P, on="paper_id")
     rho = {k: Q[["intra", k]].corr("spearman").iloc[0, 1] for k in ["S3", "share_shared_claims", "D3"]}

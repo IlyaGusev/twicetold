@@ -1,25 +1,3 @@
-"""Build the review and paper tables.
-
-ml: ICLR/NeurIPS reviews from the two Hugging Face dumps (ResearchArcade; davidheineman/iclr-2026 with
-JerMa88/ICLR_Peer_Reviews_2026 for questions, dates and areas) -> data/reviews.parquet, data/papers.parquet.
-Review text is all free-text fields joined in a fixed order (summary, main review, strengths, weaknesses, questions,
-limitations, other), so every form year gives the same unit.
-
-other: merges the per-source outputs of `fetch.py` into data/other_reviews.parquet and data/other_papers.parquet, runs
-the quality checks and writes reports/other_inventory.txt. Reviews: conf, field, journal, year, paper_id, review_id,
-reviewer, rating, rating_raw, text, review_time, n_chars. The rating scale differs by source (see fetch.py); compare
-ratings only within a conf.
-
-areas: primary-area label for every sampled paper. ICLR 2026 submissions carry an OpenReview primary_area. We embed
-title + abstract (text-embedding-3-small), fit a logistic regression on the 2026 labels, and predict the area of
-earlier papers. Writes data/abstract_emb.npy and data/paper_areas.parquet (paper_id, area, area_prob, area_pred, row =
-embedding row index). Calls the OpenAI API (key from .env via settings.py).
-
-Usage: corpus.py ml [--out data]
-       corpus.py other [--src data/other] [--out data] [--report reports/other_inventory.txt]
-       corpus.py areas [--out data]
-"""
-
 import sys
 import json
 import re
@@ -41,7 +19,6 @@ ICLR26 = settings.RAW_ML_REVIEWS_DIR / "iclr2026/heineman.parquet"
 ICLR26_RAW = settings.RAW_ML_REVIEWS_DIR / "iclr2026/jerma_2026.parquet"
 REPORT = settings.REPORTS_DIR / "other_inventory.txt"
 
-# tuples, not sets: ICLR 2023 fills two "other" keys, and set order changes with the hash seed of each run
 ORDER = [
     ("summary", ("summary", "summary of the paper")),
     ("main", ("review", "main review", "main_review")),
@@ -148,7 +125,6 @@ def from_iclr26():
             continue
         questions[note["id"]] = unwrap(note.get("content", {}).get("questions")) or ""
         cdate[note["id"]], mdate[note["id"]] = note.get("cdate"), note.get("mdate")
-    # NaN is truthy, so an unmatched review would get "[QUESTIONS] nan"
     df["questions"] = df.review_id.map(questions).fillna("")
     text = df.apply(lambda r: join_fields(dict(summary=r.summary, strengths=r.strengths, weaknesses=r.weaknesses,
                                                questions=r.questions, review=r.review)), axis=1)
@@ -169,10 +145,8 @@ def from_iclr26():
 
 
 def merge_ml(parts):
-    """[(reviews, papers)] -> deduplicated reviews with paper decisions, papers with review counts."""
     reviews = pd.concat([r for r, _ in parts], ignore_index=True)
     reviews = reviews[reviews.text.str.len() > 200].drop_duplicates("review_id")
-    # The dump repeats one review's text under another note of the same paper (25% of ICLR 2017, 8% of 2019).
     reviews = reviews.drop_duplicates(["paper_id", "text"])
     papers = pd.concat([p for _, p in parts], ignore_index=True).drop_duplicates("paper_id")
     papers["decision"] = papers.decision_raw.map(decision_class)
@@ -233,7 +207,7 @@ def other(src=settings.DATA_DIR / "other", out=settings.DATA_DIR, report=REPORT)
     have = [s for s in SOURCES if (src / f"{s}_reviews.parquet").exists()]
     rv = pd.concat([pd.read_parquet(src / f"{s}_reviews.parquet") for s in have], ignore_index=True)
     pp = pd.concat([pd.read_parquet(src / f"{s}_papers.parquet") for s in have], ignore_index=True)
-    for df in (rv, pp):  # Europe PMC spells PLOS journal titles three ways
+    for df in (rv, pp):
         df["journal"] = df.journal.str.replace(r"^PLoS\b", "PLOS", regex=True).replace({"PLOS One": "PLOS ONE"})
     rv["rating"] = pd.to_numeric(rv.rating).round().astype("Int64")
     rv["rating_raw"] = rv.rating_raw.astype("string")
@@ -255,7 +229,7 @@ def other(src=settings.DATA_DIR / "other", out=settings.DATA_DIR, report=REPORT)
 
 
 def embed(docs, chunk=256):
-    from openai import OpenAI, RateLimitError  # slow import, only needed here
+    from openai import OpenAI, RateLimitError
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
 
@@ -274,7 +248,7 @@ def embed(docs, chunk=256):
 
 
 def areas(out=settings.DATA_DIR):
-    from sklearn.linear_model import LogisticRegression  # slow import, only needed here
+    from sklearn.linear_model import LogisticRegression
     from sklearn.model_selection import cross_val_score
 
     out = Path(out)
