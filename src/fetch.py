@@ -6,15 +6,15 @@ interrupted run loses nothing. Each writes <out>/<source>_reviews.parquet, <sour
 <source>_stats.json (default out: data/other); `corpus.py other` merges them.
 
 icml: needs OPENREVIEW_USERNAME and OPENREVIEW_PASSWORD (anonymous API access is behind a challenge), so run
-`set -a; . ./.env; set +a` first. Caches the download in data/icml<YEAR>_raw.jsonl.
+OpenReview credentials come from .env via settings.py. Caches the download in data/icml<YEAR>_raw.jsonl.
 
 Usage: fetch.py scipost|f1000|bmc|plos|copernicus [--out data/other]
        fetch.py icml [--year 2026] [--out data]
 """
 
+import sys
 import io
 import json
-import os
 import random
 import re
 import threading
@@ -34,10 +34,10 @@ from pypdf import PdfReader
 from requests.adapters import HTTPAdapter
 from tqdm import tqdm
 from urllib3.util.retry import Retry
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from settings import settings
 
-RAW = Path("/home/yallen/data/peer-review/other")
-DATA = Path(__file__).resolve().parent.parent / "data"
-OUT = DATA / "other"
+OUT = settings.DATA_DIR / "other"
 UA = "twicetold-research"
 SEED = 0
 YEARS = range(2018, 2027)
@@ -217,7 +217,7 @@ def epmc_collect(source, journals, parse, extra=""):
     query = " OR ".join(f'JOURNAL:"{j}"' for j in journals)
     papers, reviews = [], []
     for y in YEARS:
-        hits = epmc_search(f"({query}) AND PUB_YEAR:{y}{extra}", RAW / source / f"search_{y}.json")
+        hits = epmc_search(f"({query}) AND PUB_YEAR:{y}{extra}", settings.RAW_JOURNAL_REVIEWS_DIR / source / f"search_{y}.json")
         p, r = collect([h["pmcid"] for h in hits if h["pmcid"]], parse, f"{source} {y}")
         papers += p
         reviews += r
@@ -232,7 +232,7 @@ SCIPOST_FIELDS = [("strengths", "STRENGTHS"), ("weaknesses", "WEAKNESSES"), ("re
 
 
 def scipost_page(offset):
-    raw = fetch(f"{SCIPOST_API}?format=json&limit={SCIPOST_PAGE}&offset={offset}", RAW / "scipost" / f"page_{offset:06d}.json")
+    raw = fetch(f"{SCIPOST_API}?format=json&limit={SCIPOST_PAGE}&offset={offset}", settings.RAW_JOURNAL_REVIEWS_DIR / "scipost" / f"page_{offset:06d}.json")
     return json.loads(raw)["results"]
 
 
@@ -246,7 +246,7 @@ def scipost(out=OUT):
     poor=1; null when none of the four is given. rating_raw keeps all six criteria (incl. formatting, grammar) as
     key=value pairs. Licence: SciPost reports and papers are CC BY 4.0.
     """
-    count = json.loads(fetch(f"{SCIPOST_API}?format=json&limit=1", RAW / "scipost" / "count.json"))["count"]
+    count = json.loads(fetch(f"{SCIPOST_API}?format=json&limit=1", settings.RAW_JOURNAL_REVIEWS_DIR / "scipost" / "count.json"))["count"]
     subs = [s for p in pmap(scipost_page, range(0, count, SCIPOST_PAGE), "scipost pages") for s in p]
     reviews, papers = [], []
     for s in subs:
@@ -308,7 +308,7 @@ def f1000_report_text(body):
 
 
 def f1000_parse(pmcid):
-    root = epmc_xml(pmcid, RAW / "f1000")
+    root = epmc_xml(pmcid, settings.RAW_JOURNAL_REVIEWS_DIR / "f1000")
     if root is None:
         return None
     front = root.find("front/article-meta")
@@ -360,16 +360,14 @@ def f1000(out=OUT):
     often lacks the reports. Licence: reports CC BY 4.0; articles mostly CC BY 4.0 (stored per paper).
     """
     papers, reviews = epmc_collect("f1000", F1000_JOURNALS, f1000_parse)
-    seen, uniq = set(), []
+    uniq = {}  # PMC holds one record per article version, each with the version-1 reports
     for r in sorted(reviews, key=lambda r: (r["paper_id"], r["review_time"] or "", r["review_id"])):
-        if r["review_id"] not in seen:
-            seen.add(r["review_id"])
-            uniq.append(r)
-    k = {}
-    for r in uniq:
-        k[r["paper_id"]] = k.get(r["paper_id"], 0) + 1
+        uniq.setdefault(r["review_id"], r)
+    k = Counter()
+    for r in uniq.values():
+        k[r["paper_id"]] += 1
         r["reviewer"] = f"Reviewer {k[r['paper_id']]}"
-    finalize("f1000", uniq, papers, out)
+    finalize("f1000", list(uniq.values()), papers, out)
 
 
 BMC_URL = "https://huggingface.co/datasets/JerMa88/BMC_Medicine_Peer_Reviews/resolve/main/train.parquet"
@@ -381,10 +379,11 @@ def fuzzy(phrase):
 
 
 BMC_START = re.compile(fuzzy("Reviewer's report") + r"\s?:", re.I)
+# case-sensitive: reviewers write "a statistical review" or "the quality of written English" mid-report
 BMC_STOPS = re.compile("|".join(fuzzy(s) for s in [
     "Are the methods appropriate", "Are you able to assess", "Quality of written English", "Declaration of competing",
     "Level of interest", "Statistical review", "Statement on potential review bias", "I agree to the open peer review",
-    "Reviewer Publication Consent"]), re.I)
+    "Reviewer Publication Consent"]))
 BMC_DATE = re.compile(r"Date\s?:\s*(\d{1,2}\s+\w{3}\s+\d{4})")
 BMC_TITLE = re.compile(r"Title\s?:\s*(.*?)\s*Version\s?:", re.S)
 
@@ -407,8 +406,8 @@ def bmc(out=OUT):
     review_time = the report's "Date:" field. No rating in this source (rating null).
     PDF extraction leaves stray spaces inside words ("lesso n"); left as is.
     """
-    fetch(BMC_URL, RAW / "bmc" / "train.parquet")
-    df = pd.read_parquet(RAW / "bmc" / "train.parquet", columns=["title", "review", "review_src", "year"])
+    fetch(BMC_URL, settings.RAW_JOURNAL_REVIEWS_DIR / "bmc" / "train.parquet")
+    df = pd.read_parquet(settings.RAW_JOURNAL_REVIEWS_DIR / "bmc" / "train.parquet", columns=["title", "review", "review_src", "year"])
     df = df[df.review_src.str.contains(r"_V0_R\d+\.pdf$")]
     reviews, papers = [], []
     for r in df.itertuples():
@@ -429,10 +428,12 @@ PLOS_JOURNALS = ["PLoS One", "PLoS Biol", "PLoS Comput Biol", "PLoS Genet", "PLo
                  "PLOS Glob Public Health", "PLOS Digit Health"]
 PLOS_SEP = "**********"
 PLOS_START = re.compile(r"Reviewers?['’]? (?:comments|Responses to Questions)|Comments to the Author", re.I)
+# "Reproducibility:" and dash rules also occur inside reviews; only the journal's own forms are cut
 PLOS_END = re.compile("|".join([r"PLOS authors have the option to publish", r"Do you want your identity to be public",
                                 r"\[NOTE: If reviewer comments", r"While revising your submission", r"\[Note: HTML markup is below",
-                                r"To ensure your figures meet", r"Figure Files:", r"Data Requirements:", r"Reproducibility:",
-                                r"Any attachments provided with reviews", r"-{10,}", r"General editorial requests"]), re.I)
+                                r"To ensure your figures meet", r"Figure Files:", r"Data Requirements:",
+                                r"Reproducibility:(?=\W*To enhance)", r"Any attachments provided with reviews", r"(?m:^-{10,}[- ]*$)",
+                                r"General editorial requests"]), re.I)
 PLOS_REV = re.compile(r"Reviewer\s*#\s*(\d+)\s*:\s*")
 PLOS_ANS = re.compile(r"(Yes|No|Partly|N/A|I Don['’]t Know)[.\s]*", re.I)
 PLOS_SCORE = {"yes": 3, "partly": 2, "no": 1}
@@ -475,7 +476,7 @@ def plos_split_letter(text):
 
 
 def plos_parse(pmcid):
-    root = epmc_xml(pmcid, RAW / "plos")
+    root = epmc_xml(pmcid, settings.RAW_JOURNAL_REVIEWS_DIR / "plos")
     if root is None:
         return None
     if any(text_of(sa.find(".//article-title")) == "Author response to previous submission" for sa in root.iter("sub-article")):
@@ -530,7 +531,7 @@ def plos(out=OUT):
     finalize("plos", reviews, papers, out, stats=dict(PLOS_SKIPPED, letters=len(papers), letters_split_2plus=split2))
 
 
-COP = RAW / "copernicus"
+COP = settings.RAW_JOURNAL_REVIEWS_DIR / "copernicus"
 COP_CROSSREF = "https://api.crossref.org/prefixes/10.5194/works"
 COP_SCORE = {"accept": 4, "minor-revision": 3, "major-revision": 2, "reject": 1}
 COP_SKIPPED = Counter()
@@ -592,7 +593,7 @@ def copernicus_pdf_text(url, name):
     text = text[m.end():] if m else text
     end = text.rfind("Interactive comment on ")
     text = text[:end] if end > 0 else text
-    text = "\n".join(l for l in text.splitlines() if not COP_PDF_JUNK.match(l.strip()))
+    text = "\n".join(line for line in text.splitlines() if not COP_PDF_JUNK.match(line.strip()))
     return unicodedata.normalize("NFKC", re.sub(r"-\n(\w)", r"\1", text))
 
 
@@ -701,7 +702,7 @@ def icml_download(year, raw):
     import openreview  # slow import, only needed for the download
 
     client = openreview.api.OpenReviewClient(baseurl="https://api2.openreview.net",
-                                             username=os.environ["OPENREVIEW_USERNAME"], password=os.environ["OPENREVIEW_PASSWORD"])
+                                             username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD)
     notes = client.get_all_notes(content={"venueid": f"ICML.cc/{year}/Conference"}, details="replies")
     with open(raw, "w") as f:
         f.writelines(json.dumps(dict(id=n.id, content=n.content, replies=n.details.get("replies", []))) + "\n" for n in notes)
@@ -724,7 +725,7 @@ def icml_reviews(year, raw):
     return pd.DataFrame(rows)
 
 
-def icml(year=2026, out=DATA):
+def icml(year=2026, out=settings.DATA_DIR):
     """ICML accepted papers with their public reviews from OpenReview (API v2).
 
     Writes data/icml<YEAR>_raw.jsonl (one submission per line, with replies; downloaded only if missing) and
@@ -733,7 +734,7 @@ def icml(year=2026, out=DATA):
     (checked on all 6,341 ICML 2026 papers), and every review answers the compliance question with "Affirmed.", so no
     policy comparison is possible from public data.
     """
-    raw = DATA / f"icml{year}_raw.jsonl"
+    raw = settings.DATA_DIR / f"icml{year}_raw.jsonl"
     if not raw.exists():
         icml_download(year, raw)
     df = icml_reviews(year, raw)

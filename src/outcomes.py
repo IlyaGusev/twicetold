@@ -14,7 +14,7 @@ standardize: match rate per source-year that does not move with review length an
     hit ~ C(year) + C(size) + cubic splines (4 df) in log chars of the shorter and of the longer review, with
     size = reviews in the panel clipped to the source's smallest size + 2; the rate of year y is the mean prediction
     over all the source's pairs with year set to y. SE: delta method with panel-clustered covariance (exact, the model is linear).
-    ICLR starts in 2020, other sources in 2019 (in_window). Writes reports/match_std.csv (conf, year, pairs, raw, std, std_se in %).
+    ICLR starts in 2020, other sources in 2019 (in_window). Writes reports/match_std_<model>.csv (conf, year, pairs, raw, std, std_se in %).
 withdrawals: ICLR standardized rate with the withdrawn share equalized across years, rating ICC and match rate by
     rating quintile: reports/match_std_withdrawals.csv.
 
@@ -42,11 +42,10 @@ from tqdm import tqdm
 
 from extract import CATEGORIES
 from metrics import assign, load_jsonl, panel_metrics
+from settings import settings
 
-ROOT = Path(__file__).resolve().parent.parent
-DATA, REPORTS = ROOT / "data", ROOT / "reports"
-# review metadata per non-ML source tag: file and extra columns copied to the panel table
 PANEL_FILES = ["panels.jsonl", "panels_icml.jsonl", "panels_other.jsonl"]  # real panels of the pair table
+# review metadata per non-ML source tag: file and extra columns copied to the panel table
 SOURCES = {"_icml": ("icml_sample.parquet", []), "_other": ("other_reviews.parquet", ["field", "journal"])}
 MARKERS = ["commendable", "meticulous", "intricate", "delve", "showcas", "noteworthy", "underscore", "pivotal",
            "seamless", "invaluable", "notably", "realm", "comprehensive", "crucial", "robust", "leverag", "nuanced",
@@ -61,12 +60,9 @@ EDIT_RX = re.compile(r"(after|post)[- ]?(the )?(rebuttal|discussion|response)|co
 def load_claims(path):
     # claim text is not needed for outcomes; dropping it keeps the run small (the machine is shared)
     keep = ("category", "target", "specific")
-    claims = {}
-    for line in open(path):
-        r = json.loads(line)
-        if "claims" in r:
-            claims[r["review_id"]] = [{f: c.get(f) for f in keep} for c in r["claims"]]
-    return claims
+    with open(path) as f:
+        rows = map(json.loads, f)
+        return {r["review_id"]: [{k: c.get(k) for k in keep} for c in r["claims"]] for r in rows if "claims" in r}
 
 
 def batches(path, columns, ids, desc):
@@ -77,7 +73,7 @@ def batches(path, columns, ids, desc):
         yield b.filter(pc.is_in(b.column("review_id"), value_set=keep))
 
 
-def review_meta(ids, data=DATA):
+def review_meta(ids, data=settings.DATA_DIR):
     parts = []
     cols = ["review_id", "paper_id", "conf", "year", "rating", "confidence", "text", "review_time", "modified_time"]
     for b in batches(data / "reviews.parquet", cols, ids, "review text"):
@@ -98,7 +94,7 @@ def review_meta(ids, data=DATA):
     return r
 
 
-def paper_meta(data=DATA):
+def paper_meta(data=settings.DATA_DIR):
     p = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "conf", "year", "decision", "n_reviews"])
     a = pd.read_parquet(data / "paper_areas.parquet", columns=["paper_id", "area", "area_prob"])
     return p.merge(a, on="paper_id", how="left")
@@ -123,46 +119,37 @@ def ml_panels(model, tag, data, out):
     rmeta = review_meta(claims.keys(), data).set_index("review_id")
     pmeta = paper_meta(data).set_index("paper_id")
 
-    panels = load_jsonl(data / f"clusters_{model}{tag}.jsonl", "panel_id")
-    # panel ids: <paper_id> (real panel), sub3_<paper_id> / noq_<paper_id> (variants), placebo_* / placeboA_* (shuffled)
-    groups = {"panel": {}, "placebo": {}, "sub3": {}}
-    for pid, p in panels.items():
-        if pid.startswith("placebo"):
-            groups["placebo"][pid] = p
-        elif pid.startswith("sub3_"):
-            groups["sub3"][pid] = p
+    rows, reviews = {"panel": [], "placebo": [], "sub3": []}, []
+    for pid, p in tqdm(load_jsonl(data / f"clusters_{model}{tag}.jsonl", "panel_id").items(), desc="panels"):
+        # panel ids: <paper_id> (real), noq_ / wd_ / sub3_<paper_id> (variants), placebo(A)_<conf>_<year>_<k> (shuffled)
+        kind = "placebo" if pid.startswith("placebo") else "sub3" if pid.startswith("sub3_") else "panel"
+        paper = re.sub(r"^(noq|wd|sub3)_", "", pid)
+        if kind == "panel" and paper not in pmeta.index:
+            continue  # blind-set panels (B00...) share the clusters file
+        df = assign(p, claims)
+        m = panel_metrics(df)
+        rv = rmeta.reindex(p["review_ids"])
+        m.update(panel_id=pid, total_chars=float(rv.chars.sum()), rating_mean=rv.rating.mean(),
+                 rating_sd=rv.rating.std(ddof=0), confidence_mean=rv.confidence.mean(),
+                 n_marker_reviews=int(rv.any_marker.fillna(False).sum()),
+                 n_rebuttal_text=int(rv.rebuttal_text.fillna(False).sum()), n_edited=int(rv.edited.fillna(False).sum()))
+        if kind == "placebo":
+            _, conf, year, _ = pid.split("_")
+            m.update(conf=conf, year=int(year), placebo_kind="same_area3" if pid.startswith("placeboA_") else "shuffled4")
         else:
-            paper = pid.removeprefix("noq_").removeprefix("wd_")
-            if paper in pmeta.index:
-                groups["panel"][pid] = p
-    for kind, panels in groups.items():
-        if not panels:
-            continue
-        prow, rrow = [], []
-        for pid, p in tqdm(panels.items(), desc=kind):
-            paper = pid.removeprefix("noq_").removeprefix("sub3_").removeprefix("wd_")
-            df = assign(p, claims)
-            m = panel_metrics(df)
-            rv = rmeta.reindex(p["review_ids"])
-            m.update(panel_id=pid, total_chars=float(rv.chars.sum()), rating_mean=rv.rating.mean(),
-                     rating_sd=rv.rating.std(ddof=0), confidence_mean=rv.confidence.mean(),
-                     n_marker_reviews=int(rv.any_marker.fillna(False).sum()),
-                     n_rebuttal_text=int(rv.rebuttal_text.fillna(False).sum()), n_edited=int(rv.edited.fillna(False).sum()))
-            if kind == "placebo":
-                _, conf, year, _ = pid.split("_")
-                m.update(conf=conf, year=int(year), placebo_kind="same_area3" if pid.startswith("placeboA_") else "shuffled4")
-            else:
-                m.update(pmeta.loc[paper].to_dict(), paper_id=paper)
-            prow.append(m)
-            if kind == "panel" and not df.empty:
-                rrow.extend(review_rows(df, p["review_ids"], paper))
-        pd.DataFrame(prow).to_parquet(out / f"{kind}_outcomes_{model}{tag}.parquet")
-        print(kind, len(prow), "panels")
-        if kind == "panel":
-            R = pd.DataFrame(rrow).merge(rmeta.drop(columns=["paper_id"]), left_on="review_id", right_index=True, how="left")
-            R = R.merge(pmeta[["decision", "area"]], left_on="paper_id", right_index=True, how="left")
-            R.to_parquet(out / f"review_outcomes_{model}{tag}.parquet")
-            print("reviews", len(R))
+            m.update(pmeta.loc[paper].to_dict(), paper_id=paper)
+        rows[kind].append(m)
+        if kind == "panel" and not df.empty:
+            reviews.extend(review_rows(df, p["review_ids"], paper))
+    for kind, prow in rows.items():
+        if prow:
+            pd.DataFrame(prow).to_parquet(out / f"{kind}_outcomes_{model}{tag}.parquet")
+            print(kind, len(prow), "panels")
+    if rows["panel"]:
+        R = pd.DataFrame(reviews).merge(rmeta.drop(columns=["paper_id"]), left_on="review_id", right_index=True, how="left")
+        R = R.merge(pmeta[["decision", "area"]], left_on="paper_id", right_index=True, how="left")
+        R.to_parquet(out / f"review_outcomes_{model}{tag}.parquet")
+        print("reviews", len(R))
 
 
 def source_panels(model, tag, data, out):
@@ -184,7 +171,7 @@ def source_panels(model, tag, data, out):
     print(out_table.groupby(["placebo", "conf", "year"]).hit_rate_strict.mean().mul(100).round(2).unstack(0).to_string())
 
 
-def panels(model="gpt-6-luna", tag="", data=str(DATA), out=str(DATA)):
+def panels(model=settings.DEFAULT_MODEL, tag="", data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
     (source_panels if tag in SOURCES else ml_panels)(model, tag, Path(data), Path(out))
 
 
@@ -203,7 +190,7 @@ def panel_pairs(df, review_ids):
                    hit_spec=hit(sa.cluster.to_numpy(), sb.cluster.to_numpy()) if len(sa) and len(sb) else np.nan)
 
 
-def pairs(model="gpt-6-luna", data=str(DATA), out=str(DATA)):
+def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
     data = Path(data)
     papers = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "conf", "year"]).set_index("paper_id")
     rows = []
@@ -287,7 +274,8 @@ def year_rates(S, weights=None):
     return out
 
 
-def standardize(model="gpt-6-luna", data=str(DATA), out=str(REPORTS / "match_std.csv")):
+def standardize(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=None):
+    out = out or settings.REPORTS_DIR / f"match_std_{model}.csv"
     P = pair_design(model, Path(data))
     rows = []
     for conf, S in tqdm(P.groupby("conf"), desc="sources"):
@@ -306,7 +294,7 @@ ICLR_SUBMITTED = {2017: 490, 2018: 1018, 2019: 1579, 2020: 2594, 2021: 3014, 202
 ICLR_WITHDRAWN = {2017: 0, 2018: 83, 2019: 160, 2020: 369, 2021: 403, 2022: 779, 2023: 1145, 2024: 1661, 2025: 2991}
 
 
-def withdrawals(model="gpt-6-luna", target=0.23, data=str(DATA), out=str(REPORTS / "match_std_withdrawals.csv")):
+def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DATA_DIR), out=str(settings.REPORTS_DIR / "match_std_withdrawals.csv")):
     """ICLR standardized rate with the share of withdrawn submissions equalized across years.
 
     Withdrawn papers are mostly the weakest, and their reviews match more, so years whose data still hold them (2017-2019)

@@ -13,13 +13,14 @@ ratings only within a conf.
 areas: primary-area label for every sampled paper. ICLR 2026 submissions carry an OpenReview primary_area. We embed
 title + abstract (text-embedding-3-small), fit a logistic regression on the 2026 labels, and predict the area of
 earlier papers. Writes data/abstract_emb.npy and data/paper_areas.parquet (paper_id, area, area_prob, area_pred, row =
-embedding row index). Calls the OpenAI API: `set -a; . ./.env; set +a` first.
+embedding row index). Calls the OpenAI API (key from .env via settings.py).
 
 Usage: corpus.py ml [--out data]
        corpus.py other [--src data/other] [--out data] [--report reports/other_inventory.txt]
        corpus.py areas [--out data]
 """
 
+import sys
 import json
 import re
 import time
@@ -31,23 +32,24 @@ import fire
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from settings import settings
 
-RAW = Path("/home/yallen/data/peer-review")
-ARCADE = RAW / "arcade/train-*.parquet"
-ARCADE_PAPERS = RAW / "arcade/papers.parquet"
-ICLR26 = RAW / "iclr2026/heineman.parquet"
-ICLR26_RAW = RAW / "iclr2026/jerma_2026.parquet"
-DATA = Path(__file__).resolve().parent.parent / "data"
-REPORT = DATA.parent / "reports" / "other_inventory.txt"
+ARCADE = settings.RAW_ML_REVIEWS_DIR / "arcade/train-*.parquet"
+ARCADE_PAPERS = settings.RAW_ML_REVIEWS_DIR / "arcade/papers.parquet"
+ICLR26 = settings.RAW_ML_REVIEWS_DIR / "iclr2026/heineman.parquet"
+ICLR26_RAW = settings.RAW_ML_REVIEWS_DIR / "iclr2026/jerma_2026.parquet"
+REPORT = settings.REPORTS_DIR / "other_inventory.txt"
 
+# tuples, not sets: ICLR 2023 fills two "other" keys, and set order changes with the hash seed of each run
 ORDER = [
-    ("summary", {"summary", "summary of the paper"}),
-    ("main", {"review", "main review", "main_review"}),
-    ("strengths", {"strengths", "strength and weaknesses", "strengths_and_weaknesses"}),
-    ("weaknesses", {"weaknesses"}),
-    ("questions", {"questions"}),
-    ("limitations", {"limitations", "limitations_and_societal_impact"}),
-    ("other", {"summary of the review", "clarity, quality, novelty and reproducibility", "paper_formatting_concerns"}),
+    ("summary", ("summary", "summary of the paper")),
+    ("main", ("review", "main review", "main_review")),
+    ("strengths", ("strengths", "strength and weaknesses", "strengths_and_weaknesses")),
+    ("weaknesses", ("weaknesses",)),
+    ("questions", ("questions",)),
+    ("limitations", ("limitations", "limitations_and_societal_impact")),
+    ("other", ("summary of the review", "clarity, quality, novelty and reproducibility", "paper_formatting_concerns")),
 ]
 WEAK_KEYS = {"weaknesses", "strength and weaknesses", "strengths_and_weaknesses"}
 TEXT_KEYS = set().union(*(k for _, k in ORDER))
@@ -72,12 +74,7 @@ def num(v):
 
 
 def join_fields(c):
-    parts = []
-    for name, keys in ORDER:
-        for k in keys:
-            if c.get(k):
-                parts.append(f"[{name.upper()}] {squash(str(c[k]))}")
-    return " ".join(parts)
+    return " ".join(f"[{name.upper()}] {squash(str(c[k]))}" for name, keys in ORDER for k in keys if c.get(k))
 
 
 def decision_class(d):
@@ -137,22 +134,22 @@ def from_iclr26():
     raw = con.sql(f"select paper_id, decision, api_raw_review, api_raw_submission from '{ICLR26_RAW}'").df()
     questions, cdate, mdate, area, decision = {}, {}, {}, {}, {}
     for _, r in tqdm(raw.iterrows(), total=len(raw), desc="iclr2026 raw notes"):
-        try:
-            note = json.loads(r.api_raw_review)
-        except (TypeError, json.JSONDecodeError):
-            continue
-        if "id" not in note:
-            continue
-        content = note.get("content", {})
-        questions[note["id"]] = unwrap(content.get("questions")) or ""
-        cdate[note["id"]], mdate[note["id"]] = note.get("cdate"), note.get("mdate")
         decision[r.paper_id] = r.decision
         try:
             sub = json.loads(r.api_raw_submission)
             area[r.paper_id] = unwrap(sub.get("content", {}).get("primary_area"))
         except (TypeError, json.JSONDecodeError, AttributeError):
             pass
-    df["questions"] = df.review_id.map(questions)
+        try:
+            note = json.loads(r.api_raw_review)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if "id" not in note:
+            continue
+        questions[note["id"]] = unwrap(note.get("content", {}).get("questions")) or ""
+        cdate[note["id"]], mdate[note["id"]] = note.get("cdate"), note.get("mdate")
+    # NaN is truthy, so an unmatched review would get "[QUESTIONS] nan"
+    df["questions"] = df.review_id.map(questions).fillna("")
     text = df.apply(lambda r: join_fields(dict(summary=r.summary, strengths=r.strengths, weaknesses=r.weaknesses,
                                                questions=r.questions, review=r.review)), axis=1)
     reviews = pd.DataFrame(dict(
@@ -188,7 +185,7 @@ def merge_ml(parts):
     return reviews, papers
 
 
-def ml(out=DATA):
+def ml(out=settings.DATA_DIR):
     out = Path(out)
     reviews, papers = merge_ml([from_arcade(), from_iclr26()])
     out.mkdir(exist_ok=True)
@@ -217,8 +214,8 @@ def inventory(rv, pp, have, dups, src):
         f = src / f"{s}_stats.json"
         if f.exists():
             out.append(f"  {s} fetch stats: {json.loads(f.read_text())}")
-    st = json.loads((src / "plos_stats.json").read_text()) if (src / "plos_stats.json").exists() else None
-    if st:
+    if (src / "plos_stats.json").exists():
+        st = json.loads((src / "plos_stats.json").read_text())
         out.append(f"PLOS: letters where reviewer splitting found 2+ reviewers: {st['letters_split_2plus']}/{st['letters']}"
                    f" = {st['letters_split_2plus'] / st['letters']:.1%}")
     out += ["", "Licences (papers)", pp.groupby(["conf", "licence"], dropna=False).size().to_string(), ""]
@@ -231,7 +228,7 @@ def inventory(rv, pp, have, dups, src):
     return "\n".join(out)
 
 
-def other(src=DATA / "other", out=DATA, report=REPORT):
+def other(src=settings.DATA_DIR / "other", out=settings.DATA_DIR, report=REPORT):
     src, out = Path(src), Path(out)
     have = [s for s in SOURCES if (src / f"{s}_reviews.parquet").exists()]
     rv = pd.concat([pd.read_parquet(src / f"{s}_reviews.parquet") for s in have], ignore_index=True)
@@ -260,7 +257,7 @@ def other(src=DATA / "other", out=DATA, report=REPORT):
 def embed(docs, chunk=256):
     from openai import OpenAI, RateLimitError  # slow import, only needed here
 
-    client = OpenAI(max_retries=2)
+    client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
 
     def one(part):
         while True:
@@ -276,13 +273,13 @@ def embed(docs, chunk=256):
         return np.array([e for part in parts for e in part], dtype=np.float32)
 
 
-def areas(out=DATA):
+def areas(out=settings.DATA_DIR):
     from sklearn.linear_model import LogisticRegression  # slow import, only needed here
     from sklearn.model_selection import cross_val_score
 
     out = Path(out)
-    papers = pd.read_parquet(DATA / "papers.parquet")
-    sampled = {json.loads(line)["panel_id"] for line in (DATA / "panels.jsonl").read_text().splitlines()}
+    papers = pd.read_parquet(settings.DATA_DIR / "papers.parquet")
+    sampled = {json.loads(line)["panel_id"] for line in (settings.DATA_DIR / "panels.jsonl").read_text().splitlines()}
     need = papers[papers.paper_id.isin(sampled) | ((papers.year == 2026) & papers.primary_area.notna())].copy()
     need["doc"] = (need.title.fillna("") + "\n" + need.abstract.fillna("")).str.slice(0, 6000)
     need = need[need.doc.str.len() > 50].reset_index(drop=True)

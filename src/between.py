@@ -13,7 +13,7 @@ embed (Baumann et al. style, next to the claim-level outcomes): every sampled re
   the per-paper IntraSim regressed on the year like S3 in E1. -> reports/embed_<model>.csv
 
 Both read cached embeddings (data/claim_emb_<model>.npy, data/review_emb.npy, row order = claims table and
-sample_reviews.parquet). --reembed first rebuilds them with the paid OpenAI API (set -a; . ./.env; set +a).
+sample_reviews.parquet). --reembed first rebuilds them with the paid OpenAI API (key from .env via settings.py).
 
 Usage:
   between.py templates [--model=gpt-6-luna] [--reembed]
@@ -21,6 +21,7 @@ Usage:
   (--data, --reports: where inputs/data outputs and reports live)
 """
 
+import sys
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -30,9 +31,9 @@ import fire
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from settings import settings
 
-ROOT = Path(__file__).resolve().parent.parent
-DATA, REPORTS = ROOT / "data", ROOT / "reports"
 K_TYPES = 300
 REF_PER_CELL = 10000  # fixed pool so max-similarity is comparable across cells of different size
 
@@ -41,7 +42,7 @@ def openai_embed(texts, model, batch, threads=4, dtype=np.float32, desc=None, **
     """Embeddings in input order. Retries rate limits; halves texts the API rejects as too long."""
     from openai import APIError, BadRequestError, OpenAI, RateLimitError
 
-    client = OpenAI(max_retries=2)
+    client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
 
     def one(chunk):
         for attempt in range(40):
@@ -59,7 +60,9 @@ def openai_embed(texts, model, batch, threads=4, dtype=np.float32, desc=None, **
         return np.concatenate(list(tqdm(pool.map(one, chunks), total=len(chunks), desc=desc, disable=desc is None)))
 
 
-def claims_table(model, data):
+def claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
+    """One row per claim with paper, venue and year; CLI use writes data/claims_table_<model>.parquet."""
+    data = Path(data)
     reviews = pd.read_parquet(data / "reviews.parquet", columns=["review_id", "paper_id", "conf", "year"]).set_index("review_id")
     rows = []
     with open(data / f"claims_{model}.jsonl") as f:
@@ -143,14 +146,14 @@ def cell_summary(T, rng):
 
 def type_shift(T, labels):
     """Type frequency shifts at ICLR, 2023 -> 2026."""
-    I = T[T.conf == "ICLR"]
-    f = pd.crosstab(I.ctype, I.year, normalize="columns")
+    iclr = T[T.conf == "ICLR"]
+    f = pd.crosstab(iclr.ctype, iclr.year, normalize="columns")
     shift = (f[2026] - f[2023]).sort_values()
     return pd.DataFrame({"label": labels.reindex(shift.index), "f2023": f[2023].reindex(shift.index),
                          "f2026": f[2026].reindex(shift.index), "delta": shift})
 
 
-def templates(model="gpt-6-luna", reembed=False, data=DATA, reports=REPORTS):
+def templates(model=settings.DEFAULT_MODEL, reembed=False, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
     data, reports = Path(data), Path(reports)
     if reembed:
         embed_claims(model, data)
@@ -212,7 +215,7 @@ def intra_paper(R, E):
     return pd.DataFrame(intra)
 
 
-def cell_similarity(R, E, I, rng):
+def cell_similarity(R, E, intra, rng):
     rows = []
     for (conf, year), g in tqdm(R.groupby(["conf", "year"]), desc="inter-paper"):
         sims = []
@@ -228,7 +231,7 @@ def cell_similarity(R, E, I, rng):
         inter_any = [float(E[pooled_rows[a]] @ E[pooled_rows[b]]) for a, b in
                      (rng.choice(len(pooled_rows), 2, replace=False) for _ in range(3000))
                      if g.paper_id.iloc[a] != g.paper_id.iloc[b]]
-        ii = I[(I.conf == conf) & (I.year == year)].intra
+        ii = intra[(intra.conf == conf) & (intra.year == year)].intra
         rows.append({"conf": conf, "year": year, "intra": ii.mean(), "intra_se": ii.std(ddof=1) / np.sqrt(len(ii)),
                      "inter_area": np.mean(sims) if sims else np.nan, "inter_any": np.mean(inter_any), "papers": len(ii)})
     T = pd.DataFrame(rows)
@@ -236,40 +239,40 @@ def cell_similarity(R, E, I, rng):
     return T
 
 
-def year_effects(I):
+def year_effects(intra):
     """ICLR IntraSim year effects relative to 2023, as in E1."""
     import statsmodels.formula.api as smf
 
-    J = I[I.conf == "ICLR"]
-    m = smf.ols("intra ~ C(year, Treatment(reference=2023))", data=J).fit(cov_type="HC1")
+    m = smf.ols("intra ~ C(year, Treatment(reference=2023))", data=intra[intra.conf == "ICLR"]).fit(cov_type="HC1")
     print("\nICLR IntraSim year effects vs 2023:")
     for k, v in m.params.items():
         if "year" in k:
             print(f"  {k.split('T.')[1].rstrip(']'):6s} {v:+.4f} (SE {m.bse[k]:.4f})")
 
 
-def claim_vs_embedding(I, model, data):
+def claim_vs_embedding(intra, model, data):
     """Paper-level correlation of IntraSim with the claim-level outcomes."""
-    P = pd.read_parquet(data / f"panel_outcomes_{model}.parquet", columns=["panel_id", "S3", "share_shared_claims", "D3"])
-    P["paper_id"] = P.panel_id.str.replace(r"^(placebo[A]?_|sub3_|noq_|wd_)", "", regex=True)
-    Q = I.merge(P, on="paper_id")
+    P = pd.read_parquet(data / f"panel_outcomes_{model}.parquet", columns=["paper_id", "S3", "share_shared_claims", "D3"])
+    Q = intra.merge(P, on="paper_id")
     rho = {k: Q[["intra", k]].corr("spearman").iloc[0, 1] for k in ["S3", "share_shared_claims", "D3"]}
     print(f"\npaper-level Spearman: intra vs S3 {rho['S3']:.3f}, vs share shared {rho['share_shared_claims']:.3f}, "
           f"vs D3 {rho['D3']:.3f} (n={len(Q)})")
 
 
-def embed(model="gpt-6-luna", reembed=False, threads=4, data=DATA, reports=REPORTS):
+def embed(model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
     data, reports = Path(data), Path(reports)
     if reembed:
         embed_reviews(data, threads)
     R, E = load_reviews(data)
-    I = intra_paper(R, E)
-    T = cell_similarity(R, E, I, np.random.default_rng(0))
+    intra = intra_paper(R, E)
+    T = cell_similarity(R, E, intra, np.random.default_rng(0))
     T.to_csv(reports / f"embed_{model}.csv", index=False)
     print(T.round(4).to_string(index=False))
-    year_effects(I)
-    claim_vs_embedding(I, model, data)
+    year_effects(intra)
+    claim_vs_embedding(intra, model, data)
 
 
 if __name__ == "__main__":
-    fire.Fire({"templates": templates, "embed": embed})
+    fire.Fire({"templates": templates, "embed": embed,
+               "claims_table": lambda model=settings.DEFAULT_MODEL, data=settings.DATA_DIR:
+               claims_table(model, data).to_parquet(Path(data) / f"claims_table_{model}.parquet", index=False)})

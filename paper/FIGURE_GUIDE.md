@@ -43,7 +43,6 @@ Each rule below cites its source: R = Rougier et al. rule number, Z = Zitnik pri
 
 ## 7. Do not mislead (R7)
 
-- Show uncertainty (e.g. 95% CI) on every estimate.
 - Same quantity, same axis range across panels that are compared.
 - Mark a key event the same way in every time plot.
 - Say in the axis label or caption whether a value is raw or adjusted.
@@ -71,6 +70,5 @@ Each rule below cites its source: R = Rougier et al. rule number, Z = Zitnik pri
 1. Message sentence written, and the caption starts with it.
 2. Drawn at final width; smallest text ≥ 6 pt.
 3. Colors follow the paper's color map; nothing colored without a reason.
-4. Every estimate has an uncertainty interval.
-5. No label, legend or marker overlaps data.
-6. Rendered page checked by eye.
+4. No label, legend or marker overlaps data.
+5. Rendered page checked by eye.

@@ -13,6 +13,8 @@ import pandas as pd
 
 from extract import CATEGORIES
 
+M_MATCH = 8  # claim-count matched variant: at most this many claims per review
+
 
 def load_jsonl(path, key):
     out = {}
@@ -55,8 +57,8 @@ def assign(panel, claims_by_review):
 def rarefy(df, col, ks):
     """For k randomly chosen reviews (averaged over all k-subsets): expected number of distinct groups (D),
     expected number of groups raised by 2+ of the k reviews (S), and expected share of groups raised by one review (U)."""
-    reviews = sorted(df.review.unique())
-    sets = {r: set(df[df.review == r][col]) for r in reviews}
+    sets = df.groupby("review")[col].agg(set).to_dict()
+    reviews = sorted(sets)
     out = {}
     for k in ks:
         if k > len(reviews):
@@ -79,8 +81,6 @@ def pair_rates(df, col):
     pair_hits, pair_total, hits = 0, 0, []
     for a, b in combinations(reviews, 2):
         ga, gb = df[df.review == a][col].to_numpy(), df[df.review == b][col].to_numpy()
-        if len(ga) == 0 or len(gb) == 0:
-            continue
         same = ga[:, None] == gb[None, :]
         pair_hits += int(same.sum())
         pair_total += same.size
@@ -90,10 +90,10 @@ def pair_rates(df, col):
 
 
 def panel_metrics(df, ks=(1, 2, 3, 4)):
+    if df.empty:  # assign() gives no columns when no review in the panel has a claim
+        return dict(n_reviews=0, n_claims=0)
     n_reviews = df.review.nunique()
     m = dict(n_reviews=n_reviews, n_claims=len(df))
-    if df.empty:
-        return m
     reviewers = df.groupby("cluster").review.nunique()
     t_reviewers = df.groupby("target").review.nunique()
     weights = reviewers / reviewers.sum()
@@ -115,30 +115,16 @@ def panel_metrics(df, ks=(1, 2, 3, 4)):
         m[f"T{k}"], m[f"TS{k}"], m[f"TU{k}"] = d, sh, u
     for c in CATEGORIES:
         m[f"cat_{c}"] = float((df.category == c).mean())
-    # robustness variants: specific claims only; at most M_MATCH claims per review (claim-count matched)
-    spec = df[df.specific.astype(bool)]
-    m.update(_variant(spec, "spec"))
+    m.update(_variant(df[df.specific.astype(bool)], "spec"))
     matched = df.sample(frac=1, random_state=0).groupby("review").head(M_MATCH)
     m.update(_variant(matched, f"m{M_MATCH}"))
     return m
-
-
-M_MATCH = 8
 
 
 def _variant(df, suffix):
     if df.empty:
         return {f"S3_{suffix}": np.nan, f"D3_{suffix}": np.nan, f"share_shared_claims_{suffix}": np.nan}
     reviewers = df.groupby("cluster").review.nunique()
-    (d, sh, _u), = rarefy(df, "cluster", (3,)).values()
+    d, sh, _ = rarefy(df, "cluster", (3,))[3]
     return {f"S3_{suffix}": sh, f"D3_{suffix}": d, f"share_shared_claims_{suffix}": float(df.cluster.map(reviewers).ge(2).mean())}
 
-
-def all_panel_metrics(claims_path, clusters_path, ks=(1, 2, 3, 4)):
-    claims = {k: v["claims"] for k, v in load_jsonl(claims_path, "review_id").items()}
-    panels = load_jsonl(clusters_path, "panel_id")
-    rows = []
-    for pid, p in panels.items():
-        df = assign(p, claims)
-        rows.append(dict(panel_id=pid, **panel_metrics(df, ks)))
-    return pd.DataFrame(rows)

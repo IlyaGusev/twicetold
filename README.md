@@ -6,15 +6,19 @@ Pipeline, analysis scripts and paper for the study of whether reviewers of the s
 
 ```
 uv sync --all-extras
-set -a && . ./.env && set +a    # OPENAI_API_KEY
 ```
 
+Keys (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `OPENREVIEW_USERNAME/PASSWORD`) go in `.env` at the repo root; `src/settings.py`
+reads them with every path, the default model, the reasoning efforts, the price table and the OpenRouter routes. Any
+field can be overridden by an environment variable of the same name. Prompts are jinja2 templates in `prompts/`.
 Raw review dumps are expected under `~/data/peer-review/` (ResearchArcade, davidheineman/iclr-2026, JerMa88/ICLR_Peer_Reviews_2026); see `src/corpus.py`.
 
 ## Pipeline (`src/`)
 
-Run each line as `uv run python -I src/<line>`, in this order. `# API` marks paid OpenAI calls (load `.env` first); every
-command has `--help`. The model defaults to `gpt-6-luna`.
+Run each line as `uv run python -I src/<line>`, in this order. `# API` marks paid model calls; every command has `--help`.
+The model defaults to `gpt-6-luna`. `scripts/extract_all.sh MODEL [PASS1_EFFORT] [PASS2_EFFORT] [BUDGET]` runs every
+extraction pass below for one model as parallel chains, and `scripts/post.sh MODEL [OUT_DIR]` runs the post-extraction
+steps (outcomes, validation reports, tables, figures).
 
 ```
 fetch.py scipost                                                  # also f1000, plos, bmc, copernicus -> data/other/
@@ -56,7 +60,7 @@ outcomes.py panels --model gpt-6.1-sol                            # *_outcomes_g
 outcomes.py panels --tag _icml                                    # icml_panel_outcomes_gpt-6-luna.parquet
 outcomes.py panels --tag _other                                   # other_panel_outcomes_gpt-6-luna.parquet
 outcomes.py pairs                                                 # data/pairs_gpt-6-luna.parquet (review pairs, all sources)
-outcomes.py standardize                                           # reports/match_std.csv (length- and size-standardized match rate)
+outcomes.py standardize                                           # reports/match_std_<model>.csv (length- and size-standardized match rate)
 ai.py reference                                                   # API; data/ai_reference.jsonl
 ai.py wordshare                                                   # reports/llm_share.csv
 ai.py wordshare_fields                                            # reports/llm_share_all.csv
@@ -72,8 +76,8 @@ validate.py pairs                                                 # reports/pair
 validate.py spec                                                  # generic-vs-specific agreement
 validate.py ampere                                                # API (embeddings); AMPERE segmentation check
 validate.py variants                                              # reports/variant_{sub3,noq,wd}_gpt-6-luna.csv
-figures.py table                                                  # reports/by_year.csv, paper/tables/by_year.tex
-figures.py all                                                    # paper/figs/short_*.pdf
+figures.py table                                                  # reports/by_year_<model>.csv, paper/tables/by_year_ml.tex, by_year_journals.tex
+figures.py all                                                    # paper/figs/fig1_ai.pdf ... figA_*.pdf
 ```
 
 The sample on disk was drawn before `corpus.py ml` dropped copied reviews. `panels.py ml --data data/backup_predup` (the

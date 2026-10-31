@@ -23,6 +23,7 @@ sol: second-model check: more ICLR papers per year (default 400 for 2023 and 202
 Usage: panels.py {ml,icml,other,robust,sol} [--data data] [--out data]   (data: input dir, out: output dir)
 """
 
+import sys
 import json
 import re
 from pathlib import Path
@@ -31,12 +32,17 @@ import fire
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from settings import settings
 
-DATA = Path(__file__).resolve().parent.parent / "data"
 QUOTA = {("ICLR", 2024): 3000, ("ICLR", 2025): 3000, ("ICLR", 2026): 6000,
          **{("NeurIPS", y): 1000 for y in range(2021, 2026)}}
 MAX_REVIEWS = 5
 QUESTIONS_RX = r"\[QUESTIONS\].*?(?=\[[A-Z]+\]|\Z)"
+
+
+def read_panels(path):
+    return [json.loads(line) for line in open(path)]
 
 
 def write_panels(path, panels):
@@ -58,12 +64,12 @@ def texts(path, ids):
     return pd.concat(parts).set_index("review_id").text
 
 
-def sol(data=str(DATA), out=str(DATA), years=(2023, 2026), per_year=400, seed=5):
+def sol(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), years=(2023, 2026), per_year=400, seed=5):
     data, out = Path(data), Path(out)
-    done = {json.loads(line)["panel_id"] for line in open(data / "panels_sol.jsonl")}
-    panels = {json.loads(line)["panel_id"]: json.loads(line) for line in open(data / "panels.jsonl")}
+    done = {p["panel_id"] for p in read_panels(data / "panels_sol.jsonl")}
+    panels = {p["panel_id"]: p for p in read_panels(data / "panels.jsonl")}
     meta = pd.read_parquet(data / "panel_outcomes_gpt-6-luna.parquet", columns=["panel_id", "conf", "year", "n_claims"])
-    pool = meta[(meta.conf == "ICLR") & meta.year.isin(years) & (meta.n_claims > 0) & ~meta.panel_id.isin(done)]
+    pool = meta[(meta.conf == "ICLR") & meta.year.isin(np.atleast_1d(years)) & (meta.n_claims > 0) & ~meta.panel_id.isin(done)]
     pick = pool.groupby("year", group_keys=False).sample(n=per_year, random_state=seed).panel_id
     chosen = [panels[p] for p in pick]
     write_panels(out / "panels_sol2.jsonl", chosen)
@@ -72,7 +78,7 @@ def sol(data=str(DATA), out=str(DATA), years=(2023, 2026), per_year=400, seed=5)
     print(f"{len(chosen)} panels, {len(ids)} reviews")
 
 
-def ml(data=str(DATA), out=str(DATA), placebo_per_cell=300, seed=2026):
+def ml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), placebo_per_cell=300, seed=2026):
     data, out = Path(data), Path(out)
     rng = np.random.default_rng(seed)
     reviews = pd.read_parquet(data / "reviews.parquet", columns=["conf", "year", "paper_id", "review_id"])
@@ -110,7 +116,7 @@ def ml(data=str(DATA), out=str(DATA), placebo_per_cell=300, seed=2026):
     print("total papers", sel.paper_id.nunique(), "reviews", len(sel), "chars", sel.text.str.len().sum() / 1e6, "M")
 
 
-def icml(data=str(DATA), out=str(DATA), per_year=1500, seed=11):
+def icml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), per_year=1500, seed=11):
     data, out = Path(data), Path(out)
     rng = np.random.default_rng(seed)
     parts = []
@@ -128,7 +134,7 @@ def icml(data=str(DATA), out=str(DATA), per_year=1500, seed=11):
                                 median_chars=("text", lambda s: int(s.str.len().median()))).to_string())
 
 
-def other(data=str(DATA), out=str(DATA), placebo_per_cell=150, seed=2027):
+def other(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), placebo_per_cell=150, seed=2027):
     data, out = Path(data), Path(out)
     rng = np.random.default_rng(seed)
     R = pd.read_parquet(data / "other_reviews.parquet")
@@ -159,7 +165,7 @@ def drop_questions(g):
     return g.assign(text=g.text.str.replace(QUESTIONS_RX, "", regex=True, flags=re.DOTALL))
 
 
-def robust(data=str(DATA), out=str(DATA), seed=1, full_seed=11):
+def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full_seed=11):
     data, out = Path(data), Path(out)
     rng = np.random.default_rng(seed)
     iclr = pd.read_parquet(data / "sample_reviews.parquet")
@@ -206,7 +212,7 @@ def robust(data=str(DATA), out=str(DATA), seed=1, full_seed=11):
 
 
 def robust_full(sel, out, rng):
-    done_sub3 = {json.loads(line)["panel_id"] for line in open(out / "panels_sub3.jsonl")}
+    done_sub3 = {p["panel_id"] for p in read_panels(out / "panels_sub3.jsonl")}
     sub3 = []
     for year in [2023, 2026]:
         by_paper = sel[sel.year == year].groupby("paper_id").review_id.apply(list)
@@ -216,7 +222,7 @@ def robust_full(sel, out, rng):
     write_panels(out / "panels_sub3_full.jsonl", sub3)
     print("new sub3 panels", len(sub3))
 
-    done_noq = {json.loads(line)["panel_id"] for line in open(out / "panels_noq.jsonl")}
+    done_noq = {p["panel_id"] for p in read_panels(out / "panels_noq.jsonl")}
     g = sel[sel.year.isin([2024, 2025, 2026]) & ~sel.paper_id.map(lambda p: f"noq_{p}" in done_noq)]
     g = drop_questions(g)
     g[["conf", "year", "paper_id", "review_id", "text"]].to_parquet(out / "noq_full_reviews.parquet")
