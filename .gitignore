@@ -219,9 +219,6 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 data/*
-!data/blind/
-!data/pairs/
-!data/spec/
 !data/gold/
 paper/*.aux
 paper/*.log

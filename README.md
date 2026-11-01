@@ -19,8 +19,7 @@ A score of 1 means that the smaller set adds no problem beyond the other review.
 count once. Empty reviews enter no pair. Average pairs within each paper, then average papers within each year.
 Every paper has equal weight.
 
-`src/metrics.py` defines the measure. The same function scores panels, pair tables, cross-paper controls and blind
-annotations. Direct pair audits first combine connected claim matches into distinct problems.
+`src/metrics.py` defines the measure. The same function scores panels, pair tables and cross-paper controls.
 
 ## Data and extraction
 
@@ -37,10 +36,6 @@ sources live at `RAW_JOURNAL_REVIEWS_DIR`, both set in `src/settings.py`.
 Claims and groupings use model-named JSONL files in `data/`. Rows record the request settings. A different model or
 reasoning effort needs a different short name; do not overwrite model outputs.
 
-The annotation keys in `data/blind/`, `data/pairs/` and `data/spec/` identify the saved reference labels. Blind
-contrast, rewrite and pair-audit annotations live in `data/blind2/` through `data/blind5/`. Do not redraw keys for
-existing labels. The panel generators refuse to overwrite them.
-
 `data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs, sample reviews and panels, and LLM
 reference labels. `adjudicate/` holds claim judgments; `adjudicate2/` holds grouping judgments. JSONL and Parquet
 files use Git LFS. These are LLM labels, not human labels.
@@ -55,9 +50,9 @@ model outputs, not analysis estimates.
 scripts/post.sh gpt-6-luna-high
 ```
 
-Each run recomputes the analysis from saved model outputs and annotations. It does not reuse earlier analysis
-estimates or make model calls. The stages rebuild panel and pair scores, reference audits, detector comparisons,
-robustness checks, yearly tables, paper numbers and figures.
+Each run recomputes the analysis from saved model outputs. It does not reuse earlier analysis estimates or make
+model calls. The stages rebuild panel and pair scores, detector comparisons, robustness checks, yearly tables,
+paper numbers and figures.
 
 - `data/overlap/`: recomputed panel, review and pair tables.
 - `reports/overlap/`: recomputed statistical summaries and their sample sizes.
@@ -78,9 +73,8 @@ cd paper
 latexmk -pdf -bibtex main.tex
 ```
 
-The opening figure shows time trends. The method and worked example follow the introduction. Detailed audits
-and robustness checks appear in the appendix. Figures follow `paper/FIGURE_GUIDE.md`; prose follows
-`paper/WRITING_GUIDE.md`.
+The opening figure shows time trends. The method and worked example follow the introduction. The council
+reference protocol and robustness checks appear in the appendix. Figures and prose follow the guides in `CLAUDE.md`.
 
 ## Checks
 

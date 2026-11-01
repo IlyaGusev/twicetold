@@ -32,7 +32,6 @@ p2() { run_pass pass2 "$@"; }
   p2 32 data/panels_placebo_area.jsonl &
   p2 32 data/panels_sub3.jsonl &
   p2 32 data/panels_sub3_full.jsonl &
-  p2 8 data/panels_blind.jsonl &
   p2 48 data/panels_llm.jsonl --tag _llm --claims_files "claims_${MODEL}_llm.jsonl,claims_${MODEL}.jsonl" &
   wait
   echo "CHAIN main DONE $(date)" ) > "$LOG_DIR/main.log" 2>&1 &

@@ -21,7 +21,7 @@
 \maketitle
 
 \begin{abstract}
-Peer review relies on several readers finding different problems, not just writing different text. We measure critique overlap in 115k conference reviews and 39k journal reports. At ICLR, overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2026 ($+\IclrChange$ percentage points, 95\% CI \IclrChangeLow--\IclrChangeHigh), with year-on-year rises at NeurIPS and ICML. Within a paper, two AI-flagged reviews overlap \FlagGap{} points more than two unflagged reviews (95\% CI \FlagGapLow--\FlagGapHigh). Blind annotations from another model family reproduce the gap even after a swap of writing styles. ICLR reviews of different papers did not converge (\CrossBase\% to \CrossLast\%). Clarity critiques fell from \ClarityBase\% to \ClarityLast\% while requests for more experiments rose. Across five journal sources, overlap rose most where AI-likeness rose most (F1000: $+\FResearchChange$ points). These results provide evidence of claim-level homogenization in the LLM era: reviewers of one paper increasingly repeat the same problems. Review diversity needs assessment at the level of critiques, not wording.
+Peer review relies on several readers finding different problems, not just writing different text. We measure critique overlap in 115k conference reviews and 39k journal reports. At ICLR, overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2026 ($+\IclrChange$ percentage points, 95\% CI \IclrChangeLow--\IclrChangeHigh), with year-on-year rises at NeurIPS and ICML. Within a paper, two AI-flagged reviews overlap \FlagGap{} points more than two unflagged reviews (95\% CI \FlagGapLow--\FlagGapHigh). ICLR reviews of different papers did not converge (\CrossBase\% to \CrossLast\%). Clarity critiques fell from \ClarityBase\% to \ClarityLast\% while requests for more experiments rose. Across five journal sources, overlap rose most where AI-likeness rose most (F1000: $+\FResearchChange$ points). These results provide evidence of claim-level homogenization in the LLM era: reviewers of one paper increasingly repeat the same problems. Review diversity needs assessment at the level of critiques, not wording.
 \end{abstract}
 
 \begin{figure}[t]
@@ -62,15 +62,15 @@ Table~\ref{tab:data} lists the sources. ICLR and NeurIPS reviews come from OpenR
 A \emph{critique claim} names one problem the authors would answer with one fix. Praise and summary do not count. Two claims match only if they concern the same problem in the same part of the paper. A proof gap and an unjustified assumption are different problems, even if both concern the same theorem. An LLM (\texttt{gpt-6-luna}) lists each review's claims; a separate call groups matching claims across the reviews of a paper, without seeing the review texts. Repeated claims within one review count as one problem.
 
 \paragraph{One overlap measure.}
-For two reviews, \emph{critique overlap} is the number of distinct problems both raise, divided by the number in the smaller critique set. An overlap of 100\% means that every problem in the smaller set already appears in the other review; the longer set can still add problems. Table~\ref{tab:match_example} gives an example. We average over pairs within a paper, then over papers, so every paper has equal weight. We use the same measure in trends, detector comparisons, cross-paper controls and blind audits. Appendix~\ref{app:robust} gives the formula and intervals.
+For two reviews, \emph{critique overlap} is the number of distinct problems both raise, divided by the number in the smaller critique set. An overlap of 100\% means that every problem in the smaller set already appears in the other review; the longer set can still add problems. Table~\ref{tab:match_example} gives an example. We average over pairs within a paper, then over papers, so every paper has equal weight. We use the same measure in trends, detector comparisons and cross-paper controls. Appendix~\ref{app:robust} gives the formula and intervals.
 
 \input{tables/match_example}
 
 \paragraph{AI-flagged.}
 A style detector flags a review above the 99th percentile of its scores on pre-2023 reviews. A flag describes the text, not who wrote it. CoCoDet provides a separate content-versus-polishing detector \citep{chen2025coconuts}; a word-use index measures AI-likeness at source-year level \citep{liang2024monitoring}. Appendix~\ref{app:ai} defines all three measures.
 
-\paragraph{Validation and analysis choices.}
-Blind Claude Opus annotations from another model family rank papers similarly to the pipeline (Spearman \BlindRank; \BlindRankN{} papers). Separate audits test complete panels, style-swapped reviews and review pairs (Appendix~\ref{app:validation}). Nothing was preregistered. The 2020 start, placebo threshold, rating split and blind sets came after the initial results.
+\paragraph{Reference labels and analysis choices.}
+An LLM council supplies reference claims and problem groups from Sol 6.1, Claude Opus 5.5 and Kimi K3.1 Pro proposals, followed by LLM judgments (Appendix~\ref{app:reference}). These are LLM labels, not human labels. Nothing was preregistered. The 2020 start, placebo threshold, rating split and reference sample came after the initial results.
 
 \section{Results}
 \label{sec:results}
@@ -81,7 +81,7 @@ ICLR overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2026: $+\IclrChange
 
 \paragraph{RQ2: AI-flagged reviews repeat more critiques.}
 \label{sec:ai}
-Within a paper, two flagged reviews overlap \FlagGap{} points more than two unflagged reviews (95\% CI \FlagGapLow--\FlagGapHigh; \FlagGapN{} ICLR papers). The unflagged-pair baseline is \FlagBaseline\%. Figure~\ref{fig:ai} shows the pair-type means; the gap compares pairs within the same paper. It also appears at NeurIPS, with CoCoDet labels, and with length and claim-count controls (Figure~\ref{fig:checks}). Blind Opus annotations find the same direction on complete panels ($+\BlindGap$ points), style-swapped panels ($+\SwapGap$), and review pairs ($+\AuditGap$). The style swap makes flagged reviews plain and unflagged reviews polished while keeping their content. The gap follows the critiques, not just the prose.
+Within a paper, two flagged reviews overlap \FlagGap{} points more than two unflagged reviews (95\% CI \FlagGapLow--\FlagGapHigh; \FlagGapN{} ICLR papers). The unflagged-pair baseline is \FlagBaseline\%. Figure~\ref{fig:ai} shows the pair-type means; the gap compares pairs within the same paper. It also appears at NeurIPS, with CoCoDet labels, and with length and claim-count controls (Figure~\ref{fig:checks}).
 
 \begin{figure}[t]
 \centering
@@ -118,12 +118,12 @@ F1000 and PLOS have the largest increases in the word-use AI-likeness index and 
 
 \section{Discussion}
 
-The change is in what reviewers criticize, not just how they write. Same-paper overlap rose in the latest cycles of three ML venues, AI-flagged pairs overlap more within a paper, and blind annotations preserve the gap after a swap of writing styles. Across journals, the largest rises coincide with the largest increases in AI-likeness. Together, the results provide evidence of claim-level homogenization within review panels, rather than a general convergence of critiques across unrelated papers.
+Same-paper critique overlap rose in the latest cycles of three ML venues, and AI-flagged pairs overlap more within a paper. Across journals, the largest rises coincide with the largest increases in AI-likeness. Together, the results provide evidence of claim-level homogenization within review panels, rather than a general convergence of critiques across unrelated papers.
 
 Higher overlap means that a larger share of the smaller critique set adds no new problem beyond the other review. More reviewers therefore need not provide more distinct readings. Venues that assess review diversity should count distinct problems, rather than rely on differences in wording.
 
 \section*{Limitations}
-\textbf{LLM measurement.} An LLM extracts and groups claims. Blind validation uses another model family, not humans; estimates of drift vary across small blind samples (Appendix~\ref{app:validation}). \textbf{Containment, not identity.} Full overlap means that the smaller critique set is contained in the other set, not that the two reviews are identical. We measure repeated problems, not correctness or overall review quality. \textbf{Final review texts.} Discussion can import a co-reviewer's point into a review; public data do not recover independent first drafts. \textbf{AI labels.} Detector labels describe text, not people. Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates; their labels must not support action against an individual reviewer. \textbf{Other changes.} ICLR changed its reviewing rules in 2026; ICML changed its review form. Authors' LLM use can also change the problems reviewers find. \textbf{Selection and scope.} NeurIPS and most journals publish accepted-paper reviews only. All texts are in English, and most come from ML.
+\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference also uses LLMs, not humans, and does not rule out shared model errors (Appendix~\ref{app:reference}). Extraction and grouping errors can affect measured levels and changes over time. \textbf{Containment, not identity.} Full overlap means that the smaller critique set is contained in the other set, not that the two reviews are identical. We measure repeated problems, not correctness or overall review quality. \textbf{Final review texts.} Discussion can import a co-reviewer's point into a review; public data do not recover independent first drafts. \textbf{AI labels.} Detector labels describe text, not people. Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates; their labels must not support action against an individual reviewer. \textbf{Other changes.} ICLR changed its reviewing rules in 2026; ICML changed its review form. Authors' LLM use can also change the problems reviewers find. \textbf{Selection and scope.} NeurIPS and most journals publish accepted-paper reviews only. All texts are in English, and most come from ML.
 
 \bibliography{refs}
 \appendix
@@ -159,30 +159,16 @@ We join all review-form text fields. ICML changed its form between 2025 and 2026
 
 Both extraction passes use \texttt{gpt-6-luna} through OpenRouter, strict JSON-schema output, and high reasoning effort. Reviews are truncated at 14,000 characters. One pass extracts claims; the other groups them into distinct problems. A missing claim identifier forms its own group. Cross-paper controls combine four reviews of different papers of the same venue and year; same-area controls combine three papers. We predict areas from title and abstract embeddings so that one taxonomy applies throughout. Journal prompts use the generic paper type rather than the ML conference type.
 
-The blind annotations use Claude Opus 5.5. The saved requests record the API model names; the providers do not expose dated snapshots. Saved model responses and request settings allow the results to be rebuilt without new model calls. Review-linked detector scores will not be released; pair-level releases use paper codes, pair types and overlap scores. Distinctive claim text can still link back to a public review, so claim-text release requires a linkage check. Journal reports retain their CC~BY terms.
+The council reference uses Sol 6.1, Claude Opus 5.5 and Kimi K3.1 Pro. The saved requests record the API model names; the providers do not expose dated snapshots. Saved model responses and request settings allow the results to be rebuilt without new model calls. Review-linked detector scores will not be released; pair-level releases use paper codes, pair types and overlap scores. Distinctive claim text can still link back to a public review, so claim-text release requires a linkage check. Journal reports retain their CC~BY terms.
 
 \input{prompts}
 
-\section{Validation}
-\label{app:validation}
+\section{Council Reference Labels}
+\label{app:reference}
 
-\paragraph{Blind end-to-end reference.}
-Claude Opus annotated \BlindRankN{} ICLR papers end to end, blind to year. The reference's mean overlap is \BlindReference\%, against \BlindPipeline\% for the pipeline; the paper-level rank correlation is \BlindRank. The set spans 2018, 2022, 2024 and 2026 and uses four reviews per paper. All scores use distinct problem groups and the same minimum-set denominator.
+Sol 6.1, Claude Opus 5.5 and Kimi K3.1 Pro independently propose critique claims from the same review texts. An LLM judgment checks those proposals against each review to produce the reference claims. Each council member then groups the shared reference claims into distinct problems; a further LLM judgment resolves grouping differences. The grouping rule requires one fix or reply to answer all claims in a group. Each claim belongs to exactly one group, including singleton groups.
 
-\paragraph{Measurement drift.}
-The pipeline-minus-reference gap changes by \DriftEarly{} points (SE \DriftEarlySE) from the early years to 2026 in the first blind set. On a separate 2023/2026 set, the change is \DriftRecent{} points (SE \DriftRecentSE; \DriftRecentN{} papers). These are small samples, and the drift estimates depend on the sampled papers. They measure extraction error over time separately from the within-paper detector comparison.
-
-\paragraph{Blind flagged-pair comparison.}
-Opus annotated \BlindGapN{} ICLR 2026 papers with two flagged and two unflagged reviews, blind to detector labels. Comparing each paper's flagged and unflagged pair gives $+\BlindGap$ points (95\% CI \BlindGapLow--\BlindGapHigh). The main pipeline and reference use the same overlap formula on their own extracted problem groups.
-
-\paragraph{Style swap.}
-Opus rewrote the reviews of \SwapGapN{} papers: flagged reviews became plain and terse, and unflagged reviews became polished and sectioned. A fresh blind annotation still finds a flagged-pair gap of $+\SwapGap$ points (95\% CI \SwapGapLow--\SwapGapHigh). The paired change from the original annotation is \SwapChange{} points (SE \SwapChangeSE). A separate audit of 40 rewrites found no added or dropped criticisms; this audit uses the same model family, not humans.
-
-\paragraph{Direct review-pair audit.}
-Two independent Opus annotators listed each review's problems and matched them directly, without using the pipeline's extracted claims. Matches that link several claims form one distinct problem group. Their overlap scores correlate at \AuditAgreement{}, with a mean absolute difference of \AuditDifference{} points. Across \AuditGapN{} papers, the flagged-pair gap is $+\AuditGap$ points (95\% CI \AuditGapLow--\AuditGapHigh). These are LLM annotations, not human labels.
-
-\paragraph{Claim-level checks.}
-Two Opus runs adjudicated 600 claim pairs from an earlier low/medium-effort extraction configuration. That audit concerns merge decisions for that configuration, not the high-effort scores reported here. Its inputs, sampling key and labels remain available. Separate labels assess whether claims name concrete paper elements. Human proposition annotations from AMPERE assess claim segmentation \citep{hua2019argument}; proposition counts and distinct-problem overlap are different validation targets.
+The reference set contains same-paper and cross-paper panels with saved development and test splits. Reviews, panel membership, council outputs, judgment instructions and final labels live in \texttt{data/gold/}. These are LLM reference labels, not human annotations or independent ground truth.
 
 \section{Measure and Robustness}
 \label{app:robust}
@@ -191,7 +177,7 @@ Let $G_A$ and $G_B$ be the sets of distinct problem groups raised by two reviews
 \begin{equation}
  o(A,B)=\frac{|G_A\cap G_B|}{\min(|G_A|,|G_B|)}.
 \end{equation}
-A claim that matches no other claim forms its own group. Multiple claims of one review in the same group count once. Reviews with no problem group enter no pair. A paper's overlap is the mean over its valid review pairs; a year's overlap is the mean over papers. Thus larger review panels do not receive more weight merely because they contain more pairs. The same rule applies to sampled cross-paper panels and to each blind annotator's groupings.
+A claim that matches no other claim forms its own group. Multiple claims of one review in the same group count once. Reviews with no problem group enter no pair. A paper's overlap is the mean over its valid review pairs; a year's overlap is the mean over papers. Thus larger review panels do not receive more weight merely because they contain more pairs. The same rule applies to sampled cross-paper panels.
 
 For year means, intervals use the SE across paper-level means. For the difference between independent years, we combine their SEs in quadrature. The within-paper detector comparison regresses pair overlap on indicators for one and two flagged reviews, with paper fixed effects and paper-clustered SEs. The control check adds the log lengths and log claim counts of the shorter and longer review. Those controls test the flagged-pair association; they do not define a different overlap score. Cross-paper intervals describe variation across sampled comparison panels, conditional on the corpus.
 
@@ -207,7 +193,7 @@ Table~\ref{tab:robust} repeats the trend comparison with specific claims only, l
 \begin{figure*}[t]
 \centering
 \includegraphics{figs/figA_checks.pdf}
-\caption{The within-paper flagged-pair gap persists across detectors, controls and blind annotations. Difference in overlap between two flagged and two unflagged reviews, in percentage points. Filled circles: pipeline estimates with paper fixed effects. Squares: blind Opus estimates. Open circles: pre-ChatGPT checks that flag the top 45\% of detector scores. Dotted line: the main estimate. Bars: 95\% intervals over papers, clustered by paper for regressions.}
+\caption{The within-paper flagged-pair gap persists across detectors and controls. Difference in overlap between two flagged and two unflagged reviews, in percentage points. Filled circles: pipeline estimates with paper fixed effects. Open circles: pre-ChatGPT checks that flag the top 45\% of detector scores. Dotted line: the main estimate. Bars: 95\% intervals, clustered by paper.}
 \label{fig:checks}
 \end{figure*}
 

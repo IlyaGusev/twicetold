@@ -41,9 +41,7 @@ class Settings(BaseSettings):
 
     DEFAULT_MODEL: str = "gpt-6-luna-high"
     BLIND_SET_MODEL: str = "gpt-6-luna"
-    SECOND_MODEL: str = "gpt-6.1-sol"
     AI_REFERENCE_MODEL: str = "gpt-6-luna"
-    INSTRUMENT_MODELS: str = "gpt-6-luna,gpt-6.1-sol,deepseek-v4.1-flash"
     REVIEW_TEXT_MAX_CHARS: int = 14000
 
     EMBED_MODEL: str = "text-embedding-3-small"

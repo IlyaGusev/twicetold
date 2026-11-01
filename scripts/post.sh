@@ -26,13 +26,8 @@ step src/outcomes.py withdrawals --model "$MODEL"
 step src/between.py claims_table --model "$MODEL"
 step src/between.py embed --model "$MODEL"
 step src/validate.py detector_placebo --model "$MODEL"
-step src/validate.py pair_audit
-step src/validate.py flags --model "$MODEL"
-step src/validate.py swap
-step src/validate.py drift --model "$MODEL"
 step src/validate.py rq1_evidence --model "$MODEL"
 step src/validate.py variants --model "$MODEL"
-step src/validate.py blind --model "$MODEL"
 step src/validate.py reviewer_fe --model "$MODEL"
 step src/validate.py paper_side --model "$MODEL"
 if [ -z "$OUT_DIR" ]; then

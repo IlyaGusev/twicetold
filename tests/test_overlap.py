@@ -9,7 +9,6 @@ import pytest
 
 from metrics import panel_metrics
 from outcomes import hit, panel_pairs, year_rates
-from validate import audit_overlap
 
 
 @pytest.mark.parametrize(
@@ -30,15 +29,6 @@ def test_overlap(a, b, expected):
 
 def test_empty_pair_is_undefined():
     assert math.isnan(hit([], [1]))
-
-
-def test_audit_merges_many_to_one_matches():
-    row = dict(
-        a_claims=["same", "same", "unique"],
-        b_claims=["same", "other", "another"],
-        matches=[["A1", "B1"], ["A2", "B1"]],
-    )
-    assert audit_overlap(row) == 0.5
 
 
 def test_each_paper_has_equal_weight():

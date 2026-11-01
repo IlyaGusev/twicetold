@@ -67,9 +67,6 @@ COCODET = ["cocodet_main.jsonl", "cocodet_icml.jsonl", "cocodet_other.jsonl"]
 SHORT = {
     "+ length and claim count": "+ length, claim count",
     "CoCoDet labels, ICLR": "CoCoDet labels",
-    "End to end, 50 papers": "End to end (50 papers)",
-    "After style swap, 48 papers": "Style swap (48)",
-    "Pair audit, 60 papers": "Pair audit (60)",
     "Top-45% scores, ICLR 2020": "ICLR 2020",
     "Top-45% scores, ICLR 2021-2022": "ICLR 2021–22",
     "Top-45% scores, ICLR 2023": "ICLR 2023",
@@ -233,9 +230,8 @@ def ai_checks(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         placebo = group.startswith("Placebo")
         color = COLORS["grey"] if placebo else COLORS["ink"]
         face_color = "white" if placebo else color
-        marker = "s" if group.startswith("Blind") else "o"
         for row in rows.itertuples():
-            ax.errorbar(row.est, y, xerr=Z95 * row.se, fmt=marker, ms=3.5, color=color, mfc=face_color, elinewidth=1.0)
+            ax.errorbar(row.est, y, xerr=Z95 * row.se, fmt="o", ms=3.5, color=color, mfc=face_color, elinewidth=1.0)
             ticks.append(y)
             labels.append(SHORT.get(row.label, row.label).replace("-", "–"))
             is_header.append(False)
@@ -250,7 +246,7 @@ def ai_checks(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     ax.tick_params(axis="y", length=0, pad=2)
     ax.spines["left"].set_visible(False)
     ax.set_ylim(y + 0.6, 0.6)
-    ax.set_xlim(-5, 25)
+    ax.set_xlim(-5, 12)
     few_ticks(ax, "x")
     ax.set_xlabel("Difference in overlap (percentage points)")
     save(fig, figs, "figA_checks.pdf", PAGE_WIDTH)
@@ -580,9 +576,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         ("+ length and claim count", "ControlGap"),
         ("NeurIPS 2024–25", "NeuripsFlagGap"),
         ("CoCoDet labels, ICLR", "CocoGap"),
-        ("End to end, 50 papers", "BlindGap"),
-        ("After style swap, 48 papers", "SwapGap"),
-        ("Pair audit, 60 papers", "AuditGap"),
     ]:
         row = evidence.loc[label]
         record(prefix, row.est, row.se, row.papers)
@@ -635,24 +628,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     record("JournalCorrelation", correlation, n=len(shifts), digits=2)
     limits = np.tanh(np.arctanh(correlation) + np.array([-1, 1]) * Z95 / np.sqrt(len(shifts) - 3))
     values["JournalCorrelationLow"], values["JournalCorrelationHigh"] = [f"{x:.2f}" for x in limits]
-    blind = pd.read_csv(reports / f"blind_{model}.csv")
-    for col, prefix in [("hit_rate_strict_opus", "BlindReference"), ("hit_rate_strict_model", "BlindPipeline")]:
-        sample = blind[col] * 100
-        record(prefix, sample.mean(), sample.sem(), len(sample))
-    record("BlindRank", blind.hit_rate_strict_opus.corr(blind.hit_rate_strict_model, method="spearman"), n=len(blind), digits=2)
-    bias = (blind.hit_rate_strict_model - blind.hit_rate_strict_opus) * 100
-    early, late = bias[blind.year.isin([2018, 2022])], bias[blind.year == 2026]
-    record("DriftEarly", late.mean() - early.mean(), np.hypot(late.sem(), early.sem()), len(late) + len(early))
-    drift = pd.read_csv(reports / "drift_blind2.csv")
-    bias = (drift[f"hit_rate_strict_{model}"] - drift.hit_rate_strict_opus) * 100
-    early, late = bias[drift.year == 2023], bias[drift.year == 2026]
-    record("DriftRecent", late.mean() - early.mean(), np.hypot(late.sem(), early.sem()), len(late) + len(early))
-    swap = pd.read_csv(reports / "swap_blind4.csv").pivot(index="paper", columns="version", values="diff").dropna()
-    change = swap.swapped - swap.original
-    record("SwapChange", change.mean(), change.sem(), len(change))
-    audit = pd.read_csv(reports / "pair_audit_blind5.csv")
-    record("AuditAgreement", audit.x.corr(audit.y), n=len(audit), digits=2)
-    record("AuditDifference", (audit.x - audit.y).abs().mean(), n=len(audit))
     pd.DataFrame(rows).to_csv(reports / f"paper_numbers_{model}.csv", index=False)
     Path(tables, "numbers.tex").write_text(
         "\n".join(f"\\newcommand{{\\{name}}}{{{value}}}" for name, value in values.items()) + "\n"
