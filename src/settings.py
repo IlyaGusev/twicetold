@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     DATA_DIR: Path = ROOT / "data"
     REPORTS_DIR: Path = ROOT / "reports"
+    ANALYSIS_DIR: Path = ROOT / "data" / "overlap"
+    ANALYSIS_REPORTS_DIR: Path = ROOT / "reports" / "overlap"
     FIGURES_DIR: Path = ROOT / "paper" / "figs"
     TABLES_DIR: Path = ROOT / "paper" / "tables"
     PROMPTS_DIR: Path = ROOT / "src" / "prompts"

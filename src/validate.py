@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-from metrics import assign, load_jsonl, panel_metrics
+from metrics import assign, load_jsonl, overlap, panel_metrics
 from settings import settings
 
 BLIND_YEARS = [2018, 2022, 2024, 2026]
@@ -37,7 +37,6 @@ BLIND_OUTCOMES = [
     "S3",
     "U3",
     "T3",
-    "pair_rate_strict",
     "hit_rate_strict",
     "share_specific",
     "hill_shannon",
@@ -48,7 +47,6 @@ VARIANT_COLS = [
     "U3",
     "share_shared_claims",
     "hit_rate_strict",
-    "pair_rate_strict",
     "share_specific",
     "claims_per_review",
 ]
@@ -269,12 +267,13 @@ def model_metrics(blind_dir, data, model, tag):
     ).set_index("panel_id")
 
 
-def reference_agreement(blind_dir):
+def reference_agreement(blind_dir, reports=settings.ANALYSIS_REPORTS_DIR):
     from scipy.stats import spearmanr
 
     both = opus_metrics(blind_dir).join(opus_metrics(blind_dir, ["rep0", "rep1"]), how="inner", suffixes=("_a", "_b"))
     if both.empty:
         return
+    both.reset_index().to_csv(Path(reports) / "blind_replicate.csv", index=False)
     print(f"== Opus reference vs independent Opus replicate: {len(both)} papers")
     for k in BLIND_OUTCOMES:
         a, b = both[f"{k}_a"], both[f"{k}_b"]
@@ -285,13 +284,14 @@ def reference_agreement(blind_dir):
         )
 
 
-def blind(model=settings.DEFAULT_MODEL, tag="", data=settings.DATA_DIR):
+def blind(model=settings.DEFAULT_MODEL, tag="", data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     from scipy.stats import norm, spearmanr
 
     data = Path(data)
     blind_dir = data / "blind"
-    reference_agreement(blind_dir)
+    reference_agreement(blind_dir, reports)
     both = opus_metrics(blind_dir).join(model_metrics(blind_dir, data, model, tag), how="inner", suffixes=("_opus", "_model"))
+    both.reset_index().to_csv(Path(reports) / f"blind_{model}.csv", index=False)
     print(f"== {model}{tag} vs blind Opus reference: {len(both)} papers")
     print(f"{'outcome':30s} {'opus':>7s} {'model':>7s} {'rho':>6s}")
     for k in BLIND_OUTCOMES:
@@ -328,7 +328,7 @@ def load_judgments(pdir, run):
     return pd.DataFrame(rows).drop_duplicates("pair_id", keep="last").set_index("pair_id")
 
 
-def pairs(data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
+def pairs(data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     from sklearn.metrics import cohen_kappa_score
 
     pdir = Path(data) / "pairs"
@@ -468,11 +468,11 @@ def nonempty_outcomes(path):
     return outcomes[outcomes.n_claims > 0]
 
 
-def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
+def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     data = Path(data)
-    full = nonempty_outcomes(data / f"panel_outcomes_{model}.parquet").set_index("panel_id")
+    full = nonempty_outcomes(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").set_index("panel_id")
     out = {}
-    sub3 = nonempty_outcomes(data / f"sub3_outcomes_{model}.parquet").set_index("paper_id")
+    sub3 = nonempty_outcomes(settings.ANALYSIS_DIR / f"sub3_outcomes_{model}.parquet").set_index("paper_id")
     sub3_joined = sub3.join(full[["S3", "D3", "share_shared_claims", "hit_rate_strict"]], suffixes=("", "_full"))
     sub3_joined = sub3_joined.dropna(subset=["S3", "S3_full"])
     out["sub3"] = pd.DataFrame(
@@ -491,7 +491,7 @@ def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setti
             for y, g in sub3_joined.groupby("year")
         ]
     ).set_index("year")
-    noq = nonempty_outcomes(data / f"panel_outcomes_{model}_noq.parquet").set_index("paper_id")
+    noq = nonempty_outcomes(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_noq.parquet").set_index("paper_id")
     noq_joined = noq.join(full[VARIANT_COLS], suffixes=("", "_full")).dropna(subset=["S3", "S3_full"])
     noq_cols = ["S3", "share_shared_claims", "claims_per_review", "D3"]
     out["noq"] = pd.DataFrame(
@@ -506,7 +506,7 @@ def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setti
             for y, g in noq_joined.groupby("year")
         ]
     ).set_index("year")
-    withdrawn = nonempty_outcomes(data / f"panel_outcomes_{model}_wd.parquet")
+    withdrawn = nonempty_outcomes(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_wd.parquet")
     kept = full[(full.conf == "ICLR") & (full.year == 2026)]
     out["wd"] = pd.DataFrame(
         {
@@ -605,7 +605,22 @@ def as_list(value):
     return value.split(",") if isinstance(value, str) else list(value)
 
 
-def pair_audit(data=settings.DATA_DIR, annotators=("x", "y"), reports=settings.REPORTS_DIR):
+def audit_overlap(row):
+    a_ids = [f"A{i + 1}" for i in range(len(row["a_claims"]))]
+    b_ids = [f"B{i + 1}" for i in range(len(row["b_claims"]))]
+    parent = {node: node for node in [*a_ids, *b_ids]}
+
+    def root(node):
+        while parent[node] != node:
+            node = parent[node]
+        return node
+
+    for a, b in row["matches"]:
+        parent[root(a)] = root(b)
+    return overlap([root(node) for node in a_ids], [root(node) for node in b_ids])
+
+
+def pair_audit(data=settings.DATA_DIR, annotators=("x", "y"), reports=settings.ANALYSIS_REPORTS_DIR):
     from scipy.stats import pearsonr
 
     data = Path(data)
@@ -616,12 +631,8 @@ def pair_audit(data=settings.DATA_DIR, annotators=("x", "y"), reports=settings.R
     for annotator in annotators:
         for path in sorted(blind5.glob(f"pair_out_{annotator}_*.jsonl")):
             for r in read_jsonl(path):
-                n_a = len(r["a_claims"])
-                n_b = len(r["b_claims"])
-                matched_a = len({m[0] for m in r["matches"]})
-                matched_b = len({m[1] for m in r["matches"]})
-                if n_a and n_b:
-                    rates.setdefault(r["pair"], {})[annotator] = (matched_a / n_a + matched_b / n_b) / 2 * 100
+                if r["a_claims"] and r["b_claims"]:
+                    rates.setdefault(r["pair"], {})[annotator] = audit_overlap(r) * 100
     audit = pd.DataFrame([{"pair": c, "paper": key[c]["paper_id"], "flagged": key[c]["flagged"], **v} for c, v in rates.items()])
     audit = audit.dropna(subset=annotators)
     audit["rate"] = audit[annotators].mean(axis=1)
@@ -689,7 +700,7 @@ def gap_summary(rows, by, path):
     return gaps
 
 
-def flags(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
+def flags(data=settings.DATA_DIR, k=5, reports=settings.ANALYSIS_REPORTS_DIR, model=settings.DEFAULT_MODEL):
     data = Path(data)
     blind3 = data / "blind3"
     key = blind_key(blind3)
@@ -697,14 +708,13 @@ def flags(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
     claims, panels = load_opus(blind3, range(k))
     opus_hits = {code: pair_hits(panels[code], claims, v["review_ids"]) for code, v in key.items() if code in panels}
     sources = {"opus": opus_hits}
-    for model in [settings.BLIND_SET_MODEL, settings.SECOND_MODEL]:
-        claims_by_review = model_claims(data / f"claims_{model}.jsonl")
-        model_panels = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
-        sources[model] = {}
-        for code, v in key.items():
-            if v["paper_id"] in model_panels:
-                panel = model_panels[v["paper_id"]]
-                sources[model][code] = pair_hits(panel, claims_by_review, panel["review_ids"])
+    claims_by_review = model_claims(data / f"claims_{model}.jsonl")
+    model_panels = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
+    sources[model] = {}
+    for code, v in key.items():
+        if v["paper_id"] in model_panels:
+            panel = model_panels[v["paper_id"]]
+            sources[model][code] = pair_hits(panel, claims_by_review, panel["review_ids"])
     rows = []
     for source, by_paper in sources.items():
         for code, hits in by_paper.items():
@@ -716,7 +726,7 @@ def flags(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
     gap_summary(rows, "source", Path(reports) / "flags_blind3.csv")
 
 
-def swap_detector(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
+def swap_detector(data=settings.DATA_DIR, k=5, reports=settings.ANALYSIS_REPORTS_DIR):
     import ai
 
     data = Path(data)
@@ -759,7 +769,7 @@ def swap_detector(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
     scored.drop(columns=["orig_text", "swap_text"]).to_csv(Path(reports) / "swap_detector.csv", index=False)
 
 
-def swap(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
+def swap(data=settings.DATA_DIR, k=5, reports=settings.ANALYSIS_REPORTS_DIR):
     data = Path(data)
     key = blind_key(data / "blind3")
     flag = load_flags(data)
@@ -798,26 +808,24 @@ def swap(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
     )
 
 
-def drift(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
+def drift(data=settings.DATA_DIR, k=5, reports=settings.ANALYSIS_REPORTS_DIR, model=settings.DEFAULT_MODEL):
     data = Path(data)
     blind2 = data / "blind2"
     key = blind_key(blind2)
     cols = ["hit_rate_strict", "share_shared_claims"]
     ref = opus_metrics(blind2, range(k))[cols].add_suffix("_opus")
-    per_model = []
-    for model in [settings.BLIND_SET_MODEL, settings.SECOND_MODEL]:
-        model_outcomes = pd.read_parquet(data / f"panel_outcomes_{model}.parquet", columns=["paper_id", "conf", *cols])
-        model_outcomes = model_outcomes[model_outcomes.conf == "ICLR"].set_index("paper_id")
-        blind_rows = model_outcomes.reindex([v["paper_id"] for v in key.values()])[cols].set_axis(list(key), axis=0)
-        per_model.append(blind_rows.add_suffix(f"_{model}"))
-    table = pd.concat([ref, *per_model], axis=1).dropna()
+    model_outcomes = pd.read_parquet(
+        settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["paper_id", "conf", *cols]
+    )
+    model_outcomes = model_outcomes[model_outcomes.conf == "ICLR"].set_index("paper_id")
+    blind_rows = model_outcomes.reindex([v["paper_id"] for v in key.values()])[cols].set_axis(list(key), axis=0)
+    table = pd.concat([ref, blind_rows.add_suffix(f"_{model}")], axis=1).dropna()
     table["year"] = [key[c]["year"] for c in table.index]
     table.to_csv(Path(reports) / "drift_blind2.csv")
-    models = [settings.BLIND_SET_MODEL, settings.SECOND_MODEL]
     print("papers by year", table.year.value_counts().sort_index().to_dict())
     for col in cols:
         print(f"== {col} (x100), by year: mean (SE)")
-        for src in ["opus", *models]:
+        for src in ["opus", model]:
             by_year = table.groupby("year")[f"{col}_{src}"]
             mean, sem = by_year.mean() * 100, by_year.sem() * 100
             print(
@@ -825,41 +833,39 @@ def drift(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
                 {y: f"{mean[y]:.2f} ({sem[y]:.2f})" for y in mean.index},
                 f"change {mean.iloc[-1] - mean.iloc[0]:+.2f} (SE {np.hypot(*sem):.2f})",
             )
-        for src in models:
-            gap = (table[f"{col}_{src}"] - table[f"{col}_opus"]) * 100
-            gap_by_year = gap.groupby(table.year)
-            mean = gap_by_year.mean()
-            print(
-                f"  {src} - opus by year",
-                mean.round(2).to_dict(),
-                f"drift {mean.iloc[-1] - mean.iloc[0]:+.2f} (SE {np.hypot(*gap_by_year.sem()):.2f})",
-            )
+        gap = (table[f"{col}_{model}"] - table[f"{col}_opus"]) * 100
+        gap_by_year = gap.groupby(table.year)
+        mean = gap_by_year.mean()
+        print(
+            f"  {model} - opus by year",
+            mean.round(2).to_dict(),
+            f"drift {mean.iloc[-1] - mean.iloc[0]:+.2f} (SE {np.hypot(*gap_by_year.sem()):.2f})",
+        )
 
 
 def robust(
-    model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR, tex=settings.TABLES_DIR / "robust.tex"
+    model=settings.DEFAULT_MODEL,
+    data=settings.DATA_DIR,
+    reports=settings.ANALYSIS_REPORTS_DIR,
+    tex=settings.TABLES_DIR / "robust.tex",
 ):
     data = Path(data)
-    main = pd.read_parquet(data / f"panel_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
-    pair_table = pd.read_parquet(data / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "hit_spec"])
+    main = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
+    pair_table = pd.read_parquet(
+        settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "hit_spec"]
+    )
     specific = pair_table[pair_table.conf == "ICLR"].groupby(["panel_id", "year"]).hit_spec.mean().reset_index()
-    sub3 = pd.read_parquet(data / f"sub3_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
-    noq = pd.read_parquet(data / f"panel_outcomes_{model}_noq.parquet").query("n_claims > 0")
-    second = pd.read_parquet(data / f"panel_outcomes_{settings.SECOND_MODEL}.parquet").query("conf == 'ICLR' and n_claims > 0")
-    wd = pd.read_parquet(data / f"panel_outcomes_{model}_wd.parquet").query("n_claims > 0")
+    sub3 = pd.read_parquet(settings.ANALYSIS_DIR / f"sub3_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
+    noq = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_noq.parquet").query("n_claims > 0")
+    wd = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_wd.parquet").query("n_claims > 0")
     with_wd = pd.concat([main, wd.assign(year=2026)])
-    same_papers = main[main.paper_id.isin(second.paper_id)]
     checks = [
-        ("Raw match rate", main, "hit_rate_strict", 2023),
+        ("Main overlap rate", main, "hit_rate_strict", 2023),
         ("Specific claims only", specific, "hit_spec", 2023),
         ("Same part of paper (lenient)", main, "hit_rate_lenient", 2023),
         ("3-review subsets, grouped again", sub3, "hit_rate_strict", 2023),
         ("Questions field removed", noq, "hit_rate_strict", 2024),
         ("Withdrawn 2026 papers added", with_wd, "hit_rate_strict", 2023),
-        ("Main model, second model's papers", same_papers, "hit_rate_strict", 2023),
-        (f"Second model ({settings.SECOND_MODEL})", second, "hit_rate_strict", 2023),
-        ("Main model, claims in shared groups", same_papers, "share_shared_claims", 2023),
-        ("Second model, claims in shared groups", second, "share_shared_claims", 2023),
     ]
     rows = []
     for name, df, col, base_year in checks:
@@ -875,20 +881,6 @@ def robust(
                 "se": np.hypot(se(base), se(last)),
             }
         )
-    standardized = pd.read_csv(Path(reports) / f"match_std_{model}.csv").query("conf == 'ICLR'").set_index("year")
-    base_std = standardized.loc[2023, "std"]
-    last_std = standardized.loc[2026, "std"]
-    rows.insert(
-        1,
-        {
-            "check": "Standardized",
-            "base_year": 2023,
-            "base": base_std,
-            "y2026": last_std,
-            "change": last_std - base_std,
-            "se": np.hypot(standardized.loc[2023, "std_se"], standardized.loc[2026, "std_se"]),
-        },
-    )
     out = pd.DataFrame(rows)
     out.round(3).to_csv(Path(reports) / f"robust_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
@@ -917,11 +909,13 @@ def fe_gap(design, flag, controls=()):
     }
 
 
-def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
+def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     from outcomes import ICLR_FROM
 
     data, reports = Path(data), Path(reports)
-    iclr_pairs = pd.read_parquet(data / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+    iclr_pairs = pd.read_parquet(
+        settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+    )
     iclr_pairs = iclr_pairs[iclr_pairs.conf == "ICLR"]
     scores = pd.read_parquet(data / "detector_scores.parquet", columns=["review_id", "p_llm", "llm_flag"]).set_index("review_id")
     trained = set(pd.read_parquet(data / "intel_reviews.parquet", columns=["paper_id", "year"]).query("year <= 2023").paper_id)
@@ -956,7 +950,7 @@ def short_long_logs(values, design):
     return np.minimum(log_a, log_b), np.maximum(log_a, log_b)
 
 
-def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
+def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     from outcomes import pair_design
 
     data, reports = Path(data), Path(reports)
@@ -969,11 +963,6 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
     coco_flag = (coco_raw.set_index("review_id")[["human", "mix", "ai"]].idxmax(axis=1) != "human").astype(int)
     coco_flag = coco_flag[~coco_flag.index.duplicated()]
     both_coco = iclr[iclr.a.isin(coco_flag.index) & iclr.b.isin(coco_flag.index)]
-    second = pd.read_parquet(
-        data / f"pairs_{settings.SECOND_MODEL}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
-    )
-    second = second[(second.conf == "ICLR") & (second.year == 2026)]
-    main_same = design[design.panel_id.isin(set(second.panel_id)) & (design.year == 2026)]
     rows = []
 
     def add(group, label, est, err, papers):
@@ -985,8 +974,6 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
         ("+ length and claim count", iclr, flag, ("log_short", "log_long", "claims_short", "claims_long")),
         ("NeurIPS 2024–25", design[(design.conf == "NeurIPS") & (design.year >= 2024)], flag, ()),
         ("CoCoDet labels, ICLR", both_coco, coco_flag, ()),
-        ("Main model, 500 ICLR 2026 papers", main_same, flag, ()),
-        ("Second model, same papers", second, flag, ()),
     ]:
         gap = fe_gap(subset_pairs, pair_flags, controls)
         add(pipe, label, gap["two"], gap["two_se"], subset_pairs.panel_id.nunique())
@@ -1028,28 +1015,22 @@ def f1000_reviewer_names(xml_dir):
     return pd.Series(names)
 
 
-def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
+def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     import statsmodels.formula.api as smf
 
     data, reports = Path(data), Path(reports)
     reviewer_name = f1000_reviewer_names(settings.RAW_JOURNAL_REVIEWS_DIR / "f1000")
-    f1000 = pd.read_parquet(data / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
-    f1000 = f1000[(f1000.conf == "F1000") & (f1000.year >= 2019) & (f1000.year != 2024)]
-    chars = pd.read_parquet(data / "other_reviews.parquet", columns=["review_id", "n_chars"]).set_index("review_id").n_chars
-    sides = pd.concat([f1000.rename(columns={"a": "rid", "b": "other"}), f1000.rename(columns={"b": "rid", "a": "other"})])
-    sides["log_len"] = np.log(chars.reindex(sides.rid).to_numpy())
-    sides["log_len_other"] = np.log(chars.reindex(sides.other).to_numpy())
-    per_review = (
-        sides.groupby(["rid", "panel_id", "year"])
-        .agg(hit=("hit", "mean"), log_len=("log_len", "first"), log_len_other=("log_len_other", "mean"), size=("other", "size"))
-        .reset_index()
+    f1000 = pd.read_parquet(
+        settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
     )
+    f1000 = f1000[(f1000.conf == "F1000") & (f1000.year >= 2019) & (f1000.year != 2024)]
+    sides = pd.concat([f1000.rename(columns={"a": "rid", "b": "other"}), f1000.rename(columns={"b": "rid", "a": "other"})])
+    per_review = sides.groupby(["rid", "panel_id", "year"], as_index=False).agg(hit=("hit", "mean"))
     per_review["name"] = per_review.rid.map(reviewer_name)
     per_review["post"] = (per_review.year >= 2025).astype(int)
     per_review["hit"] *= 100
     span = per_review.groupby("name").post.agg(["min", "max"])
     seen_both = per_review[per_review.name.isin(span.index[(span["min"] == 0) & (span["max"] == 1)])]
-    ctrl = " + log_len + log_len_other + C(size)"
 
     def fit(label, formula, df):
         result = clustered(smf.ols(formula, data=df), df.panel_id, df.name.fillna(df.rid))
@@ -1065,19 +1046,19 @@ def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=se
 
     out = pd.DataFrame(
         [
-            fit("All reports, pooled", "hit ~ post" + ctrl, per_review),
-            fit("Reviewers seen in both periods, pooled", "hit ~ post" + ctrl, seen_both),
-            fit("Reviewers seen in both periods, reviewer fixed effects", "hit ~ post + C(name)" + ctrl, seen_both),
+            fit("All reports, pooled", "hit ~ post", per_review),
+            fit("Reviewers seen in both periods, pooled", "hit ~ post", seen_both),
+            fit("Reviewers seen in both periods, reviewer fixed effects", "hit ~ post + C(name)", seen_both),
         ]
     )
     out.to_csv(reports / f"reviewer_fe_f1000_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
 
 
-def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
+def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     import statsmodels.formula.api as smf
 
-    from outcomes import STD_FORMULA, pair_design
+    from outcomes import pair_design
 
     data, reports = Path(data), Path(reports)
     abstract_labels = (
@@ -1088,7 +1069,8 @@ def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=set
     design = design[design.conf == "ICLR"]
     design["score"] = score.reindex(design.panel_id).to_numpy()
     design = design.dropna(subset=["score"])
-    design["z"] = (design.score - design.score.mean()) / design.score.std()
+    paper_scores = design.drop_duplicates("panel_id").score
+    design["z"] = (design.score - paper_scores.mean()) / paper_scores.std()
     flag = load_flags(data)
     design["nflag"] = flag.reindex(design.a).to_numpy().astype(float) + flag.reindex(design.b).to_numpy().astype(float)
     papers = design.groupby("year").panel_id.nunique()
@@ -1102,45 +1084,12 @@ def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=set
     both_flagged = design[design.nflag == 2]
     rows = []
     for subset, subset_pairs in [("all pairs", design), ("neither flagged", neither_flagged), ("both flagged", both_flagged)]:
-        fit = clustered(smf.ols(STD_FORMULA + " + z", data=subset_pairs), subset_pairs.panel_id)
-        rows.append(
-            dict(
-                kind="slope per SD of paper score",
-                subset=subset,
-                year="",
-                est=fit.params["z"] * 100,
-                se=fit.bse["z"] * 100,
-                papers=subset_pairs.panel_id.nunique(),
-            )
-        )
-    for subset, subset_pairs in [("all pairs", design), ("neither flagged", neither_flagged)]:
-        for kind, extra in [("standardized rate", ""), ("standardized rate + paper score", " + z + I(z**2)")]:
-            fit = clustered(smf.ols(STD_FORMULA + extra, data=subset_pairs), subset_pairs.panel_id)
-            names = pd.Index(fit.model.exog_names)
-            cov = fit.cov_params().to_numpy()
-            is_year = names.str.startswith("C(year)")
-            x_mean = fit.model.exog.mean(0)
-            for y in sorted(subset_pairs.year.unique()):
-                x = np.where(is_year, names == f"C(year)[T.{y}]", x_mean)
-                rows.append(
-                    dict(
-                        kind=kind,
-                        subset=subset,
-                        year=y,
-                        est=x @ fit.params.to_numpy() * 100,
-                        se=np.sqrt(x @ cov @ x) * 100,
-                        papers=subset_pairs[subset_pairs.year == y].panel_id.nunique(),
-                    )
-                )
+        paper_rates = subset_pairs.groupby(["panel_id", "year"], as_index=False).agg(hit=("hit", "mean"), z=("z", "first"))
+        fit = clustered(smf.ols("hit ~ C(year) + z", data=paper_rates), paper_rates.panel_id)
+        rows.append(dict(subset=subset, est=fit.params["z"] * 100, se=fit.bse["z"] * 100, papers=len(paper_rates)))
     out = pd.DataFrame(rows)
     out.to_csv(reports / f"paper_side_{model}.csv", index=False)
-    print(out[out.kind.str.startswith("slope")].round(2).to_string(index=False))
-    print(
-        out[~out.kind.str.startswith("slope")]
-        .pivot_table(index=["subset", "kind"], columns="year", values="est")
-        .round(2)
-        .to_string()
-    )
+    print(out.round(2).to_string(index=False))
 
 
 def estimate_cell(row):

@@ -67,8 +67,6 @@ COCODET = ["cocodet_main.jsonl", "cocodet_icml.jsonl", "cocodet_other.jsonl"]
 SHORT = {
     "+ length and claim count": "+ length, claim count",
     "CoCoDet labels, ICLR": "CoCoDet labels",
-    "Main model, 500 ICLR 2026 papers": "Main model, 500 papers",
-    "Second model, same papers": "Second model, same 500",
     "End to end, 50 papers": "End to end (50 papers)",
     "After style swap, 48 papers": "Style swap (48)",
     "Pair audit, 60 papers": "Pair audit (60)",
@@ -118,17 +116,17 @@ def mean_line(ax, df, col, color, ls="-", **kw):
     return pd.DataFrame({"mean": mean, "bar_top": mean + ci})
 
 
-def std_line(ax, match_std, conf, color, dx=0.0):
-    rows = match_std[match_std.conf == conf]
-    ax.errorbar(rows.year + dx, rows["std"], yerr=Z95 * rows.std_se, fmt="o-", ms=3, color=color, elinewidth=1.0)
-    return rows.set_index("year")["std"]
+def overlap_line(ax, by_year, conf, color, dx=0.0):
+    rows = by_year[by_year.conf == conf]
+    ax.errorbar(rows.year + dx, rows["match"], yerr=Z95 * rows.match_se, fmt="o-", ms=3, color=color, elinewidth=1.0)
+    return rows.set_index("year")["match"]
 
 
 def end_label(ax, x, y, text, color=COLORS["ink"], dx=3, dy=0, ha="left", va="center"):
     ax.annotate(text, (x, y), xytext=(dx, dy), textcoords="offset points", ha=ha, va=va, color=color, fontsize=7)
 
 
-def few_ticks(ax, axis="y", n=5):
+def few_ticks(ax, axis="y", n=4):
     (ax.yaxis if axis == "y" else ax.xaxis).set_major_locator(MaxNLocator(n, integer=True))
 
 
@@ -180,20 +178,18 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         .set_index("review_id")
         .llm_flag.astype(int)
     )
-    pairs = pd.read_parquet(settings.DATA_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+    pairs = pd.read_parquet(
+        settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+    )
     pairs["pair_type"] = (pairs.a.map(flags) + pairs.b.map(flags)).map({0: "HH", 1: "HL", 2: "LL"})
-    evidence = pd.read_csv(settings.REPORTS_DIR / f"rq1_evidence_{model}.csv")
-
-    fig = plt.figure(figsize=(PAGE_WIDTH - 0.15, 2.15))
-    axes = [fig.add_axes(rect) for rect in ([0.06, 0.14, 0.36, 0.74], [0.66, 0.14, 0.33, 0.74])]
-    ax = axes[0]
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.9))
+    fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.14)
     iclr = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)]
     styles = {
         "HH": ("neither flagged", COLORS["grey"], "o"),
         "HL": ("one flagged", COLORS["flag_light"], "s"),
         "LL": ("both flagged", COLORS["flag"], "D"),
     }
-    last_rate = {}
     for k, (pair_type, (_, color, marker)) in enumerate(styles.items()):
         per_year = iclr[iclr.pair_type == pair_type].groupby(["year", "panel_id"]).hit.mean().groupby("year")
         mean = per_year.mean() * 100
@@ -208,25 +204,25 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
             elinewidth=1.0,
             label=styles[pair_type][0],
         )
-        last_rate[pair_type] = mean.iloc[-1]
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(
-        handles[::-1],
-        labels[::-1],
-        loc="lower right",
-        frameon=False,
-        fontsize=7,
-        handletextpad=0.4,
-        borderaxespad=0.3,
-        labelspacing=0.3,
-    )
+        end_label(
+            ax,
+            mean.index[-1] + (k - 1) * 0.16,
+            mean.iloc[-1],
+            styles[pair_type][0],
+            dy={"HH": -3, "HL": 3, "LL": 0}[pair_type],
+        )
     few_ticks(ax)
-    ax.set_xlim(2023.6, 2026.5)
-    ax.set_ylim(0, 17)
+    ax.set_xlim(2023.6, 2027.4)
+    ax.set_ylim(0, 20)
     year_ticks(ax, (2024, 2025, 2026))
-    ax.set_title("(a) Match rate by pair, ICLR (%)")
+    ax.set_ylabel("Smaller critique set repeated (%)")
+    save(fig, figs, "fig2_ai.pdf", COLUMN_WIDTH)
 
-    ax = axes[1]
+
+def ai_checks(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
+    evidence = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv")
+    fig = plt.figure(figsize=(PAGE_WIDTH - 0.15, 2.4))
+    ax = fig.add_axes([0.37, 0.16, 0.61, 0.79])
     y = 0
     ticks, labels, is_header = [], [], []
     for group, rows in evidence.groupby("group", sort=False):
@@ -254,33 +250,33 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     ax.tick_params(axis="y", length=0, pad=2)
     ax.spines["left"].set_visible(False)
     ax.set_ylim(y + 0.6, 0.6)
-    ax.set_xlim(-2.5, 15)
-    ax.set_xlabel("Match rate, both minus neither flagged")
-    ax.set_title("(b) Within-paper gap (points)")
-    save(fig, figs, "fig1_ai.pdf", PAGE_WIDTH)
+    ax.set_xlim(-5, 25)
+    few_ticks(ax, "x")
+    ax.set_xlabel("Difference in overlap (percentage points)")
+    save(fig, figs, "figA_checks.pdf", PAGE_WIDTH)
 
 
 def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    match_std = pd.read_csv(settings.REPORTS_DIR / f"match_std_{model}.csv")
+    by_year = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv")
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.9))
     fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.13)
     shade_chatgpt_period(ax)
-    std_by_conf = {}
+    rates = {}
     for conf, dx in [("ICLR", 0), ("NeurIPS", 0), ("ICML", 0.25)]:
-        std_by_conf[conf] = std_line(ax, match_std, conf, COLORS[conf], dx)
-    end_label(ax, ICLR_FROM, std_by_conf["ICLR"].iloc[0], "ICLR", COLORS["ICLR"], dx=-2, dy=13, ha="left")
-    end_label(ax, 2022, std_by_conf["NeurIPS"].loc[2022], "NeurIPS", COLORS["NeurIPS"], dx=0, dy=-11, ha="center")
-    end_label(ax, 2025.25, std_by_conf["ICML"].iloc[0], "ICML", COLORS["ICML"], dx=4, dy=-4, ha="left")
-    ax.set_ylim(0, 13)
+        rates[conf] = overlap_line(ax, by_year, conf, COLORS[conf], dx)
+    end_label(ax, ICLR_FROM, rates["ICLR"].iloc[0], "ICLR", COLORS["ICLR"], dx=-2, dy=13, ha="left")
+    end_label(ax, 2022, rates["NeurIPS"].loc[2022], "NeurIPS", COLORS["NeurIPS"], dx=0, dy=-11, ha="center")
+    end_label(ax, 2025.25, rates["ICML"].iloc[0], "ICML", COLORS["ICML"], dx=4, dy=-4, ha="left")
+    ax.set_ylim(0, 20)
     ax.set_xlim(2019.6, 2026.5)
     few_ticks(ax)
     year_ticks(ax)
-    ax.set_ylabel("Standardized match rate (%)")
-    save(fig, figs, "fig2_overlap.pdf", COLUMN_WIDTH)
+    ax.set_ylabel("Smaller critique set repeated (%)")
+    save(fig, figs, "fig1_trends.pdf", COLUMN_WIDTH)
 
 
 def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    placebo = in_window(pd.read_parquet(settings.DATA_DIR / f"placebo_outcomes_{model}.parquet"))
+    placebo = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet"))
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.7))
     fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.14)
     shade_chatgpt_period(ax)
@@ -291,15 +287,15 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     iclr, neurips = rate_by_conf["ICLR"], rate_by_conf["NeurIPS"]
     end_label(ax, 2025, neurips.loc[2025, "mean"], "NeurIPS", COLORS["NeurIPS"], dx=0, dy=-8, ha="center", va="top")
     end_label(ax, ICLR_FROM, iclr.loc[ICLR_FROM, "bar_top"], "ICLR", COLORS["ICLR"], dx=-2, dy=2, ha="left", va="bottom")
-    ax.set_ylim(-0.3, 1.8)
+    ax.set_ylim(-0.3, 3.5)
     ax.set_xlim(2019.6, 2026.5)
     few_ticks(ax)
     year_ticks(ax)
-    ax.set_ylabel("Match rate (%)")
+    ax.set_ylabel("Overlap (%)")
     save(fig, figs, "figA_cross.pdf", COLUMN_WIDTH)
 
 
-def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
+def category_shifts(model):
     claims = pd.read_parquet(
         settings.DATA_DIR / f"claims_table_{model}.parquet", columns=["review_id", "conf", "year", "category"]
     )
@@ -308,7 +304,11 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     share = pd.crosstab(claims.category, claims.year, normalize="columns") * 100
     shift = pd.DataFrame({"pre": share[list(range(ICLR_FROM, 2023))].mean(axis=1), "post": share[2026]})
     shift["change"] = shift.post - shift.pre
-    shift = shift.sort_values("change")
+    return shift.sort_values("change")
+
+
+def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
+    shift = category_shifts(model)
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.33, 2.35))
     y = np.arange(len(shift))
     ax.hlines(y, shift.pre, shift.post, color=COLORS["light"], lw=1.4, zorder=1)
@@ -344,7 +344,7 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    by_year_rows = pd.read_csv(settings.REPORTS_DIR / f"by_year_{model}.csv")
+    by_year_rows = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv")
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 2.0))
     fig.subplots_adjust(left=0.15, right=0.98, top=0.97, bottom=0.17)
     for conf, name in JOURNALS.items():
@@ -352,8 +352,8 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         pre = rows[rows.year.between(2019, 2023)]
         last = rows[rows.year == rows.year.max()].iloc[0]
         dx = last.ai_wordshare - pre.ai_wordshare.mean()
-        dy = last.match_std - pre.match_std.mean()
-        se = np.sqrt(last.match_std_se**2 + (pre.match_std_se**2).sum() / len(pre) ** 2)
+        dy = last.match - pre.match.mean()
+        se = np.sqrt(last.match_se**2 + (pre.match_se**2).sum() / len(pre) ** 2)
         ci = Z95 * se
         ax.errorbar(dx, dy, yerr=ci, fmt="o", ms=3.5, color=COLORS["ink"], elinewidth=1.0)
         anchor, offset, ha, va = FIELD_LABEL_PLACEMENT.get(conf, DEFAULT_FIELD_LABEL_PLACEMENT)
@@ -361,10 +361,11 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         ax.annotate(name, (dx, label_y), xytext=offset, textcoords="offset points", fontsize=7, ha=ha, va=va)
     ax.axhline(0, color=COLORS["light"], lw=0.6, zorder=0)
     ax.set_xlim(-4, 32)
-    ax.set_ylim(-3, 9)
+    ax.set_ylim(-4, 14)
+    few_ticks(ax, "x", n=4)
     few_ticks(ax, n=4)
     ax.set_xlabel("Change in AI-likeness index (points)")
-    ax.set_ylabel("Change in std. match rate (points)")
+    ax.set_ylabel("Change in overlap (points)")
     save(fig, figs, "fig4_fields.pdf", COLUMN_WIDTH)
 
 
@@ -387,25 +388,25 @@ def journal_grid(figs, name, ylabel, ylim, draw):
 
 
 def journals(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    match_std = pd.read_csv(settings.REPORTS_DIR / f"match_std_{model}.csv")
+    by_year = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv")
 
     def draw(ax, conf):
-        std_line(ax, match_std, conf, COLORS["ink"])
+        overlap_line(ax, by_year, conf, COLORS["ink"])
 
-    journal_grid(figs, "figA_journals.pdf", "Std. match rate (%)", (0, 19), draw)
+    journal_grid(figs, "figA_journals.pdf", "Overlap (%)", (0, 30), draw)
 
 
 def journals_cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    other = in_window(pd.read_parquet(settings.DATA_DIR / f"other_panel_outcomes_{model}.parquet"))
+    other = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"other_panel_outcomes_{model}.parquet"))
 
     def draw(ax, conf):
         mean_line(ax, other[(other.conf == conf) & other.placebo], "hit_rate_strict", COLORS["ink"])
 
-    journal_grid(figs, "figA_journals_cross.pdf", "Match rate (%)", (-0.4, 3.4), draw)
+    journal_grid(figs, "figA_journals_cross.pdf", "Overlap (%)", (-0.4, 5.5), draw)
 
 
 def area(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    placebo = in_window(pd.read_parquet(settings.DATA_DIR / f"placebo_outcomes_{model}.parquet"))
+    placebo = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet"))
     iclr = placebo[placebo.conf == "ICLR"]
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.7))
     fig.subplots_adjust(left=0.13, right=0.99, top=0.97, bottom=0.14)
@@ -415,15 +416,15 @@ def area(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     end_label(ax, 2023, same_area.loc[2023, "bar_top"], "same research area", dx=0, dy=2, ha="center", va="bottom")
     end_label(ax, 2022, same_venue.loc[2022, "mean"], "same venue and year", dx=0, dy=-9, ha="center", va="top")
     ax.set_xlim(2019.6, 2026.4)
-    ax.set_ylim(-0.3, 3.4)
+    ax.set_ylim(-0.3, 7.5)
     few_ticks(ax)
     year_ticks(ax)
-    ax.set_ylabel("Match rate (%)")
+    ax.set_ylabel("Overlap (%)")
     save(fig, figs, "figA_area.pdf", COLUMN_WIDTH)
 
 
 def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    embed = in_window(pd.read_csv(settings.REPORTS_DIR / f"embed_{model}.csv"))
+    embed = in_window(pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"embed_{model}.csv"))
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.5, 1.8))
     shade_chatgpt_period(ax)
     by_conf = {conf: embed[embed.conf == conf].set_index("year") for conf in ["ICLR", "NeurIPS"]}
@@ -443,7 +444,7 @@ def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def all_figures(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    for draw in [ai, overlap, categories, fields, cross, area, journals, journals_cross, embedding]:
+    for draw in [overlap, ai, ai_checks, categories, fields, cross, area, journals, journals_cross, embedding]:
         draw(figs, model)
     likeness(figs)
 
@@ -453,6 +454,7 @@ def summarize(df, placebo):
     out = pd.DataFrame(
         {
             "papers": groups.size(),
+            "rate_papers": groups.hit_rate_strict.count(),
             "reviews": groups.n_reviews.sum(),
             "claims_per_review": groups.claims_per_review.mean(),
             "match": groups.hit_rate_strict.mean() * 100,
@@ -463,11 +465,11 @@ def summarize(df, placebo):
 
 
 def by_year(model=settings.DEFAULT_MODEL):
-    ml = pd.read_parquet(settings.DATA_DIR / f"panel_outcomes_{model}.parquet")
-    placebo = pd.read_parquet(settings.DATA_DIR / f"placebo_outcomes_{model}.parquet")
+    ml = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet")
+    placebo = pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet")
     ml_placebo = placebo.query("placebo_kind == @SAME_VENUE_PLACEBO")
-    icml = pd.read_parquet(settings.DATA_DIR / f"icml_panel_outcomes_{model}.parquet")
-    other = pd.read_parquet(settings.DATA_DIR / f"other_panel_outcomes_{model}.parquet")
+    icml = pd.read_parquet(settings.ANALYSIS_DIR / f"icml_panel_outcomes_{model}.parquet")
+    other = pd.read_parquet(settings.ANALYSIS_DIR / f"other_panel_outcomes_{model}.parquet")
     rows = pd.concat(
         [summarize(ml, ml_placebo), summarize(icml, icml[icml.placebo]), summarize(other[~other.placebo], other[other.placebo])]
     )
@@ -490,8 +492,6 @@ def by_year(model=settings.DEFAULT_MODEL):
     style_flags = pd.read_parquet(settings.DATA_DIR / "detector_scores.parquet", columns=["review_id", "llm_flag"])
     style_flags = style_flags.merge(review_meta, on="review_id")
     rows = rows.join(style_flags.groupby(["conf", "year"]).llm_flag.mean().mul(100).rename("ai_flagged"))
-    match_std = pd.read_csv(settings.REPORTS_DIR / f"match_std_{model}.csv").set_index(["conf", "year"])
-    rows = rows.join(match_std[["std", "std_se"]].rename(columns={"std": "match_std", "std_se": "match_std_se"}))
 
     rows = in_window(rows.reset_index())
     rows["conf"] = pd.Categorical(rows.conf, ORDER)
@@ -504,9 +504,9 @@ def tex_number(v):
 
 def latex(rows):
     lines = [
-        r"\begin{tabular}{llrrrrrrrrr}",
+        r"\begin{tabular}{llrrrrrrrr}",
         r"\toprule",
-        r"Source & Year & Papers & Reviews & Claims/rev. & Match (\%) & Std. match (\%) & Other papers (\%) & AI-likeness (\%) & Flagged (\%) & CoCoDet (\%) \\",
+        r"Source & Year & Papers & Reviews & Claims/rev. & Overlap (\%) & Other papers (\%) & AI-likeness (\%) & Flagged (\%) & CoCoDet (\%) \\",
         r"\midrule",
     ]
     for conf, group in rows.groupby("conf", observed=True):
@@ -518,7 +518,6 @@ def latex(rows):
                 f"{row.reviews:,}",
                 tex_number(row.claims_per_review),
                 f"{tex_number(row.match)} $\\pm$ {tex_number(row.match_se)}",
-                f"{tex_number(row.match_std)} $\\pm$ {tex_number(row.match_std_se)}",
                 tex_number(row.match_other_papers),
                 tex_number(row.ai_wordshare),
                 tex_number(row.ai_flagged),
@@ -533,11 +532,132 @@ def latex(rows):
 
 def table(csv=None, tables=settings.TABLES_DIR, model=settings.DEFAULT_MODEL):
     rows = by_year(model)
-    rows.to_csv(csv or settings.REPORTS_DIR / f"by_year_{model}.csv", index=False)
+    rows.to_csv(csv or settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv", index=False)
     print(rows.round(2).to_string(index=False))
     is_ml = rows.conf.isin(ML_VENUES)
     Path(tables, "by_year_ml.tex").write_text(latex(rows[is_ml]))
     Path(tables, "by_year_journals.tex").write_text(latex(rows[~is_ml]))
+    lines = [r"\begin{tabular}{llrr}", r"\toprule", r"Source & Years & Papers & Reviews \\", r"\midrule"]
+    for conf, source in rows.groupby("conf", observed=True):
+        years = f"{source.year.min()}--{source.year.max() % 100:02d}"
+        lines.append(f"{JOURNALS.get(conf, conf)} & {years} & {source.papers.sum():,} & {source.reviews.sum():,} \\\\")
+    Path(tables, "corpus.tex").write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
+def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
+    reports = settings.ANALYSIS_REPORTS_DIR
+    by_year = pd.read_csv(reports / f"by_year_{model}.csv")
+    evidence = pd.read_csv(reports / f"rq1_evidence_{model}.csv").set_index("label")
+    values, rows = {}, []
+
+    def record(name, estimate, error=None, n=None, digits=1):
+        values[name] = f"{estimate:.{digits}f}"
+        if error is not None:
+            values[name + "SE"] = f"{error:.{digits}f}"
+            values[name + "Low"] = f"{estimate - Z95 * error:.{digits}f}"
+            values[name + "High"] = f"{estimate + Z95 * error:.{digits}f}"
+        if n is not None:
+            values[name + "N"] = f"{int(n):,}"
+        rows.append(dict(name=name, estimate=estimate, se=error, n=n))
+
+    for conf, prefix, base_year, last_year in [
+        ("ICLR", "Iclr", 2023, 2026),
+        ("NeurIPS", "Neurips", 2024, 2025),
+        ("ICML", "Icml", 2025, 2026),
+    ]:
+        source = by_year[by_year.conf == conf].set_index("year")
+        base, last = source.loc[base_year], source.loc[last_year]
+        record(prefix + "Base", base.match, base.match_se, base.rate_papers)
+        record(prefix + "Last", last.match, last.match_se, last.rate_papers)
+        record(
+            prefix + "Change",
+            last.match - base.match,
+            np.hypot(last.match_se, base.match_se),
+            base.rate_papers + last.rate_papers,
+        )
+    for label, prefix in [
+        ("ICLR 2024–26", "FlagGap"),
+        ("+ length and claim count", "ControlGap"),
+        ("NeurIPS 2024–25", "NeuripsFlagGap"),
+        ("CoCoDet labels, ICLR", "CocoGap"),
+        ("End to end, 50 papers", "BlindGap"),
+        ("After style swap, 48 papers", "SwapGap"),
+        ("Pair audit, 60 papers", "AuditGap"),
+    ]:
+        row = evidence.loc[label]
+        record(prefix, row.est, row.se, row.papers)
+    flags = (
+        pd.read_parquet(settings.DATA_DIR / "detector_scores.parquet", columns=["review_id", "llm_flag"])
+        .set_index("review_id")
+        .llm_flag
+    )
+    pairs = pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")
+    pairs["nflag"] = pairs.a.map(flags).astype(float) + pairs.b.map(flags).astype(float)
+    baseline = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024) & (pairs.nflag == 0)].groupby("panel_id").hit.mean() * 100
+    record("FlagBaseline", baseline.mean(), baseline.sem(), len(baseline))
+    record("FlagRelative", evidence.loc["ICLR 2024–26"].est / baseline.mean() * 100, digits=0)
+    placebo = pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet")
+    for year, prefix in [(2023, "CrossBase"), (2026, "CrossLast")]:
+        sample = (
+            placebo[
+                (placebo.conf == "ICLR") & (placebo.year == year) & (placebo.placebo_kind == SAME_VENUE_PLACEBO)
+            ].hit_rate_strict.dropna()
+            * 100
+        )
+        record(prefix, sample.mean(), sample.sem(), len(sample))
+    categories = category_shifts(model)
+    categories.to_csv(reports / f"category_shift_{model}.csv")
+    for category, prefix in [
+        ("clarity/presentation", "Clarity"),
+        ("typo/formatting", "Typos"),
+        ("experiments-scope", "Experiments"),
+    ]:
+        row = categories.loc[category]
+        record(prefix + "Base", row.pre, digits=0)
+        record(prefix + "Last", row.post, digits=0)
+    shifts = []
+    for conf, prefix in [
+        ("F1000", "FResearch"),
+        ("PLOS", "Plos"),
+        ("SciPost", "Scipost"),
+        ("BMC-Med", "Bmc"),
+        ("Copernicus", "Copernicus"),
+    ]:
+        source = by_year[by_year.conf == conf]
+        pre, last = source[source.year.between(2019, 2023)], source.sort_values("year").iloc[-1]
+        error = np.sqrt(last.match_se**2 + (pre.match_se**2).sum() / len(pre) ** 2)
+        change = last.match - pre.match.mean()
+        record(prefix + "Change", change, error, last.papers + pre.papers.sum())
+        shifts.append(dict(source=conf, overlap_change=change, ai_change=last.ai_wordshare - pre.ai_wordshare.mean(), se=error))
+    shifts = pd.DataFrame(shifts)
+    shifts.to_csv(reports / f"journal_changes_{model}.csv", index=False)
+    correlation = shifts.overlap_change.corr(shifts.ai_change)
+    record("JournalCorrelation", correlation, n=len(shifts), digits=2)
+    limits = np.tanh(np.arctanh(correlation) + np.array([-1, 1]) * Z95 / np.sqrt(len(shifts) - 3))
+    values["JournalCorrelationLow"], values["JournalCorrelationHigh"] = [f"{x:.2f}" for x in limits]
+    blind = pd.read_csv(reports / f"blind_{model}.csv")
+    for col, prefix in [("hit_rate_strict_opus", "BlindReference"), ("hit_rate_strict_model", "BlindPipeline")]:
+        sample = blind[col] * 100
+        record(prefix, sample.mean(), sample.sem(), len(sample))
+    record("BlindRank", blind.hit_rate_strict_opus.corr(blind.hit_rate_strict_model, method="spearman"), n=len(blind), digits=2)
+    bias = (blind.hit_rate_strict_model - blind.hit_rate_strict_opus) * 100
+    early, late = bias[blind.year.isin([2018, 2022])], bias[blind.year == 2026]
+    record("DriftEarly", late.mean() - early.mean(), np.hypot(late.sem(), early.sem()), len(late) + len(early))
+    drift = pd.read_csv(reports / "drift_blind2.csv")
+    bias = (drift[f"hit_rate_strict_{model}"] - drift.hit_rate_strict_opus) * 100
+    early, late = bias[drift.year == 2023], bias[drift.year == 2026]
+    record("DriftRecent", late.mean() - early.mean(), np.hypot(late.sem(), early.sem()), len(late) + len(early))
+    swap = pd.read_csv(reports / "swap_blind4.csv").pivot(index="paper", columns="version", values="diff").dropna()
+    change = swap.swapped - swap.original
+    record("SwapChange", change.mean(), change.sem(), len(change))
+    audit = pd.read_csv(reports / "pair_audit_blind5.csv")
+    record("AuditAgreement", audit.x.corr(audit.y), n=len(audit), digits=2)
+    record("AuditDifference", (audit.x - audit.y).abs().mean(), n=len(audit))
+    pd.DataFrame(rows).to_csv(reports / f"paper_numbers_{model}.csv", index=False)
+    Path(tables, "numbers.tex").write_text(
+        "\n".join(f"\\newcommand{{\\{name}}}{{{value}}}" for name, value in values.items()) + "\n"
+    )
+    print(pd.DataFrame(rows).round(3).to_string(index=False))
 
 
 if __name__ == "__main__":
@@ -545,6 +665,7 @@ if __name__ == "__main__":
         {
             "all": all_figures,
             "ai": ai,
+            "ai_checks": ai_checks,
             "overlap": overlap,
             "categories": categories,
             "fields": fields,
@@ -555,5 +676,6 @@ if __name__ == "__main__":
             "journals": journals,
             "journals_cross": journals_cross,
             "table": table,
+            "numbers": numbers,
         }
     )

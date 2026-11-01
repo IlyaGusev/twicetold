@@ -29,6 +29,8 @@ detect = ["torch>=2.9", "transformers>=4.57"]
 
 [dependency-groups]
 dev = [
+    "black>=26.10.1",
+    "pytest>=9.2.0",
     "ruff>=0.17.3",
 ]
 
@@ -39,6 +41,14 @@ torch = [{ index = "pytorch-cpu" }]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 explicit = true
+
+[tool.black]
+line-length = 130
+target-version = ["py314"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider"
 
 [tool.ruff]
 line-length = 130

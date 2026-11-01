@@ -10,9 +10,10 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv python install 3.14
       - run: uv sync --all-extras
-      - run: uv run ruff check src scripts
-      - run: uv run ruff format --check src scripts
+      - run: uv run ruff check src scripts tests
+      - run: uv run black --check src scripts tests
       - run: uv run python -I scripts/check_no_comments.py
+      - run: uv run python -I -m pytest
       - run: |
           for module in extract ai outcomes validate figures between corpus panels fetch; do
             uv run python -I "src/$module.py" --help > /dev/null

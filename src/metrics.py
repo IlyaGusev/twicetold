@@ -44,104 +44,101 @@ def assign(panel, claims_by_review):
     return df
 
 
-def rarefy(df, col, ks, n_reviews):
-    groups_of = {review: set() for review in range(n_reviews)}
-    if not df.empty:
-        groups_of |= df.groupby("review")[col].agg(set).to_dict()
+def review_groups(reviews, values, n_reviews):
+    groups = [set() for _ in range(n_reviews)]
+    for review, value in zip(reviews, values):
+        groups[review].add(value)
+    return groups
+
+
+def rarefy_groups(groups, ks):
     out = {}
     for k in ks:
-        if k > n_reviews:
+        if k > len(groups):
             out[k] = (np.nan, np.nan, np.nan)
             continue
-        n_groups, n_shared, unique_shares = [], [], []
-        for subset in combinations(range(n_reviews), k):
-            reviews_per_group = Counter(group for review in subset for group in groups_of[review])
-            n_groups.append(len(reviews_per_group))
-            n_shared.append(sum(n >= 2 for n in reviews_per_group.values()))
-            if reviews_per_group:
-                unique_shares.append(np.mean([n == 1 for n in reviews_per_group.values()]))
-        unique_share = float(np.mean(unique_shares)) if unique_shares else np.nan
-        out[k] = (float(np.mean(n_groups)), float(np.mean(n_shared)), unique_share)
+        sizes, shared, unique = [], [], []
+        for subset in combinations(groups, k):
+            counts = Counter(group for review in subset for group in review)
+            sizes.append(len(counts))
+            shared.append(sum(n >= 2 for n in counts.values()))
+            if counts:
+                unique.append(sum(n == 1 for n in counts.values()) / len(counts))
+        out[k] = (sum(sizes) / len(sizes), sum(shared) / len(shared), sum(unique) / len(unique) if unique else np.nan)
     return out
 
 
-def pair_rates(df, col):
-    reviews = sorted(df.review.unique())
-    n_same = n_compared = 0
-    hit_rates = []
-    for a, b in combinations(reviews, 2):
-        groups_a = df[df.review == a][col].to_numpy()
-        groups_b = df[df.review == b][col].to_numpy()
-        same_group = groups_a[:, None] == groups_b[None, :]
-        n_same += int(same_group.sum())
-        n_compared += same_group.size
-        hit_rates.append(same_group.any(axis=1).mean())
-        hit_rates.append(same_group.any(axis=0).mean())
-    pair_rate = n_same / n_compared if n_compared else np.nan
-    hit_rate = float(np.mean(hit_rates)) if hit_rates else np.nan
-    return pair_rate, hit_rate
+def overlap(groups_a, groups_b):
+    groups_a, groups_b = set(groups_a), set(groups_b)
+    denominator = min(len(groups_a), len(groups_b))
+    return len(groups_a & groups_b) / denominator if denominator else np.nan
 
 
-def share_shared_claims(df, col):
-    reviewers = df.groupby(col).review.nunique()
-    return float(df[col].map(reviewers).ge(2).mean())
+def mean_overlap(groups):
+    rates = [overlap(a, b) for a, b in combinations([group for group in groups if group], 2)]
+    return sum(rates) / len(rates) if rates else np.nan
 
 
-def _subset_metrics(df, suffix, n_reviews):
-    shared = np.nan if df.empty else share_shared_claims(df, "cluster")
-    d3, s3, _ = rarefy(df, "cluster", (3,), n_reviews)[3]
-    return {f"S3_{suffix}": s3, f"D3_{suffix}": d3, f"share_shared_claims_{suffix}": shared}
+def shared_fraction(groups, values):
+    counts = Counter(group for review in groups for group in review)
+    return sum(counts[group] >= 2 for group in values) / len(values) if len(values) else np.nan
 
 
-def _rarefied_metrics(df, n_reviews, ks):
-    metrics = {}
-    for k, (n_groups, n_shared, unique_share) in rarefy(df, "cluster", ks, n_reviews).items():
-        metrics.update({f"D{k}": n_groups, f"S{k}": n_shared, f"U{k}": unique_share})
-    for k, (n_groups, n_shared, unique_share) in rarefy(df, "target", ks, n_reviews).items():
-        metrics.update({f"T{k}": n_groups, f"TS{k}": n_shared, f"TU{k}": unique_share})
-    return metrics
+def subset_metrics(reviews, values, suffix, n_reviews):
+    groups = review_groups(reviews, values, n_reviews)
+    d3, s3, _ = rarefy_groups(groups, (3,))[3]
+    return {f"S3_{suffix}": s3, f"D3_{suffix}": d3, f"share_shared_claims_{suffix}": shared_fraction(groups, values)}
 
 
 def panel_metrics(df, n_reviews, ks=(1, 2, 3, 4)):
-    if df.empty:
-        return dict(
-            n_reviews=n_reviews,
-            n_claims=0,
-            n_clusters=0,
-            n_targets=0,
-            n_shared_clusters=0,
-            n_shared_targets=0,
-            claims_per_review=0.0,
-            **_rarefied_metrics(df, n_reviews, ks),
-            **_subset_metrics(df, "spec", n_reviews),
-            **_subset_metrics(df, MATCHED_SUFFIX, n_reviews),
-        )
-    cluster_reviewers = df.groupby("cluster").review.nunique()
-    target_reviewers = df.groupby("target").review.nunique()
-    cluster_weights = cluster_reviewers / cluster_reviewers.sum()
+    reviews = df.review.to_numpy(dtype=int) if not df.empty else np.array([], dtype=int)
+    clusters = df.cluster.to_numpy() if not df.empty else np.array([], dtype=int)
+    targets = df.target.to_numpy() if not df.empty else np.array([], dtype=int)
+    groups = review_groups(reviews, clusters, n_reviews)
+    target_groups = review_groups(reviews, targets, n_reviews)
+    cluster_reviewers = Counter(group for review in groups for group in review)
+    target_reviewers = Counter(group for review in target_groups for group in review)
     metrics = dict(
         n_reviews=n_reviews,
         n_claims=len(df),
-        n_clusters=int(cluster_reviewers.size),
-        n_targets=int(target_reviewers.size),
-        n_shared_clusters=int((cluster_reviewers >= 2).sum()),
-        n_shared_targets=int((target_reviewers >= 2).sum()),
-        share_shared_claims=share_shared_claims(df, "cluster"),
-        share_shared_claims_lenient=share_shared_claims(df, "target"),
-        share_unique_clusters=float((cluster_reviewers == 1).mean()),
-        hill_shannon=float(np.exp(-(cluster_weights * np.log(cluster_weights)).sum())),
-        share_specific=float(df.specific.mean()),
+        n_clusters=len(cluster_reviewers),
+        n_targets=len(target_reviewers),
+        n_shared_clusters=sum(n >= 2 for n in cluster_reviewers.values()),
+        n_shared_targets=sum(n >= 2 for n in target_reviewers.values()),
         claims_per_review=len(df) / n_reviews,
     )
-    metrics["pair_rate_strict"], metrics["hit_rate_strict"] = pair_rates(df, "cluster")
-    metrics["pair_rate_lenient"], metrics["hit_rate_lenient"] = pair_rates(df, "target")
-    metrics.update(_rarefied_metrics(df, n_reviews, ks))
-    for category in CATEGORIES:
-        metrics[f"cat_{category}"] = float((df.category == category).mean())
-    specific_claims = df[df.specific.astype(bool)]
-    metrics.update(_subset_metrics(specific_claims, "spec", n_reviews))
-    matched = df.sample(frac=1, random_state=0).groupby("review").head(MATCHED_CLAIMS_PER_REVIEW)
-    metrics.update(_subset_metrics(matched, MATCHED_SUFFIX, n_reviews))
+    for prefix, source in [("", groups), ("T", target_groups)]:
+        for k, (n_groups, n_shared, unique) in rarefy_groups(source, ks).items():
+            if prefix:
+                metrics.update({f"T{k}": n_groups, f"TS{k}": n_shared, f"TU{k}": unique})
+            else:
+                metrics.update({f"D{k}": n_groups, f"S{k}": n_shared, f"U{k}": unique})
+    if df.empty:
+        metrics.update(subset_metrics(reviews, clusters, "spec", n_reviews))
+        metrics.update(subset_metrics(reviews, clusters, MATCHED_SUFFIX, n_reviews))
+        return metrics
+    weights = np.array(list(cluster_reviewers.values()), dtype=float)
+    weights /= weights.sum()
+    specific = df.specific.to_numpy(dtype=bool)
+    category_counts = Counter(df.category)
+    metrics.update(
+        share_shared_claims=shared_fraction(groups, clusters),
+        share_shared_claims_lenient=shared_fraction(target_groups, targets),
+        share_unique_clusters=sum(n == 1 for n in cluster_reviewers.values()) / len(cluster_reviewers),
+        hill_shannon=float(np.exp(-(weights * np.log(weights)).sum())),
+        share_specific=float(specific.mean()),
+        hit_rate_strict=mean_overlap(groups),
+        hit_rate_lenient=mean_overlap(target_groups),
+        **{f"cat_{category}": category_counts[category] / len(df) for category in CATEGORIES},
+    )
+    metrics.update(subset_metrics(reviews[specific], clusters[specific], "spec", n_reviews))
+    taken = Counter()
+    indices = []
+    for i in np.random.RandomState(0).choice(len(df), len(df), replace=False):
+        if taken[reviews[i]] < MATCHED_CLAIMS_PER_REVIEW:
+            indices.append(i)
+            taken[reviews[i]] += 1
+    metrics.update(subset_metrics(reviews[indices], clusters[indices], MATCHED_SUFFIX, n_reviews))
     return metrics
 
 

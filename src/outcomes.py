@@ -17,6 +17,7 @@ from tqdm import tqdm
 
 from extract import CATEGORIES
 from metrics import assign, load_jsonl, panel_metrics
+from metrics import overlap as hit
 from settings import settings
 
 PANEL_FILES = ["panels.jsonl", "panels_icml.jsonl", "panels_other.jsonl"]
@@ -67,7 +68,6 @@ BATCH_ROWS = 20000
 ICLR_FROM = 2020
 FIRST_YEAR = {"ICLR": ICLR_FROM}
 DEFAULT_FIRST_YEAR = 2019
-STD_FORMULA = "hit ~ C(year) + C(size) + bs(log_short, df=4) + bs(log_long, df=4)"
 ICLR_SUBMITTED = {2017: 490, 2018: 1018, 2019: 1579, 2020: 2594, 2021: 3014, 2022: 3422, 2023: 4955, 2024: 7404, 2025: 11672}
 ICLR_WITHDRAWN = {2017: 0, 2018: 83, 2019: 160, 2020: 369, 2021: 403, 2022: 779, 2023: 1145, 2024: 1661, 2025: 2991}
 WITHDRAWALS_OBSERVED_YEAR = 2026
@@ -137,21 +137,23 @@ def main_sample_review_ids(data):
 
 
 def review_rows(df, review_ids, paper):
-    reviewers = df.groupby("cluster").review.nunique()
-    target_reviewers = df.groupby("target").review.nunique()
-    df["shared"] = df.cluster.map(reviewers).ge(2)
-    df["shared_lenient"] = df.target.map(target_reviewers).ge(2)
+    rows = list(df.itertuples(index=False))
+    cluster_reviewers = Counter(cluster for _, cluster in {(row.review, row.cluster) for row in rows})
+    target_reviewers = Counter(target for _, target in {(row.review, row.target) for row in rows})
     for j, review_id in enumerate(review_ids):
-        review_claims = df[df.review == j]
+        claims = [row for row in rows if row.review == j]
+        n = len(claims)
+        categories = Counter(row.category for row in claims)
+        shared = sum(cluster_reviewers[row.cluster] >= 2 for row in claims)
         yield dict(
             review_id=review_id,
             paper_id=paper,
-            n_claims=len(review_claims),
-            share_shared=review_claims.shared.mean(),
-            share_shared_lenient=review_claims.shared_lenient.mean(),
-            n_unique=int((~review_claims.shared).sum()),
-            share_specific=review_claims.specific.mean(),
-            **{f"cat_{c}": float((review_claims.category == c).mean()) for c in CATEGORIES},
+            n_claims=n,
+            share_shared=shared / n if n else np.nan,
+            share_shared_lenient=sum(target_reviewers[row.target] >= 2 for row in claims) / n if n else np.nan,
+            n_unique=n - shared,
+            share_specific=sum(row.specific for row in claims) / n if n else np.nan,
+            **{f"cat_{c}": categories[c] / n if n else np.nan for c in CATEGORIES},
         )
 
 
@@ -290,38 +292,32 @@ def panels(
     model=settings.DEFAULT_MODEL,
     tag="",
     data=str(settings.DATA_DIR),
-    out=str(settings.DATA_DIR),
-    reports=str(settings.REPORTS_DIR),
+    out=str(settings.ANALYSIS_DIR),
+    reports=str(settings.ANALYSIS_REPORTS_DIR),
 ):
+    Path(out).mkdir(parents=True, exist_ok=True)
+    Path(reports).mkdir(parents=True, exist_ok=True)
     if tag in SOURCE_FILES:
         source_panels(model, tag, Path(data), Path(out))
     else:
         ml_panels(model, tag, Path(data), Path(out), Path(reports))
 
 
-def hit(clusters_a, clusters_b):
-    same = clusters_a[:, None] == clusters_b[None, :]
-    return (same.any(axis=1).mean() + same.any(axis=0).mean()) / 2
-
-
 def panel_pairs(df, review_ids):
+    groups = [set() for _ in review_ids]
+    specific = [set() for _ in review_ids]
+    for claim in df.itertuples(index=False):
+        groups[claim.review].add(claim.cluster)
+        if claim.specific:
+            specific[claim.review].add(claim.cluster)
     for a, b in combinations(range(len(review_ids)), 2):
-        claims_a = df[df.review == a]
-        claims_b = df[df.review == b]
-        if claims_a.empty or claims_b.empty:
-            continue
-        specific_a = claims_a.cluster[claims_a.specific.astype(bool)].to_numpy()
-        specific_b = claims_b.cluster[claims_b.specific.astype(bool)].to_numpy()
-        yield dict(
-            a=review_ids[a],
-            b=review_ids[b],
-            hit=hit(claims_a.cluster.to_numpy(), claims_b.cluster.to_numpy()),
-            hit_spec=hit(specific_a, specific_b) if len(specific_a) and len(specific_b) else np.nan,
-        )
+        if groups[a] and groups[b]:
+            yield dict(a=review_ids[a], b=review_ids[b], hit=hit(groups[a], groups[b]), hit_spec=hit(specific[a], specific[b]))
 
 
-def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
+def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(settings.ANALYSIS_DIR)):
     data = Path(data)
+    Path(out).mkdir(parents=True, exist_ok=True)
     papers = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "conf", "year"]).set_index("paper_id")
     main_reviews = main_sample_review_ids(data)
     n_dropped = n_stale = 0
@@ -375,7 +371,9 @@ def in_window(df):
 
 
 def pair_design(model, data, all_years=False):
-    design = pd.read_parquet(data / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+    design = pd.read_parquet(
+        settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+    )
     if not all_years:
         design = in_window(design)
     chars = review_chars(data, set(design.a) | set(design.b))
@@ -388,33 +386,15 @@ def pair_design(model, data, all_years=False):
     return design
 
 
-def year_rates(S, weights=None):
-    import statsmodels.formula.api as smf
-
-    regression = smf.ols(STD_FORMULA, data=S) if weights is None else smf.wls(STD_FORMULA, data=S, weights=weights)
-    fit = regression.fit(cov_type="cluster", cov_kwds={"groups": pd.factorize(S.panel_id)[0]})
-    names = pd.Index(fit.model.exog_names)
-    cov = fit.cov_params().to_numpy()
-    is_year = names.str.startswith("C(year)")
-    x_mean = np.average(fit.model.exog, axis=0, weights=weights)
+def year_rates(pairs, weights=None):
+    weighted = pairs.assign(weight=1.0 if weights is None else np.asarray(weights))
+    papers = weighted.groupby(["year", "panel_id"]).agg(hit=("hit", "mean"), weight=("weight", "first"))
     rates = {}
-    for year in sorted(S.year.unique()):
-        x = np.where(is_year, names == f"C(year)[T.{year}]", x_mean)
-        rates[year] = (x @ fit.params.to_numpy() * 100, np.sqrt(x @ cov @ x) * 100)
+    for year, group in papers.groupby("year"):
+        mean = np.average(group.hit, weights=group.weight)
+        error = (group.weight * (group.hit - mean)).std(ddof=1) / np.sqrt(len(group)) / group.weight.mean()
+        rates[year] = (mean * 100, error * 100)
     return rates
-
-
-def standardize(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=None):
-    out = out or settings.REPORTS_DIR / f"match_std_{model}.csv"
-    design = pair_design(model, Path(data))
-    rows = []
-    for conf, conf_design in tqdm(design.groupby("conf"), desc="sources"):
-        for year, (std, se) in year_rates(conf_design).items():
-            year_pairs = conf_design[conf_design.year == year]
-            rows.append(dict(conf=conf, year=year, pairs=len(year_pairs), raw=year_pairs.hit.mean() * 100, std=std, std_se=se))
-    table = pd.DataFrame(rows)
-    table.to_csv(out, index=False)
-    print(table.round(2).to_string(index=False))
 
 
 def rating_icc(reviews):
@@ -423,7 +403,7 @@ def rating_icc(reviews):
 
 
 def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DATA_DIR), out=None):
-    out = out or settings.REPORTS_DIR / f"match_std_withdrawals_{model}.csv"
+    out = out or settings.ANALYSIS_REPORTS_DIR / f"withdrawals_{model}.csv"
     data = Path(data)
     reviews = pd.read_parquet(
         data / "reviews.parquet",
@@ -479,4 +459,4 @@ def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DAT
 
 
 if __name__ == "__main__":
-    fire.Fire({"panels": panels, "pairs": pairs, "standardize": standardize, "withdrawals": withdrawals})
+    fire.Fire({"panels": panels, "pairs": pairs, "withdrawals": withdrawals})

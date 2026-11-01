@@ -294,7 +294,7 @@ def year_effects(intra):
 
 def claim_vs_embedding(intra, model, data):
     outcomes = ["S3", "share_shared_claims", "D3"]
-    panels = pd.read_parquet(data / f"panel_outcomes_{model}.parquet", columns=["paper_id", *outcomes])
+    panels = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["paper_id", *outcomes])
     merged = intra.merge(panels, on="paper_id")
     rho = {outcome: merged[["intra", outcome]].corr("spearman").iloc[0, 1] for outcome in outcomes}
     print(
@@ -303,7 +303,7 @@ def claim_vs_embedding(intra, model, data):
     )
 
 
-def embed(model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
+def embed(model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     data, reports = Path(data), Path(reports)
     if reembed:
         embed_reviews(data, threads)
