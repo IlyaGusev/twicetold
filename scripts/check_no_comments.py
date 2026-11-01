@@ -7,58 +7,47 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SKIP_DIRS = {".venv", ".git", "data", "logs", "reports", "paper", "__pycache__"}
-SKIP_FILES = {"requirements.txt", "uv.lock"}
 HASH_COMMENT_SUFFIXES = {".sh", ".yml", ".yaml", ".toml", ".cfg", ".ini"}
+DOCSTRING_OWNERS = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+FULL_LINE_HASH_COMMENT = re.compile(r"\s*#")
+TRAILING_HASH_COMMENT = re.compile(r"\s#\s")
 
 
 def python_findings(path):
-    src = path.read_text()
-    out = []
-    for tok in tokenize.generate_tokens(io.StringIO(src).readline):
-        if tok.type == tokenize.COMMENT:
-            out.append((tok.start[0], "comment"))
-    tree = ast.parse(src)
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            body = node.body
-            if (
-                body
-                and isinstance(body[0], ast.Expr)
-                and isinstance(body[0].value, ast.Constant)
-                and isinstance(body[0].value.value, str)
-            ):
-                out.append((body[0].lineno, "docstring"))
-    return out
+    source = path.read_text()
+    tokens = tokenize.generate_tokens(io.StringIO(source).readline)
+    findings = [(token.start[0], "comment") for token in tokens if token.type == tokenize.COMMENT]
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, DOCSTRING_OWNERS) and ast.get_docstring(node, clean=False) is not None:
+            findings.append((node.body[0].lineno, "docstring"))
+    return findings
 
 
 def hash_findings(path):
-    out = []
-    for i, line in enumerate(path.read_text().splitlines(), 1):
-        if i == 1 and line.startswith("#!"):
+    findings = []
+    for line_number, line in enumerate(path.read_text().splitlines(), 1):
+        if line_number == 1 and line.startswith("#!"):
             continue
-        if re.match(r"\s*#", line) or re.search(r"\s#\s", line):
-            out.append((i, "comment"))
-    return out
+        if FULL_LINE_HASH_COMMENT.match(line) or TRAILING_HASH_COMMENT.search(line):
+            findings.append((line_number, "comment"))
+    return findings
 
 
 def jinja_findings(path):
-    return [(i, "comment") for i, line in enumerate(path.read_text().splitlines(), 1) if "{#" in line]
+    return [(line_number, "comment") for line_number, line in enumerate(path.read_text().splitlines(), 1) if "{#" in line]
+
+
+FINDERS_BY_SUFFIX = {".py": python_findings, ".j2": jinja_findings} | dict.fromkeys(HASH_COMMENT_SUFFIXES, hash_findings)
 
 
 def main():
     findings = []
     for path in sorted(ROOT.rglob("*")):
-        if not path.is_file() or path.name in SKIP_FILES or SKIP_DIRS & set(path.relative_to(ROOT).parts):
+        relative_path = path.relative_to(ROOT)
+        find_comments = FINDERS_BY_SUFFIX.get(path.suffix)
+        if find_comments is None or not path.is_file() or SKIP_DIRS & set(relative_path.parts):
             continue
-        if path.suffix == ".py":
-            found = python_findings(path)
-        elif path.suffix in HASH_COMMENT_SUFFIXES:
-            found = hash_findings(path)
-        elif path.suffix == ".j2":
-            found = jinja_findings(path)
-        else:
-            continue
-        findings += [(path.relative_to(ROOT), line, kind) for line, kind in found]
+        findings += [(relative_path, line, kind) for line, kind in find_comments(path)]
     for path, line, kind in findings:
         print(f"{path}:{line}: {kind}")
     if findings:

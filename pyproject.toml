@@ -4,28 +4,33 @@ version = "0.1.0"
 description = "Claim-level measurement of peer-review homogenization under LLM use"
 requires-python = ">=3.14"
 dependencies = [
+    "beautifulsoup4>=4.15.0",
     "duckdb>=2.0.0",
+    "fire>=0.7.1",
+    "jinja2>=3.1.6",
+    "llama-cpp-python>=0.3.36",
+    "matplotlib>=3.10",
+    "numpy>=2.0",
     "openai>=3.40.0",
+    "openreview-py>=2.9.1",
     "pandas>=3.1.0",
     "pyarrow>=26.0.0",
+    "pydantic-settings>=2.16.2",
+    "pypdf>=6.21.4",
+    "requests>=2.34.2",
+    "scikit-learn>=1.7",
     "scipy>=1.18.1",
     "statsmodels>=0.15.0",
-    "matplotlib>=3.10",
-    "scikit-learn>=1.7",
-    "numpy>=2.0",
     "tqdm>=4.66",
-    "llama-cpp-python>=0.3.36",
-    "openreview-py>=2.9.1",
-    "requests>=2.34.2",
-    "pypdf>=6.21.4",
-    "beautifulsoup4>=4.15.0",
-    "fire>=0.7.1",
-    "pydantic-settings>=2.16.2",
-    "jinja2>=3.1.6",
 ]
 
 [project.optional-dependencies]
 detect = ["torch>=2.9", "transformers>=4.57"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.3",
+]
 
 [tool.uv.sources]
 torch = [{ index = "pytorch-cpu" }]
@@ -40,8 +45,3 @@ line-length = 130
 
 [tool.ruff.lint]
 select = ["F", "E9", "I"]
-
-[dependency-groups]
-dev = [
-    "ruff>=0.17.3",
-]

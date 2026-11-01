@@ -20,7 +20,7 @@ ICLR26 = settings.RAW_ML_REVIEWS_DIR / "iclr2026/heineman.parquet"
 ICLR26_RAW = settings.RAW_ML_REVIEWS_DIR / "iclr2026/jerma_2026.parquet"
 REPORT = settings.REPORTS_DIR / "other_inventory.txt"
 
-ORDER = [
+SECTION_KEYS = [
     ("summary", ("summary", "summary of the paper")),
     ("main", ("review", "main review", "main_review")),
     ("strengths", ("strengths", "strength and weaknesses", "strengths_and_weaknesses")),
@@ -30,7 +30,8 @@ ORDER = [
     ("other", ("summary of the review", "clarity, quality, novelty and reproducibility", "paper_formatting_concerns")),
 ]
 WEAK_KEYS = {"weaknesses", "strength and weaknesses", "strengths_and_weaknesses"}
-TEXT_KEYS = set().union(*(k for _, k in ORDER))
+TEXT_KEYS = set().union(*(keys for _, keys in SECTION_KEYS))
+MIN_REVIEW_CHARS = 200
 
 SOURCES = ["scipost", "f1000", "bmc", "plos", "copernicus"]
 REVIEW_COLS = [
@@ -48,6 +49,13 @@ REVIEW_COLS = [
     "n_chars",
 ]
 PAPER_COLS = ["conf", "field", "journal", "year", "paper_id", "title", "n_reviews", "licence"]
+MIN_REVIEWS_PER_PAPER = 2
+SNIPPETS_PER_SOURCE = 3
+SNIPPET_CHARS = 300
+TOP_JOURNALS_PER_SOURCE = 6
+
+MAX_DOC_CHARS = 6000
+MIN_DOC_CHARS = 50
 
 
 def unwrap(v):
@@ -58,22 +66,29 @@ def squash(s):
     return re.sub(r"\s+", " ", s or "").strip()
 
 
-def num(v):
-    m = re.match(r"\s*(-?\d+)", str(v)) if v is not None else None
-    return int(m.group(1)) if m else None
+def leading_int(value):
+    if value is None:
+        return None
+    match = re.match(r"\s*(-?\d+)", str(value))
+    return int(match.group(1)) if match else None
 
 
-def join_fields(c):
-    return " ".join(f"[{name.upper()}] {squash(str(c[k]))}" for name, keys in ORDER for k in keys if c.get(k))
+def join_fields(fields):
+    parts = []
+    for section, keys in SECTION_KEYS:
+        for key in keys:
+            if fields.get(key):
+                parts.append(f"[{section.upper()}] {squash(str(fields[key]))}")
+    return " ".join(parts)
 
 
-def decision_class(d):
-    d = (d or "").lower()
-    if "desk" in d:
+def decision_class(decision):
+    decision = (decision or "").lower()
+    if "desk" in decision:
         return "desk_reject"
-    if "reject" in d or d == "unknown" or d == "":
+    if "reject" in decision or decision in ("", "unknown"):
         return "reject"
-    if "withdraw" in d:
+    if "withdraw" in decision:
         return "withdrawn"
     return "accept"
 
@@ -84,42 +99,45 @@ def from_arcade():
         f"select venue, review_openreview_id, replyto_openreview_id, writer, content, time "
         f"from read_parquet('{ARCADE}') where title ilike 'Official Review%'"
     ).fetchall()
-    out = []
-    for venue, rid, pid, writer, content, when in tqdm(rows, desc="arcade reviews"):
+    review_rows = []
+    for venue, review_id, paper_id, writer, content, when in tqdm(rows, desc="arcade reviews"):
         try:
-            c = {k.lower(): unwrap(v) for k, v in json.loads(content).items()}
+            fields = {k.lower(): unwrap(v) for k, v in json.loads(content).items()}
         except json.JSONDecodeError, AttributeError:
             continue
-        conf, year = venue.split("/")[0].split(".")[0], int(venue.split("/")[1])
-        if conf == "ICLR" and year < 2017 or conf == "EMNLP":
+        venue_parts = venue.split("/")
+        conf = venue_parts[0].split(".")[0]
+        year = int(venue_parts[1])
+        if conf == "EMNLP" or (conf == "ICLR" and year < 2017):
             continue
-        weak = next((str(c[k]) for k in c if k in WEAK_KEYS and c[k]), None)
-        out.append(
+        weaknesses = next((str(fields[k]) for k in fields if k in WEAK_KEYS and fields[k]), None)
+        review_rows.append(
             dict(
                 conf=conf,
                 year=year,
-                paper_id=pid,
-                review_id=rid,
+                paper_id=paper_id,
+                review_id=review_id,
                 reviewer=writer,
-                rating=num(c.get("rating") or c.get("recommendation")),
-                confidence=num(c.get("confidence")),
-                text=join_fields(c),
-                weaknesses=squash(weak) if weak else None,
-                form="+".join(sorted(k for k in c if k in TEXT_KEYS)),
+                rating=leading_int(fields.get("rating") or fields.get("recommendation")),
+                confidence=leading_int(fields.get("confidence")),
+                text=join_fields(fields),
+                weaknesses=squash(weaknesses) if weaknesses else None,
+                form="+".join(sorted(k for k in fields if k in TEXT_KEYS)),
                 review_time=pd.to_datetime(when, errors="coerce"),
                 modified_time=pd.NaT,
             )
         )
-    reviews = pd.DataFrame(out)
-    papers = con.sql(f"select * from '{ARCADE_PAPERS}'").df()
+    reviews = pd.DataFrame(review_rows)
+    raw_papers = con.sql(f"select * from '{ARCADE_PAPERS}'").df()
+    paper_venue_parts = raw_papers.venue.str.split("/")
     papers = pd.DataFrame(
         dict(
-            conf=papers.venue.str.split("/").str[0].str.split(".").str[0],
-            year=papers.venue.str.split("/").str[1].astype(int),
-            paper_id=papers.paper_openreview_id,
-            title=papers.title,
-            abstract=papers.abstract,
-            decision_raw=papers.paper_decision,
+            conf=paper_venue_parts.str[0].str.split(".").str[0],
+            year=paper_venue_parts.str[1].astype(int),
+            paper_id=raw_papers.paper_openreview_id,
+            title=raw_papers.title,
+            abstract=raw_papers.abstract,
+            decision_raw=raw_papers.paper_decision,
             primary_area=None,
         )
     )
@@ -129,61 +147,62 @@ def from_arcade():
 
 def from_iclr26():
     con = duckdb.connect()
-    df = con.sql(
+    snapshot_reviews = con.sql(
         f"select r.review_id, r.reviewer, r.rating, r.confidence, r.summary, r.strengths, r.weaknesses, r.review, "
         f"url, venue, title, abstract from (select url, venue, title, abstract, unnest(reviews) r from '{ICLR26}')"
     ).df()
-    df["paper_id"] = df.url.str.extract(r"id=([^&]+)")[0]
-    raw = con.sql(f"select paper_id, decision, api_raw_review, api_raw_submission from '{ICLR26_RAW}'").df()
-    questions, cdate, mdate, area, decision = {}, {}, {}, {}, {}
-    for _, r in tqdm(raw.iterrows(), total=len(raw), desc="iclr2026 raw notes"):
-        decision[r.paper_id] = r.decision
+    snapshot_reviews["paper_id"] = snapshot_reviews.url.str.extract(r"id=([^&]+)")[0]
+    raw_notes = con.sql(f"select paper_id, decision, api_raw_review, api_raw_submission from '{ICLR26_RAW}'").df()
+    decision = {}
+    area = {}
+    questions = {}
+    created = {}
+    modified = {}
+    for _, raw_row in tqdm(raw_notes.iterrows(), total=len(raw_notes), desc="iclr2026 raw notes"):
+        decision[raw_row.paper_id] = raw_row.decision
         try:
-            sub = json.loads(r.api_raw_submission)
-            area[r.paper_id] = unwrap(sub.get("content", {}).get("primary_area"))
+            submission = json.loads(raw_row.api_raw_submission)
+            area[raw_row.paper_id] = unwrap(submission.get("content", {}).get("primary_area"))
         except TypeError, json.JSONDecodeError, AttributeError:
             pass
         try:
-            note = json.loads(r.api_raw_review)
+            note = json.loads(raw_row.api_raw_review)
         except TypeError, json.JSONDecodeError:
             continue
         if "id" not in note:
             continue
         questions[note["id"]] = unwrap(note.get("content", {}).get("questions")) or ""
-        cdate[note["id"]], mdate[note["id"]] = note.get("cdate"), note.get("mdate")
-    df["questions"] = df.review_id.map(questions).fillna("")
-    text = df.apply(
-        lambda r: join_fields(
-            dict(summary=r.summary, strengths=r.strengths, weaknesses=r.weaknesses, questions=r.questions, review=r.review)
-        ),
-        axis=1,
-    )
+        created[note["id"]] = note.get("cdate")
+        modified[note["id"]] = note.get("mdate")
+    snapshot_reviews["questions"] = snapshot_reviews.review_id.map(questions).fillna("")
+    text = snapshot_reviews[["summary", "strengths", "weaknesses", "questions", "review"]].apply(join_fields, axis=1)
     reviews = pd.DataFrame(
         dict(
             conf="ICLR",
             year=2026,
-            paper_id=df.paper_id,
-            review_id=df.review_id,
-            reviewer=df.reviewer,
-            rating=df.rating,
-            confidence=df.confidence,
+            paper_id=snapshot_reviews.paper_id,
+            review_id=snapshot_reviews.review_id,
+            reviewer=snapshot_reviews.reviewer,
+            rating=snapshot_reviews.rating,
+            confidence=snapshot_reviews.confidence,
             text=text,
-            weaknesses=df.weaknesses.map(squash),
+            weaknesses=snapshot_reviews.weaknesses.map(squash),
             form="questions+strengths+summary+weaknesses",
-            review_time=pd.to_datetime(df.review_id.map(cdate), unit="ms", errors="coerce"),
-            modified_time=pd.to_datetime(df.review_id.map(mdate), unit="ms", errors="coerce"),
+            review_time=pd.to_datetime(snapshot_reviews.review_id.map(created), unit="ms", errors="coerce"),
+            modified_time=pd.to_datetime(snapshot_reviews.review_id.map(modified), unit="ms", errors="coerce"),
         )
     )
-    p = df.drop_duplicates("paper_id")
+    paper_rows = snapshot_reviews.drop_duplicates("paper_id")
+    withdrawn = paper_rows.venue.str.contains("Withdrawn")
     papers = pd.DataFrame(
         dict(
             conf="ICLR",
             year=2026,
-            paper_id=p.paper_id,
-            title=p.title,
-            abstract=p.abstract,
-            decision_raw=p.venue.where(p.venue.str.contains("Withdrawn"), p.paper_id.map(decision)),
-            primary_area=p.paper_id.map(area),
+            paper_id=paper_rows.paper_id,
+            title=paper_rows.title,
+            abstract=paper_rows.abstract,
+            decision_raw=paper_rows.venue.where(withdrawn, paper_rows.paper_id.map(decision)),
+            primary_area=paper_rows.paper_id.map(area),
         )
     )
     return reviews, papers
@@ -191,7 +210,7 @@ def from_iclr26():
 
 def merge_ml(parts):
     reviews = pd.concat([r for r, _ in parts], ignore_index=True)
-    reviews = reviews[reviews.text.str.len() > 200].drop_duplicates("review_id")
+    reviews = reviews[reviews.text.str.len() > MIN_REVIEW_CHARS].drop_duplicates("review_id")
     reviews = reviews.drop_duplicates(["paper_id", "text"])
     papers = pd.concat([p for _, p in parts], ignore_index=True).drop_duplicates("paper_id")
     papers["decision"] = papers.decision_raw.map(decision_class)
@@ -226,89 +245,91 @@ def ml(out=settings.DATA_DIR):
     print(papers.groupby(["conf", "year"]).decision.value_counts().unstack(fill_value=0).to_string())
 
 
-def inventory(rv, pp, have, dups, src):
-    out = [f"data/other_reviews.parquet: {len(rv)} reviews, {rv.paper_id.nunique()} papers; sources: {', '.join(have)}", ""]
-    inv = rv.groupby(["conf", "year"]).agg(
+def inventory(reviews, papers, sources, n_dups, src):
+    header = (
+        f"data/other_reviews.parquet: {len(reviews)} reviews, {reviews.paper_id.nunique()} papers; sources: {', '.join(sources)}"
+    )
+    lines = [header, ""]
+    by_year = reviews.groupby(["conf", "year"]).agg(
         papers=("paper_id", "nunique"),
         reviews=("review_id", "size"),
         median_chars=("n_chars", "median"),
         share_rated=("rating", lambda r: r.notna().mean()),
     )
-    inv.insert(2, "rev_per_paper", inv.reviews / inv.papers)
-    out += ["Per source x year", inv.round(2).to_string(), ""]
-    out += [
-        "Totals by source",
-        rv.groupby("conf").agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")).to_string(),
-        "",
-    ]
-    out += [f"Exact-duplicate texts within a paper in the merged file: {dups} (dropped)"]
-    for s in have:
-        f = src / f"{s}_stats.json"
-        if f.exists():
-            out.append(f"  {s} fetch stats: {json.loads(f.read_text())}")
-    if (src / "plos_stats.json").exists():
-        st = json.loads((src / "plos_stats.json").read_text())
-        out.append(
-            f"PLOS: letters where reviewer splitting found 2+ reviewers: {st['letters_split_2plus']}/{st['letters']}"
-            f" = {st['letters_split_2plus'] / st['letters']:.1%}"
+    by_year.insert(2, "rev_per_paper", by_year.reviews / by_year.papers)
+    totals = reviews.groupby("conf").agg(papers=("paper_id", "nunique"), reviews=("review_id", "size"))
+    lines += ["Per source x year", by_year.round(2).to_string(), ""]
+    lines += ["Totals by source", totals.to_string(), ""]
+    lines.append(f"Exact-duplicate texts within a paper in the merged file: {n_dups} (dropped)")
+    for source in sources:
+        stats_file = src / f"{source}_stats.json"
+        if stats_file.exists():
+            lines.append(f"  {source} fetch stats: {json.loads(stats_file.read_text())}")
+    plos_stats_file = src / "plos_stats.json"
+    if plos_stats_file.exists():
+        plos = json.loads(plos_stats_file.read_text())
+        lines.append(
+            f"PLOS: letters where reviewer splitting found 2+ reviewers: {plos['letters_split_2plus']}/{plos['letters']}"
+            f" = {plos['letters_split_2plus'] / plos['letters']:.1%}"
         )
-    out += ["", "Licences (papers)", pp.groupby(["conf", "licence"], dropna=False).size().to_string(), ""]
-    out += [
-        "Journals",
-        rv.groupby(["conf", "journal"]).paper_id.nunique().sort_values(ascending=False).groupby(level=0).head(6).to_string(),
-        "",
-    ]
-    out.append("Random snippets (first 300 chars)")
-    for conf, g in rv.groupby("conf"):
-        for r in g.sample(3, random_state=0).itertuples():
-            out.append(f"[{conf} {r.year} {r.paper_id} {r.reviewer} rating={r.rating_raw}] {r.text[:300]}")
-        out.append("")
-    return "\n".join(out)
+    licences = papers.groupby(["conf", "licence"], dropna=False).size()
+    journal_papers = reviews.groupby(["conf", "journal"]).paper_id.nunique().sort_values(ascending=False)
+    top_journals = journal_papers.groupby(level=0).head(TOP_JOURNALS_PER_SOURCE)
+    lines += ["", "Licences (papers)", licences.to_string(), ""]
+    lines += ["Journals", top_journals.to_string(), ""]
+    lines.append(f"Random snippets (first {SNIPPET_CHARS} chars)")
+    for conf, conf_reviews in reviews.groupby("conf"):
+        for review in conf_reviews.sample(SNIPPETS_PER_SOURCE, random_state=0).itertuples():
+            label = f"{conf} {review.year} {review.paper_id} {review.reviewer} rating={review.rating_raw}"
+            lines.append(f"[{label}] {review.text[:SNIPPET_CHARS]}")
+        lines.append("")
+    return "\n".join(lines)
 
 
-def other(src=settings.DATA_DIR / "other", out=settings.DATA_DIR, report=REPORT):
+def other(src=settings.OTHER_REVIEWS_DIR, out=settings.DATA_DIR, report=REPORT):
     src, out = Path(src), Path(out)
-    have = [s for s in SOURCES if (src / f"{s}_reviews.parquet").exists()]
-    rv = pd.concat([pd.read_parquet(src / f"{s}_reviews.parquet") for s in have], ignore_index=True)
-    pp = pd.concat([pd.read_parquet(src / f"{s}_papers.parquet") for s in have], ignore_index=True)
-    for df in (rv, pp):
+    found_sources = [s for s in SOURCES if (src / f"{s}_reviews.parquet").exists()]
+    reviews = pd.concat([pd.read_parquet(src / f"{s}_reviews.parquet") for s in found_sources], ignore_index=True)
+    papers = pd.concat([pd.read_parquet(src / f"{s}_papers.parquet") for s in found_sources], ignore_index=True)
+    for df in (reviews, papers):
         df["journal"] = df.journal.str.replace(r"^PLoS\b", "PLOS", regex=True).replace({"PLOS One": "PLOS ONE"})
-    rv["rating"] = pd.to_numeric(rv.rating).round().astype("Int64")
-    rv["rating_raw"] = rv.rating_raw.astype("string")
-    rv["year"] = rv.year.astype(int)
-    rv = rv[REVIEW_COLS]
-    dups = int(rv.duplicated(["paper_id", "text"]).sum())
-    rv = rv.drop_duplicates(["paper_id", "text"])
-    assert rv.review_id.is_unique
-    n = rv.groupby("paper_id").size()
-    rv = rv[rv.paper_id.isin(n[n >= 2].index)].reset_index(drop=True)
-    pp = pp[pp.paper_id.isin(rv.paper_id)].copy()
-    pp["n_reviews"] = pp.paper_id.map(rv.groupby("paper_id").size())
-    pp = pp[PAPER_COLS].reset_index(drop=True)
-    rv.to_parquet(out / "other_reviews.parquet")
-    pp.to_parquet(out / "other_papers.parquet")
-    text = inventory(rv, pp, have, dups, src)
+    reviews["rating"] = pd.to_numeric(reviews.rating).round().astype("Int64")
+    reviews["rating_raw"] = reviews.rating_raw.astype("string")
+    reviews["year"] = reviews.year.astype(int)
+    reviews = reviews[REVIEW_COLS]
+    n_dups = int(reviews.duplicated(["paper_id", "text"]).sum())
+    reviews = reviews.drop_duplicates(["paper_id", "text"])
+    assert reviews.review_id.is_unique
+    reviews_per_paper = reviews.groupby("paper_id").size()
+    kept_counts = reviews_per_paper[reviews_per_paper >= MIN_REVIEWS_PER_PAPER]
+    reviews = reviews[reviews.paper_id.isin(kept_counts.index)].reset_index(drop=True)
+    papers = papers[papers.paper_id.isin(kept_counts.index)]
+    papers["n_reviews"] = papers.paper_id.map(kept_counts)
+    papers = papers[PAPER_COLS].reset_index(drop=True)
+    reviews.to_parquet(out / "other_reviews.parquet")
+    papers.to_parquet(out / "other_papers.parquet")
+    text = inventory(reviews, papers, found_sources, n_dups, src)
     print(text)
     Path(report).write_text(text + "\n")
 
 
-def embed(docs, chunk=256):
+def embed(docs, chunk_size=256):
     from openai import OpenAI, RateLimitError
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
 
-    def one(part):
+    def embed_chunk(chunk):
         while True:
             try:
-                r = client.embeddings.create(model="text-embedding-3-small", input=part)
-                return [e.embedding for e in r.data]
+                response = client.embeddings.create(model=settings.EMBED_MODEL, input=chunk)
+                return [item.embedding for item in response.data]
             except RateLimitError:
                 time.sleep(10)
 
-    chunks = [docs[i : i + chunk] for i in range(0, len(docs), chunk)]
+    chunks = [docs[i : i + chunk_size] for i in range(0, len(docs), chunk_size)]
     with ThreadPoolExecutor(2) as pool:
-        parts = tqdm(pool.map(one, chunks), total=len(chunks), desc="embed abstracts")
-        return np.array([e for part in parts for e in part], dtype=np.float32)
+        chunk_vectors = tqdm(pool.map(embed_chunk, chunks), total=len(chunks), desc="embed abstracts")
+        return np.array([vector for vectors in chunk_vectors for vector in vectors], dtype=np.float32)
 
 
 def areas(out=settings.DATA_DIR):
@@ -317,22 +338,26 @@ def areas(out=settings.DATA_DIR):
 
     out = Path(out)
     papers = pd.read_parquet(settings.DATA_DIR / "papers.parquet")
-    sampled = {json.loads(line)["panel_id"] for line in (settings.DATA_DIR / "panels.jsonl").read_text().splitlines()}
-    need = papers[papers.paper_id.isin(sampled) | ((papers.year == 2026) & papers.primary_area.notna())].copy()
-    need["doc"] = (need.title.fillna("") + "\n" + need.abstract.fillna("")).str.slice(0, 6000)
-    need = need[need.doc.str.len() > 50].reset_index(drop=True)
+    panel_lines = (settings.DATA_DIR / "panels.jsonl").read_text().splitlines()
+    panel_paper_ids = {json.loads(line)["panel_id"] for line in panel_lines}
+    in_panels = papers.paper_id.isin(panel_paper_ids)
+    labelled_2026 = (papers.year == 2026) & papers.primary_area.notna()
+    need = papers[in_panels | labelled_2026]
+    need["doc"] = (need.title.fillna("") + "\n" + need.abstract.fillna("")).str.slice(0, MAX_DOC_CHARS)
+    need = need[need.doc.str.len() > MIN_DOC_CHARS].reset_index(drop=True)
     print(len(need), "papers to embed")
-    emb = embed(need.doc.tolist())
-    np.save(out / "abstract_emb.npy", emb)
+    embeddings = embed(need.doc.tolist())
+    np.save(out / "abstract_emb.npy", embeddings)
 
     labelled = need.primary_area.notna().to_numpy()
     y = need.primary_area[labelled].to_numpy()
     clf = LogisticRegression(max_iter=2000, C=3.0)
-    print("5-fold accuracy on 2026 labels:", cross_val_score(clf, emb[labelled], y, cv=5).mean().round(3))
-    clf.fit(emb[labelled], y)
-    proba = clf.predict_proba(emb)
+    cv_accuracy = cross_val_score(clf, embeddings[labelled], y, cv=5).mean().round(3)
+    print("5-fold accuracy on 2026 labels:", cv_accuracy)
+    clf.fit(embeddings[labelled], y)
+    proba = clf.predict_proba(embeddings)
     pred = clf.classes_[proba.argmax(1)]
-    res = pd.DataFrame(
+    paper_areas = pd.DataFrame(
         dict(
             paper_id=need.paper_id,
             area=np.where(labelled, need.primary_area, pred),
@@ -341,15 +366,10 @@ def areas(out=settings.DATA_DIR):
             row=np.arange(len(need)),
         )
     )
-    res.to_parquet(out / "paper_areas.parquet")
-    print(
-        res.merge(papers[["paper_id", "conf", "year"]])
-        .groupby(["conf", "year"])
-        .area.value_counts(normalize=True)
-        .unstack(fill_value=0)
-        .round(2)
-        .T.to_string()
-    )
+    paper_areas.to_parquet(out / "paper_areas.parquet")
+    with_venue = paper_areas.merge(papers[["paper_id", "conf", "year"]])
+    area_shares = with_venue.groupby(["conf", "year"]).area.value_counts(normalize=True)
+    print(area_shares.unstack(fill_value=0).round(2).T.to_string())
 
 
 if __name__ == "__main__":

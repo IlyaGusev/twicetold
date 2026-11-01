@@ -11,14 +11,16 @@ uv sync --all-extras
 Keys (`OPENAI_API_KEY`, `OPENROUTER_API_KEY`, `OPENREVIEW_USERNAME/PASSWORD`) go in `.env` at the repo root; `src/settings.py`
 reads them with every path, the default model, the reasoning efforts, the price table and the OpenRouter routes. Any
 field can be overridden by an environment variable of the same name. Prompts are jinja2 templates in `src/prompts/`.
-Raw review dumps are expected under `~/data/peer-review/` (ResearchArcade, davidheineman/iclr-2026, JerMa88/ICLR_Peer_Reviews_2026); see `src/corpus.py`.
+Raw review dumps (ResearchArcade, davidheineman/iclr-2026, JerMa88/ICLR_Peer_Reviews_2026) are expected under
+`RAW_ML_REVIEWS_DIR` in `src/settings.py`; `src/corpus.py` reads them.
 
 ## Pipeline (`src/`)
 
 Run each line as `uv run python -I src/<line>`, in this order. `# API` marks paid model calls; every command has `--help`.
-The model defaults to `gpt-6-luna-high` (gpt-6-luna through OpenRouter, reasoning effort high in both passes). `scripts/extract_all.sh MODEL [PASS1_EFFORT=high] [PASS2_EFFORT=high] [BUDGET_USD=300]` runs every
-extraction pass below for one model as parallel chains, and `scripts/post.sh MODEL [OUT_DIR]` runs the post-extraction
-steps (outcomes, validation reports, tables, figures).
+The model defaults to `gpt-6-luna-high` (gpt-6-luna through OpenRouter, reasoning effort high in both passes).
+`scripts/extract_all.sh MODEL [PASS1_EFFORT=high] [PASS2_EFFORT=high] [BUDGET_USD=300]` runs every extraction pass below
+for one model as parallel chains, and `scripts/post.sh MODEL [OUT_DIR]` runs the post-extraction steps (outcomes,
+validation reports, tables, figures).
 
 ```
 fetch.py scipost                                                  # also f1000, plos, bmc, copernicus -> data/other/
@@ -84,7 +86,8 @@ The sample on disk was drawn before `corpus.py ml` dropped copied reviews. `pane
 earlier inputs) redraws `sample_reviews.parquet` and `panels_placebo.jsonl` exactly; `panels.jsonl` on disk is that
 draw with the copied reviews removed from each panel.
 
-Reference annotations (blind Opus annotators, protocol in `data/blind/PROTOCOL.md`), the 600 adjudicated claim pairs (`data/pairs/`) and the 300 generic-vs-specific labels (`data/spec/`) are included.
+Reference annotations (blind Opus annotators, protocol in `data/blind/PROTOCOL.md`), the 600 adjudicated claim pairs
+(`data/pairs/`) and the 300 generic-vs-specific labels (`data/spec/`) are included.
 
 ## Paper
 

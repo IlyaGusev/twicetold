@@ -14,6 +14,19 @@ from settings import settings
 
 K_TYPES = 300
 REF_PER_CELL = 10000
+SIM_BLOCK_ROWS = 4096
+KMEANS_FIT_SAMPLE = 300000
+PREDICT_CHUNK_ROWS = 200000
+HILL_SAMPLE = 20000
+TEMPLATE_QUANTILE = 0.75
+SHIFT_ROWS_SHOWN = 12
+AREA_PAIRS = 300
+CELL_PAIRS = 3000
+EMBED_ATTEMPTS = 40
+EMBED_MAX_BACKOFF_S = 30
+CLAIM_EMBED_CHARS = 400
+CLAIM_EMBED_DIMS = 512
+REVIEW_EMBED_CHARS = 12000
 
 
 def openai_embed(texts, model, batch, threads=4, dtype=np.float32, desc=None, **kw):
@@ -21,20 +34,21 @@ def openai_embed(texts, model, batch, threads=4, dtype=np.float32, desc=None, **
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
 
-    def one(chunk):
-        for attempt in range(40):
+    def embed_chunk(chunk):
+        for attempt in range(EMBED_ATTEMPTS):
             try:
-                r = client.embeddings.create(model=model, input=chunk, **kw)
-                return np.array([d.embedding for d in r.data], dtype=dtype)
+                response = client.embeddings.create(model=model, input=chunk, **kw)
+                return np.array([item.embedding for item in response.data], dtype=dtype)
             except BadRequestError:
                 chunk = [t[: len(t) // 2] for t in chunk]
             except RateLimitError, APIError:
-                time.sleep(min(30, 2**attempt))
+                time.sleep(min(EMBED_MAX_BACKOFF_S, 2**attempt))
         raise RuntimeError("embedding batch failed after retries")
 
     chunks = [texts[i : i + batch] for i in range(0, len(texts), batch)]
     with ThreadPoolExecutor(threads) as pool:
-        return np.concatenate(list(tqdm(pool.map(one, chunks), total=len(chunks), desc=desc, disable=desc is None)))
+        embedded = tqdm(pool.map(embed_chunk, chunks), total=len(chunks), desc=desc, disable=desc is None)
+        return np.concatenate(list(embedded))
 
 
 def claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
@@ -43,25 +57,30 @@ def claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
     rows = []
     with open(data / f"claims_{model}.jsonl") as f:
         for line in tqdm(f, desc="claims table"):
-            r = json.loads(line)
-            if "claims" not in r or r["review_id"] not in reviews.index:
+            record = json.loads(line)
+            if "claims" not in record or record["review_id"] not in reviews.index:
                 continue
-            meta = reviews.loc[r["review_id"]]
-            for k, c in enumerate(r["claims"]):
+            review_id = record["review_id"]
+            review = reviews.loc[review_id]
+            for k, claim in enumerate(record["claims"]):
                 rows.append(
                     {
-                        "review_id": r["review_id"],
+                        "review_id": review_id,
                         "k": k,
-                        "paper_id": meta.paper_id,
-                        "conf": meta.conf,
-                        "year": int(meta.year),
-                        "claim": c["claim"],
-                        "category": c["category"],
-                        "target": c["target"],
-                        "specific": c["specific"],
+                        "paper_id": review.paper_id,
+                        "conf": review.conf,
+                        "year": int(review.year),
+                        "claim": claim["claim"],
+                        "category": claim["category"],
+                        "target": claim["target"],
+                        "specific": claim["specific"],
                     }
                 )
     return pd.DataFrame(rows)
+
+
+def write_claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
+    claims_table(model, data).to_parquet(Path(data) / f"claims_table_{model}.parquet", index=False)
 
 
 def embed_claims(model, data):
@@ -69,59 +88,66 @@ def embed_claims(model, data):
     T["emb_row"] = np.arange(len(T))
     T.to_parquet(data / f"claims_table_{model}.parquet")
     E = openai_embed(
-        T.claim.str.slice(0, 400).tolist(),
-        "text-embedding-3-large",
+        T.claim.str.slice(0, CLAIM_EMBED_CHARS).tolist(),
+        settings.CLAIM_EMBED_MODEL,
         batch=512,
         dtype=np.float16,
         desc="embed claims",
-        dimensions=512,
+        dimensions=CLAIM_EMBED_DIMS,
     )
     np.save(data / f"claim_emb_{model}.npy", E)
 
 
+def normalize_rows(X):
+    X /= np.linalg.norm(X, axis=1, keepdims=True) + 1e-9
+    return X
+
+
 def load_claims(model, data):
     T = pd.read_parquet(data / f"claims_table_{model}.parquet")
-    T = T[T.review_id.isin(set(pd.read_parquet(data / "reviews.parquet", columns=["review_id"]).review_id))]
-    T = T.reset_index(drop=True)
+    review_ids = set(pd.read_parquet(data / "reviews.parquet", columns=["review_id"]).review_id)
+    T = T[T.review_id.isin(review_ids)].reset_index(drop=True)
     E = np.load(data / f"claim_emb_{model}.npy", mmap_mode="r")[T.emb_row.to_numpy()].astype(np.float32)
-    E /= np.linalg.norm(E, axis=1, keepdims=True) + 1e-9
-    return T, E
+    return T, normalize_rows(E)
 
 
 def template_similarity(T, E, rng):
-    pid = T.paper_id.to_numpy()
-    out = np.full(len(T), np.nan)
-    for idx in tqdm(T.groupby(["conf", "year"]).indices.values(), desc="template sim"):
-        ref = rng.choice(idx, min(REF_PER_CELL, len(idx)), replace=False)
-        R = E[ref].T
-        for s in range(0, len(idx), 4096):
-            block = idx[s : s + 4096]
-            m = E[block] @ R
-            m[pid[block][:, None] == pid[ref][None, :]] = -1
-            out[block] = m.max(1)
-    return out
+    paper_ids = T.paper_id.to_numpy()
+    best_sim = np.full(len(T), np.nan)
+    for cell_rows in tqdm(T.groupby(["conf", "year"]).indices.values(), desc="template sim"):
+        ref_rows = rng.choice(cell_rows, min(REF_PER_CELL, len(cell_rows)), replace=False)
+        ref_emb = E[ref_rows].T
+        for start in range(0, len(cell_rows), SIM_BLOCK_ROWS):
+            block = cell_rows[start : start + SIM_BLOCK_ROWS]
+            sim = E[block] @ ref_emb
+            same_paper = paper_ids[block][:, None] == paper_ids[ref_rows][None, :]
+            sim[same_paper] = -1
+            best_sim[block] = sim.max(1)
+    return best_sim
 
 
-def fit_types(E, pre_idx, rng):
+def fit_types(E, pre_rows, rng):
     from sklearn.cluster import MiniBatchKMeans
 
-    fit_idx = rng.choice(pre_idx, min(300000, len(pre_idx)), replace=False)
-    km = MiniBatchKMeans(K_TYPES, random_state=0, batch_size=4096, n_init=3).fit(E[fit_idx])
-    return km, np.concatenate([km.predict(E[s : s + 200000]) for s in range(0, len(E), 200000)])
+    fit_rows = rng.choice(pre_rows, min(KMEANS_FIT_SAMPLE, len(pre_rows)), replace=False)
+    km = MiniBatchKMeans(K_TYPES, random_state=0, batch_size=4096, n_init=3).fit(E[fit_rows])
+    chunk_starts = range(0, len(E), PREDICT_CHUNK_ROWS)
+    ctype = np.concatenate([km.predict(E[s : s + PREDICT_CHUNK_ROWS]) for s in chunk_starts])
+    return km, ctype
 
 
 def type_labels(km, pre, E):
-    centers = km.cluster_centers_ / np.linalg.norm(km.cluster_centers_, axis=1, keepdims=True)
+    unit_centers = km.cluster_centers_ / np.linalg.norm(km.cluster_centers_, axis=1, keepdims=True)
     labels = {}
-    for c in range(K_TYPES):
-        members = pre.index[pre.ctype == c]
-        if len(members):
-            labels[c] = pre.claim[members[np.argmax(E[members] @ centers[c])]]
+    for c, members in pre.groupby("ctype").groups.items():
+        closest = members[np.argmax(E[members] @ unit_centers[c])]
+        labels[c] = pre.claim[closest]
     return pd.Series(labels, name="label")
 
 
 def cell_summary(T, rng):
-    cell = T.groupby(["conf", "year"]).agg(
+    by_cell = T.groupby(["conf", "year"])
+    summary = by_cell.agg(
         claims=("claim", "size"),
         template_sim=("template_sim", "mean"),
         template_share=("template", "mean"),
@@ -129,26 +155,20 @@ def cell_summary(T, rng):
         specific=("specific", "mean"),
     )
     hill = {}
-    for key, idx in T.groupby(["conf", "year"]).indices.items():
-        sub = rng.choice(idx, min(20000, len(idx)), replace=False)
-        p = T.ctype.iloc[sub].value_counts(normalize=True)
-        hill[key] = float(np.exp(-(p * np.log(p)).sum()))
-    cell["hill_types_20k"] = pd.Series(hill)
-    return cell
+    for key, cell_rows in by_cell.indices.items():
+        sample = rng.choice(cell_rows, min(HILL_SAMPLE, len(cell_rows)), replace=False)
+        type_share = T.ctype.iloc[sample].value_counts(normalize=True)
+        hill[key] = float(np.exp(-(type_share * np.log(type_share)).sum()))
+    summary["hill_types_20k"] = pd.Series(hill)
+    return summary
 
 
 def type_shift(T, labels):
     iclr = T[T.conf == "ICLR"]
-    f = pd.crosstab(iclr.ctype, iclr.year, normalize="columns")
-    shift = (f[2026] - f[2023]).sort_values()
-    return pd.DataFrame(
-        {
-            "label": labels.reindex(shift.index),
-            "f2023": f[2023].reindex(shift.index),
-            "f2026": f[2026].reindex(shift.index),
-            "delta": shift,
-        }
-    )
+    freq = pd.crosstab(iclr.ctype, iclr.year, normalize="columns")
+    delta = (freq[2026] - freq[2023]).sort_values()
+    shift = pd.DataFrame({"label": labels, "f2023": freq[2023], "f2026": freq[2026], "delta": delta})
+    return shift.reindex(delta.index)
 
 
 def templates(model=settings.DEFAULT_MODEL, reembed=False, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
@@ -159,116 +179,121 @@ def templates(model=settings.DEFAULT_MODEL, reembed=False, data=settings.DATA_DI
     rng = np.random.default_rng(0)
 
     T["template_sim"] = template_similarity(T, E, rng)
-    pre = T[(T.conf == "ICLR") & T.year.between(2017, 2022)]
-    tau = np.quantile(pre.template_sim, 0.75)
+    is_pre = (T.conf == "ICLR") & T.year.between(2017, 2022)
+    tau = np.quantile(T.template_sim[is_pre], TEMPLATE_QUANTILE)
     T["template"] = T.template_sim >= tau
     print(f"template threshold tau={tau:.3f} (75th percentile of ICLR 2017-2022)")
 
-    km, ctype = fit_types(E, pre.index.to_numpy(), rng)
+    km, ctype = fit_types(E, np.flatnonzero(is_pre), rng)
     T["ctype"] = ctype
-    pre = pre.assign(ctype=T.ctype[pre.index])
+    pre = T[is_pre]
     freq_pre = pre.ctype.value_counts(normalize=True)
     rank = freq_pre.rank(ascending=False)
     tail_types = set(rank[rank > K_TYPES / 2].index)
     T["tail_type"] = T.ctype.isin(tail_types)
     labels = type_labels(km, pre, E)
-    labels.to_frame().assign(freq_pre=freq_pre, tail=lambda d: d.index.isin(tail_types)).to_csv(
-        reports / f"critique_types_{model}.csv"
-    )
+    critique_types = labels.to_frame()
+    critique_types["freq_pre"] = freq_pre
+    critique_types["tail"] = critique_types.index.isin(tail_types)
+    critique_types.to_csv(reports / f"critique_types_{model}.csv")
     T.to_parquet(data / f"claims_table_{model}.parquet")
 
-    cell = cell_summary(T, rng)
-    cell.round(4).to_csv(reports / f"template_by_cell_{model}.csv")
-    print(cell.round(3).to_string())
+    cells = cell_summary(T, rng)
+    cells.round(4).to_csv(reports / f"template_by_cell_{model}.csv")
+    print(cells.round(3).to_string())
 
-    out = type_shift(T, labels)
-    out.to_csv(reports / f"type_shift_{model}.csv")
-    print("\nBiggest falls 2023->2026:\n", out.head(12).round(4).to_string())
-    print("\nBiggest rises 2023->2026:\n", out.tail(12).round(4).to_string())
+    shift = type_shift(T, labels)
+    shift.to_csv(reports / f"type_shift_{model}.csv")
+    print("\nBiggest falls 2023->2026:\n", shift.head(SHIFT_ROWS_SHOWN).round(4).to_string())
+    print("\nBiggest rises 2023->2026:\n", shift.tail(SHIFT_ROWS_SHOWN).round(4).to_string())
 
 
 def embed_reviews(data, threads):
     R = pd.read_parquet(data / "sample_reviews.parquet", columns=["review_id", "text"])
-    texts = [t[:12000] for t in R.text.fillna("")]
-    np.save(
-        data / "review_emb.npy", openai_embed(texts, "text-embedding-3-small", batch=64, threads=threads, desc="embed reviews")
-    )
+    texts = [t[:REVIEW_EMBED_CHARS] for t in R.text.fillna("")]
+    E = openai_embed(texts, settings.EMBED_MODEL, batch=64, threads=threads, desc="embed reviews")
+    np.save(data / "review_emb.npy", E)
     print("embedded", len(texts))
 
 
 def load_reviews(data):
     R = pd.read_parquet(data / "sample_reviews.parquet", columns=["conf", "year", "paper_id", "review_id"])
-    meta = pd.read_parquet(data / "reviews.parquet", columns=["review_id", "primary_area"]).drop_duplicates("review_id")
-    R = R.merge(meta, on="review_id", how="left", indicator=True)
-    E = np.load(data / "review_emb.npy")
-    E /= np.linalg.norm(E, axis=1, keepdims=True) + 1e-9
     R["row"] = np.arange(len(R))
-    return R[R._merge == "both"].drop(columns="_merge"), E
+    areas = pd.read_parquet(data / "reviews.parquet", columns=["review_id", "primary_area"]).drop_duplicates("review_id")
+    R = R.merge(areas, on="review_id")
+    E = normalize_rows(np.load(data / "review_emb.npy"))
+    return R, E
 
 
 def intra_paper(R, E):
-    intra = []
-    for pid, g in tqdm(R.groupby("paper_id"), desc="intra-paper"):
-        if len(g) < 2:
+    rows = []
+    for paper_id, paper in tqdm(R.groupby("paper_id"), desc="intra-paper"):
+        if len(paper) < 2:
             continue
-        M = E[g.row.to_numpy()] @ E[g.row.to_numpy()].T
-        iu = np.triu_indices(len(g), 1)
-        intra.append({"conf": g.conf.iloc[0], "year": g.year.iloc[0], "paper_id": pid, "intra": float(M[iu].mean())})
-    return pd.DataFrame(intra)
+        emb_rows = paper.row.to_numpy()
+        sims = E[emb_rows] @ E[emb_rows].T
+        pair_sims = sims[np.triu_indices(len(paper), 1)]
+        rows.append(
+            {"conf": paper.conf.iloc[0], "year": paper.year.iloc[0], "paper_id": paper_id, "intra": float(pair_sims.mean())}
+        )
+    return pd.DataFrame(rows)
+
+
+def cross_paper_sims(reviews, E, rng, n_pairs):
+    emb_rows = reviews.row.to_numpy()
+    papers = reviews.paper_id.to_numpy()
+    sims = []
+    for _ in range(n_pairs):
+        a, b = rng.choice(len(emb_rows), 2, replace=False)
+        if papers[a] != papers[b]:
+            sims.append(float(E[emb_rows[a]] @ E[emb_rows[b]]))
+    return sims
 
 
 def cell_similarity(R, E, intra, rng):
     rows = []
-    for (conf, year), g in tqdm(R.groupby(["conf", "year"]), desc="inter-paper"):
-        sims = []
-        for area, h in g.groupby(g.primary_area.fillna("none")):
-            if h.paper_id.nunique() < 2:
-                continue
-            rows_a = h.row.to_numpy()
-            for _ in range(300):
-                a, b = rng.choice(len(rows_a), 2, replace=False)
-                if h.paper_id.iloc[a] != h.paper_id.iloc[b]:
-                    sims.append(float(E[rows_a[a]] @ E[rows_a[b]]))
-        pooled_rows = g.row.to_numpy()
-        inter_any = [
-            float(E[pooled_rows[a]] @ E[pooled_rows[b]])
-            for a, b in (rng.choice(len(pooled_rows), 2, replace=False) for _ in range(3000))
-            if g.paper_id.iloc[a] != g.paper_id.iloc[b]
-        ]
-        ii = intra[(intra.conf == conf) & (intra.year == year)].intra
+    for (conf, year), cell in tqdm(R.groupby(["conf", "year"]), desc="inter-paper"):
+        area_sims = []
+        for _, area in cell.groupby(cell.primary_area.fillna("none")):
+            if area.paper_id.nunique() >= 2:
+                area_sims += cross_paper_sims(area, E, rng, AREA_PAIRS)
+        any_sims = cross_paper_sims(cell, E, rng, CELL_PAIRS)
+        cell_intra = intra[(intra.conf == conf) & (intra.year == year)].intra
         rows.append(
             {
                 "conf": conf,
                 "year": year,
-                "intra": ii.mean(),
-                "intra_se": ii.std(ddof=1) / np.sqrt(len(ii)),
-                "inter_area": np.mean(sims) if sims else np.nan,
-                "inter_any": np.mean(inter_any),
-                "papers": len(ii),
+                "intra": cell_intra.mean(),
+                "intra_se": cell_intra.std(ddof=1) / np.sqrt(len(cell_intra)),
+                "inter_area": np.mean(area_sims) if area_sims else np.nan,
+                "inter_any": np.mean(any_sims),
+                "papers": len(cell_intra),
             }
         )
-    T = pd.DataFrame(rows)
-    T["excess"] = T.intra - T.inter_area
-    return T
+    cells = pd.DataFrame(rows)
+    cells["excess"] = cells.intra - cells.inter_area
+    return cells
 
 
 def year_effects(intra):
     import statsmodels.formula.api as smf
 
-    m = smf.ols("intra ~ C(year, Treatment(reference=2023))", data=intra[intra.conf == "ICLR"]).fit(cov_type="HC1")
+    fit = smf.ols("intra ~ C(year, Treatment(reference=2023))", data=intra[intra.conf == "ICLR"]).fit(cov_type="HC1")
     print("\nICLR IntraSim year effects vs 2023:")
-    for k, v in m.params.items():
-        if "year" in k:
-            print(f"  {k.split('T.')[1].rstrip(']'):6s} {v:+.4f} (SE {m.bse[k]:.4f})")
+    for term, coef in fit.params.items():
+        if "year" in term:
+            year = term.split("T.")[1].rstrip("]")
+            print(f"  {year:6s} {coef:+.4f} (SE {fit.bse[term]:.4f})")
 
 
 def claim_vs_embedding(intra, model, data):
-    P = pd.read_parquet(data / f"panel_outcomes_{model}.parquet", columns=["paper_id", "S3", "share_shared_claims", "D3"])
-    Q = intra.merge(P, on="paper_id")
-    rho = {k: Q[["intra", k]].corr("spearman").iloc[0, 1] for k in ["S3", "share_shared_claims", "D3"]}
+    outcomes = ["S3", "share_shared_claims", "D3"]
+    panels = pd.read_parquet(data / f"panel_outcomes_{model}.parquet", columns=["paper_id", *outcomes])
+    merged = intra.merge(panels, on="paper_id")
+    rho = {outcome: merged[["intra", outcome]].corr("spearman").iloc[0, 1] for outcome in outcomes}
     print(
         f"\npaper-level Spearman: intra vs S3 {rho['S3']:.3f}, vs share shared {rho['share_shared_claims']:.3f}, "
-        f"vs D3 {rho['D3']:.3f} (n={len(Q)})"
+        f"vs D3 {rho['D3']:.3f} (n={len(merged)})"
     )
 
 
@@ -278,20 +303,12 @@ def embed(model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.
         embed_reviews(data, threads)
     R, E = load_reviews(data)
     intra = intra_paper(R, E)
-    T = cell_similarity(R, E, intra, np.random.default_rng(0))
-    T.to_csv(reports / f"embed_{model}.csv", index=False)
-    print(T.round(4).to_string(index=False))
+    cells = cell_similarity(R, E, intra, np.random.default_rng(0))
+    cells.to_csv(reports / f"embed_{model}.csv", index=False)
+    print(cells.round(4).to_string(index=False))
     year_effects(intra)
     claim_vs_embedding(intra, model, data)
 
 
 if __name__ == "__main__":
-    fire.Fire(
-        {
-            "templates": templates,
-            "embed": embed,
-            "claims_table": lambda model=settings.DEFAULT_MODEL, data=settings.DATA_DIR: claims_table(model, data).to_parquet(
-                Path(data) / f"claims_table_{model}.parquet", index=False
-            ),
-        }
-    )
+    fire.Fire({"templates": templates, "embed": embed, "claims_table": write_claims_table})

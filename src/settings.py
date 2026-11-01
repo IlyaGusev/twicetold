@@ -28,10 +28,23 @@ class Settings(BaseSettings):
     RAW_ML_REVIEWS_DIR: Path = Path("/home/yallen/data/peer-review")
     RAW_JOURNAL_REVIEWS_DIR: Path = Path("/home/yallen/data/peer-review/other")
 
+    @property
+    def OTHER_REVIEWS_DIR(self):
+        return self.DATA_DIR / "other"
+
     DEFAULT_MODEL: str = "gpt-6-luna-high"
+    BLIND_SET_MODEL: str = "gpt-6-luna"
+    SECOND_MODEL: str = "gpt-6.1-sol"
+    INSTRUMENT_MODELS: str = "gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash"
     PASS1_REASONING_EFFORT: str = "high"
     PASS2_REASONING_EFFORT: str = "high"
     REVIEW_TEXT_MAX_CHARS: int = 14000
+
+    EMBED_MODEL: str = "text-embedding-3-small"
+    CLAIM_EMBED_MODEL: str = "text-embedding-3-large"
+    COCODET_BASE_MODEL: str = "answerdotai/ModernBERT-base"
+    COCODET_REPO: str = "khaaaaaan/CoCoDet"
+    COCODET_WEIGHTS_FILE: str = "CoCoDet.bin"
 
     PRICES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
         "gpt-6.1-sol": (2.00, 10.00),

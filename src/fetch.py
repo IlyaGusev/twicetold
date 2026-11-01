@@ -24,14 +24,16 @@ from urllib3.util.retry import Retry
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from settings import settings
 
-OUT = settings.DATA_DIR / "other"
 UA = "twicetold-research"
 SEED = 0
 YEARS = range(2018, 2027)
 MAX_PAPERS = 500
 MIN_CHARS = 100
+MIN_REVIEWS = 2
 WORKERS = 4
+TIMEOUT = 120
 EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
+OPENREVIEW_API = "https://api2.openreview.net"
 
 _local = threading.local()
 
@@ -51,11 +53,11 @@ class Blocked(Exception):
     pass
 
 
-def fetch(url, path, params=None):
+def fetch(url, path):
     path = Path(path)
     if path.exists():
         return path.read_bytes() or None
-    r = session().get(url, params=params, timeout=120)
+    r = session().get(url, timeout=TIMEOUT)
     if r.status_code in (404, 410):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"")
@@ -92,25 +94,25 @@ def finalize(source, reviews, papers, out, max_papers=MAX_PAPERS, stats=None):
     rv["n_chars"] = rv.text.str.len()
     stats = dict(stats or {}, parsed_reviews=len(rv), short_dropped=int((rv.n_chars < MIN_CHARS).sum()))
     rv = rv[rv.n_chars >= MIN_CHARS]
-    n0 = len(rv)
+    before_dedup = len(rv)
     rv = rv.drop_duplicates(["paper_id", "text"])
-    stats["dup_dropped"] = n0 - len(rv)
+    stats["dup_dropped"] = before_dedup - len(rv)
     print(source, stats)
     rv["review_time"] = pd.to_datetime(rv.review_time, utc=True, format="ISO8601").dt.tz_localize(None)
-    first = rv.groupby("paper_id").review_time.min().dt.year
-    rv["year"] = rv.paper_id.map(first).fillna(rv.year)
+    first_review_year = rv.groupby("paper_id").review_time.min().dt.year
+    rv["year"] = rv.paper_id.map(first_review_year).fillna(rv.year)
     rv = rv[rv.year.notna()].astype({"year": int})
-    n = rv.groupby("paper_id").size()
-    keep = n[n >= 2].index
-    rv = rv[rv.paper_id.isin(keep) & rv.year.isin(YEARS)]
-    yr = rv.groupby("paper_id").year.first()
+    reviews_per_paper = rv.groupby("paper_id").size()
+    reviewed_papers = reviews_per_paper[reviews_per_paper >= MIN_REVIEWS].index
+    rv = rv[rv.paper_id.isin(reviewed_papers) & rv.year.isin(YEARS)]
+    paper_year = rv.groupby("paper_id").year.first()
     chosen = []
-    for y, ids in yr.groupby(yr):
-        ids = shuffled(ids.index.tolist())
-        chosen += ids[: max_papers(y) if callable(max_papers) else max_papers]
+    for year, ids in paper_year.groupby(paper_year):
+        year_cap = max_papers(year) if callable(max_papers) else max_papers
+        chosen += shuffled(ids.index.tolist())[:year_cap]
     rv = rv[rv.paper_id.isin(chosen)].reset_index(drop=True)
     pp = pp[pp.paper_id.isin(chosen)].copy()
-    pp["year"] = pp.paper_id.map(yr)
+    pp["year"] = pp.paper_id.map(paper_year)
     pp["n_reviews"] = pp.paper_id.map(rv.groupby("paper_id").size())
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
@@ -118,6 +120,16 @@ def finalize(source, reviews, papers, out, max_papers=MAX_PAPERS, stats=None):
     pp.to_parquet(out / f"{source}_papers.parquet")
     (out / f"{source}_stats.json").write_text(json.dumps(stats))
     print(rv.groupby("year").agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")))
+
+
+def epmc_hit(hit):
+    return dict(
+        pmcid=hit.get("pmcid"),
+        doi=hit.get("doi"),
+        year=hit.get("pubYear"),
+        journal=hit.get("journalTitle"),
+        title=hit.get("title"),
+    )
 
 
 def epmc_search(query, cache):
@@ -130,35 +142,28 @@ def epmc_search(query, cache):
             r = session().get(
                 f"{EPMC}/search",
                 params=dict(query=query, format="json", resultType="lite", pageSize=1000, cursorMark=cursor),
-                timeout=120,
+                timeout=TIMEOUT,
             )
             r.raise_for_status()
-            d = r.json()
-            hits += [
-                dict(
-                    pmcid=h.get("pmcid"),
-                    doi=h.get("doi"),
-                    year=h.get("pubYear"),
-                    journal=h.get("journalTitle"),
-                    title=h.get("title"),
-                )
-                for h in d["resultList"]["result"]
-            ]
+            page = r.json()
+            results = page["resultList"]["result"]
+            hits += [epmc_hit(h) for h in results]
             bar.update()
-            if d.get("nextCursorMark") in (None, cursor) or not d["resultList"]["result"]:
+            if page.get("nextCursorMark") in (None, cursor) or not results:
                 break
-            cursor = d["nextCursorMark"]
+            cursor = page["nextCursorMark"]
     cache.parent.mkdir(parents=True, exist_ok=True)
     cache.write_text(json.dumps(hits))
     return hits
 
 
 def epmc_xml(pmcid, folder):
+    path = Path(folder) / f"{pmcid}.xml"
     try:
-        raw = fetch(f"{EPMC}/{pmcid}/fullTextXML", Path(folder) / f"{pmcid}.xml")
+        raw = fetch(f"{EPMC}/{pmcid}/fullTextXML", path)
     except requests.RequestException as e:
         print("skip", pmcid, type(e).__name__)
-        (Path(folder) / f"{pmcid}.xml").write_bytes(b"")
+        path.write_bytes(b"")
         return None
     if not raw:
         return None
@@ -183,20 +188,24 @@ def licence_of(root):
 
 
 def collect(candidates, parse, desc, batch=100):
-    papers, reviews, found, i = [], [], 0, 0
-    cands = shuffled(candidates)
-    for i in range(0, len(cands), batch):
-        for res in pmap(parse, cands[i : i + batch], desc):
+    candidates = shuffled(candidates)
+    papers, reviews = [], []
+    scanned = 0
+    found = 0
+    for start in range(0, len(candidates), batch):
+        chunk = candidates[start : start + batch]
+        scanned += len(chunk)
+        for res in pmap(parse, chunk, desc):
             if res is None:
                 continue
-            p, rs = res
-            rs = [r for r in rs if len(clean(r["text"])) >= MIN_CHARS]
-            papers.append(p)
-            reviews += rs
-            found += len(rs) >= 2
+            paper, paper_reviews = res
+            paper_reviews = [r for r in paper_reviews if len(clean(r["text"])) >= MIN_CHARS]
+            papers.append(paper)
+            reviews += paper_reviews
+            found += len(paper_reviews) >= MIN_REVIEWS
         if found >= MAX_PAPERS:
             break
-    print(desc, "scanned", min(len(cands), i + batch), "of", len(cands), "qualifying", found)
+    print(desc, "scanned", scanned, "of", len(candidates), "qualifying", found)
     return papers, reviews
 
 
@@ -205,16 +214,18 @@ def epmc_collect(source, journals, parse, extra=""):
     papers, reviews = [], []
     for y in YEARS:
         hits = epmc_search(f"({query}) AND PUB_YEAR:{y}{extra}", settings.RAW_JOURNAL_REVIEWS_DIR / source / f"search_{y}.json")
-        p, r = collect([h["pmcid"] for h in hits if h["pmcid"]], parse, f"{source} {y}")
-        papers += p
-        reviews += r
+        year_papers, year_reviews = collect([h["pmcid"] for h in hits if h["pmcid"]], parse, f"{source} {y}")
+        papers += year_papers
+        reviews += year_reviews
     return papers, reviews
 
 
+SCIPOST_RAW_DIR = settings.RAW_JOURNAL_REVIEWS_DIR / "scipost"
 SCIPOST_API = "https://scipost.org/api/submissions/"
 SCIPOST_PAGE = 100
 SCIPOST_SCALE = {"top": 6, "high": 5, "good": 4, "ok": 3, "low": 2, "poor": 1}
 SCIPOST_CRITERIA = ["validity", "significance", "originality", "clarity", "formatting", "grammar"]
+SCIPOST_RATED = SCIPOST_CRITERIA[:4]
 SCIPOST_FIELDS = [
     ("strengths", "STRENGTHS"),
     ("weaknesses", "WEAKNESSES"),
@@ -224,59 +235,52 @@ SCIPOST_FIELDS = [
 
 
 def scipost_page(offset):
-    raw = fetch(
-        f"{SCIPOST_API}?format=json&limit={SCIPOST_PAGE}&offset={offset}",
-        settings.RAW_JOURNAL_REVIEWS_DIR / "scipost" / f"page_{offset:06d}.json",
-    )
+    raw = fetch(f"{SCIPOST_API}?format=json&limit={SCIPOST_PAGE}&offset={offset}", SCIPOST_RAW_DIR / f"page_{offset:06d}.json")
     return json.loads(raw)["results"]
 
 
-def scipost(out=OUT):
-    count = json.loads(fetch(f"{SCIPOST_API}?format=json&limit=1", settings.RAW_JOURNAL_REVIEWS_DIR / "scipost" / "count.json"))[
-        "count"
-    ]
-    subs = [s for p in pmap(scipost_page, range(0, count, SCIPOST_PAGE), "scipost pages") for s in p]
+def scipost(out=settings.OTHER_REVIEWS_DIR):
+    count = json.loads(fetch(f"{SCIPOST_API}?format=json&limit=1", SCIPOST_RAW_DIR / "count.json"))["count"]
+    pages = pmap(scipost_page, range(0, count, SCIPOST_PAGE), "scipost pages")
+    submissions = [sub for page in pages for sub in page]
     reviews, papers = [], []
-    for s in subs:
-        if s["is_resubmission_of"]:
+    for sub in submissions:
+        if sub["is_resubmission_of"]:
             continue
-        pid = s["identifier"]
-        for r in s["reports"]:
-            if r["status"] != "vetted" or r["report_type"] != "report_normal":
+        pid = sub["identifier"]
+        venue = dict(conf="SciPost", field=(sub.get("acad_field") or "physics").lower(), journal=sub["submitted_to"])
+        for report in sub["reports"]:
+            if report["status"] != "vetted" or report["report_type"] != "report_normal":
                 continue
-            text = "\n\n".join(f"[{tag}] {clean(r[k])}" for k, tag in SCIPOST_FIELDS if clean(r.get(k)))
-            scores = [SCIPOST_SCALE[r[c]] for c in SCIPOST_CRITERIA[:4] if r.get(c) in SCIPOST_SCALE]
+            text = "\n\n".join(f"[{tag}] {clean(report[key])}" for key, tag in SCIPOST_FIELDS if clean(report.get(key)))
+            scores = [SCIPOST_SCALE[report[c]] for c in SCIPOST_RATED if report.get(c) in SCIPOST_SCALE]
+            rating = round(sum(scores) / len(scores)) if scores else None
+            rating_raw = ";".join(f"{c}={report[c]}" for c in SCIPOST_CRITERIA if report.get(c) not in (None, "", "-")) or None
             reviews.append(
                 dict(
-                    conf="SciPost",
-                    field=(s.get("acad_field") or "physics").lower(),
-                    journal=s["submitted_to"],
-                    year=int(s["submission_date"][:4]),
+                    venue,
+                    year=int(sub["submission_date"][:4]),
                     paper_id=pid,
-                    review_id=r["doi_string"] or f"{pid}#r{r['report_nr']}",
-                    reviewer=f"Reviewer {r['report_nr']}",
-                    rating=round(sum(scores) / len(scores)) if scores else None,
-                    rating_raw=";".join(f"{c}={r[c]}" for c in SCIPOST_CRITERIA if r.get(c) not in (None, "", "-")) or None,
+                    review_id=report["doi_string"] or f"{pid}#r{report['report_nr']}",
+                    reviewer=f"Reviewer {report['report_nr']}",
+                    rating=rating,
+                    rating_raw=rating_raw,
                     text=text,
-                    review_time=r["date_submitted"],
+                    review_time=report["date_submitted"],
                 )
             )
-        papers.append(
-            dict(
-                conf="SciPost",
-                field=(s.get("acad_field") or "physics").lower(),
-                journal=s["submitted_to"],
-                paper_id=pid,
-                title=s["title"],
-                licence="CC BY 4.0",
-            )
-        )
+        papers.append(dict(venue, paper_id=pid, title=sub["title"], licence="CC BY 4.0"))
     finalize("scipost", reviews, papers, out)
 
 
 F1000_JOURNALS = ["F1000Research", "Wellcome Open Research", "Open Research Europe"]
 F1000_ANSWER = re.compile(r"^(yes|no|partly|not applicable|i cannot comment.*|no source data required|n/?a)\.?$", re.I)
 F1000_TAIL = re.compile(r"^(i|we) (confirm that|have read this submission)", re.I)
+F1000_CONFIRMATION_LABELS = [
+    ("do not consider", "Not Approved"),
+    ("reservations", "Approved with Reservations"),
+    ("acceptable scientific standard", "Approved"),
+]
 
 
 def f1000_rating(label):
@@ -292,25 +296,52 @@ def f1000_rating(label):
 
 def f1000_report_text(body):
     for parent in list(body.iter()):
-        for ch in list(parent):
-            if ch.tag == "ref-list":
-                parent.remove(ch)
+        for child in list(parent):
+            if child.tag == "ref-list":
+                parent.remove(child)
     paras = [text_of(el) for el in body]
-    paras = paras[:-1] if paras and paras[-1] == "References" else paras
-    keep, i = [], 0
+    if paras and paras[-1] == "References":
+        paras = paras[:-1]
+    keep = []
+    i = 0
     while i < len(paras):
-        p = paras[i]
-        nxt = paras[i + 1] if i + 1 < len(paras) else ""
-        if p.endswith("?") and F1000_ANSWER.match(nxt):
+        para = paras[i]
+        next_para = paras[i + 1] if i + 1 < len(paras) else ""
+        if para.endswith("?") and F1000_ANSWER.match(next_para):
             i += 2
-        elif p.lower().startswith("reviewer expertise"):
-            i += 1 if p.rstrip(":").lower() != "reviewer expertise" else 2
-        elif F1000_TAIL.match(p):
+        elif para.lower().startswith("reviewer expertise"):
+            i += 2 if para.rstrip(":").lower() == "reviewer expertise" else 1
+        elif F1000_TAIL.match(para):
             i += 1
         else:
-            keep.append(p)
+            keep.append(para)
             i += 1
     return "\n\n".join(keep)
+
+
+def f1000_label(sa, body):
+    recommendations = (cm.findtext("meta-value") for cm in sa.iter("custom-meta") if cm.findtext("meta-name") == "recommendation")
+    label = next(recommendations, None)
+    if label is not None:
+        return label
+    notes = re.search(r"Recommendation:\s*([^.]+)", text_of(sa.find(".//notes")) or "")
+    if notes:
+        return notes.group(1)
+    if body is None:
+        return None
+    statement = re.search(r"I confirm that I have read this submission[^.]*", text_of(body))
+    confirmation = statement.group(0) if statement else ""
+    stated = next((name for phrase, name in F1000_CONFIRMATION_LABELS if phrase in confirmation), None)
+    return f"{stated} (from confirmation statement)" if stated else None
+
+
+def f1000_date(meta):
+    date = meta.find("pub-date")
+    if date is None:
+        return None
+    month = int(date.findtext("month") or 1)
+    day = int(date.findtext("day") or 1)
+    return f"{date.findtext('year')}-{month:02d}-{day:02d}"
 
 
 def f1000_parse(pmcid):
@@ -321,10 +352,9 @@ def f1000_parse(pmcid):
     doi = front.findtext("article-id[@pub-id-type='doi']") or pmcid
     pid = re.sub(r"\.\d+$", "", doi)
     journal = root.findtext("front/journal-meta/journal-title-group/journal-title")
+    venue = dict(conf="F1000", field="biomed", journal=journal)
     paper = dict(
-        conf="F1000",
-        field="biomed",
-        journal=journal,
+        venue,
         paper_id=pid,
         title=text_of(front.find("title-group/article-title")),
         licence=licence_of(root.find("front")),
@@ -334,40 +364,16 @@ def f1000_parse(pmcid):
         if sa.get("article-type") not in ("reviewer-report", "peer-review", "ref-report"):
             continue
         meta = sa.find("front-stub")
-        meta = meta if meta is not None else sa.find("front/article-meta")
+        if meta is None:
+            meta = sa.find("front/article-meta")
         if meta is None or not re.search(r"version 1\b", text_of(meta.find("title-group/article-title")), re.I):
             continue
-        label = next(
-            (cm.findtext("meta-value") for cm in sa.iter("custom-meta") if cm.findtext("meta-name") == "recommendation"), None
-        )
-        if label is None:
-            m = re.search(r"Recommendation:\s*([^.]+)", text_of(sa.find(".//notes")) or "")
-            label = m.group(1) if m else None
-        if label is None and sa.find("body") is not None:
-            m = re.search(r"I confirm that I have read this submission[^.]*", text_of(sa.find("body")))
-            s = m.group(0) if m else ""
-            label = (
-                "Not Approved"
-                if "do not consider" in s
-                else "Approved with Reservations"
-                if "reservations" in s
-                else "Approved"
-                if "acceptable scientific standard" in s
-                else None
-            )
-            label = f"{label} (from confirmation statement)" if label else None
-        d = meta.find("pub-date")
-        when = (
-            f"{d.findtext('year')}-{int(d.findtext('month') or 1):02d}-{int(d.findtext('day') or 1):02d}"
-            if d is not None
-            else None
-        )
         body = sa.find("body")
+        label = f1000_label(sa, body)
+        when = f1000_date(meta)
         reviews.append(
             dict(
-                conf="F1000",
-                field="biomed",
-                journal=journal,
+                venue,
                 year=int(when[:4]) if when else None,
                 paper_id=pid,
                 review_id=meta.findtext("article-id[@pub-id-type='doi']") or f"{pmcid}#{sa.get('id')}",
@@ -381,87 +387,82 @@ def f1000_parse(pmcid):
     return paper, reviews
 
 
-def f1000(out=OUT):
+def f1000(out=settings.OTHER_REVIEWS_DIR):
     papers, reviews = epmc_collect("f1000", F1000_JOURNALS, f1000_parse)
-    uniq = {}
+    by_review_id = {}
     for r in sorted(reviews, key=lambda r: (r["paper_id"], r["review_time"] or "", r["review_id"])):
-        uniq.setdefault(r["review_id"], r)
-    k = Counter()
-    for r in uniq.values():
-        k[r["paper_id"]] += 1
-        r["reviewer"] = f"Reviewer {k[r['paper_id']]}"
-    finalize("f1000", list(uniq.values()), papers, out)
+        by_review_id.setdefault(r["review_id"], r)
+    reviewers_seen = Counter()
+    for r in by_review_id.values():
+        reviewers_seen[r["paper_id"]] += 1
+        r["reviewer"] = f"Reviewer {reviewers_seen[r['paper_id']]}"
+    finalize("f1000", list(by_review_id.values()), papers, out)
 
 
 BMC_URL = "https://huggingface.co/datasets/JerMa88/BMC_Medicine_Peer_Reviews/resolve/main/train.parquet"
+BMC_VENUE = dict(conf="BMC-Med", field="medicine", journal="BMC Medicine")
+BMC_REVIEWER = re.compile(r"_R(\d+)\.pdf$")
+BMC_STOP_PHRASES = [
+    "Are the methods appropriate",
+    "Are you able to assess",
+    "Quality of written English",
+    "Declaration of competing",
+    "Level of interest",
+    "Statistical review",
+    "Statement on potential review bias",
+    "I agree to the open peer review",
+    "Reviewer Publication Consent",
+]
 
 
 def fuzzy(phrase):
-    return r"\s?".join(re.escape(c) if c not in " '" else (r"\s+" if c == " " else r"[’']") for c in phrase)
+    special = {" ": r"\s+", "'": r"[’']"}
+    return r"\s?".join(special.get(c, re.escape(c)) for c in phrase)
 
 
 BMC_START = re.compile(fuzzy("Reviewer's report") + r"\s?:", re.I)
-BMC_STOPS = re.compile(
-    "|".join(
-        fuzzy(s)
-        for s in [
-            "Are the methods appropriate",
-            "Are you able to assess",
-            "Quality of written English",
-            "Declaration of competing",
-            "Level of interest",
-            "Statistical review",
-            "Statement on potential review bias",
-            "I agree to the open peer review",
-            "Reviewer Publication Consent",
-        ]
-    )
-)
+BMC_STOPS = re.compile("|".join(fuzzy(phrase) for phrase in BMC_STOP_PHRASES))
 BMC_DATE = re.compile(r"Date\s?:\s*(\d{1,2}\s+\w{3}\s+\d{4})")
 BMC_TITLE = re.compile(r"Title\s?:\s*(.*?)\s*Version\s?:", re.S)
 
 
-def bmc_body(t):
-    m = BMC_START.search(t)
-    if not m:
+def bmc_body(text):
+    start = BMC_START.search(text)
+    if not start:
         return None
-    t = t[m.end() :]
-    s = BMC_STOPS.search(t)
-    return t[: s.start()] if s else t
+    text = text[start.end() :]
+    stop = BMC_STOPS.search(text)
+    return text[: stop.start()] if stop else text
 
 
-def bmc(out=OUT):
-    fetch(BMC_URL, settings.RAW_JOURNAL_REVIEWS_DIR / "bmc" / "train.parquet")
-    df = pd.read_parquet(
-        settings.RAW_JOURNAL_REVIEWS_DIR / "bmc" / "train.parquet", columns=["title", "review", "review_src", "year"]
-    )
+def bmc(out=settings.OTHER_REVIEWS_DIR):
+    raw = settings.RAW_JOURNAL_REVIEWS_DIR / "bmc" / "train.parquet"
+    fetch(BMC_URL, raw)
+    df = pd.read_parquet(raw, columns=["title", "review", "review_src", "year"])
     df = df[df.review_src.str.contains(r"_V0_R\d+\.pdf$")]
     reviews, papers = [], []
-    for r in df.itertuples():
-        doi = r.title.removeprefix("Review for ").strip()
-        n = re.search(r"_R(\d+)\.pdf$", r.review_src).group(1)
-        d = BMC_DATE.search(r.review)
-        title = BMC_TITLE.search(r.review)
+    for row in df.itertuples():
+        doi = row.title.removeprefix("Review for ").strip()
+        reviewer_no = BMC_REVIEWER.search(row.review_src).group(1)
+        date = BMC_DATE.search(row.review)
+        when = pd.to_datetime(date.group(1), format="%d %b %Y", errors="coerce") if date else None
+        title = BMC_TITLE.search(row.review)
         reviews.append(
             dict(
-                conf="BMC-Med",
-                field="medicine",
-                journal="BMC Medicine",
-                year=r.year,
+                BMC_VENUE,
+                year=row.year,
                 paper_id=doi,
-                review_id=r.review_src.removesuffix(".pdf"),
-                reviewer=f"Reviewer {n}",
+                review_id=row.review_src.removesuffix(".pdf"),
+                reviewer=f"Reviewer {reviewer_no}",
                 rating=None,
                 rating_raw=None,
-                text=bmc_body(r.review) or "",
-                review_time=pd.to_datetime(d.group(1), format="%d %b %Y", errors="coerce") if d else None,
+                text=bmc_body(row.review) or "",
+                review_time=when,
             )
         )
         papers.append(
             dict(
-                conf="BMC-Med",
-                field="medicine",
-                journal="BMC Medicine",
+                BMC_VENUE,
                 paper_id=doi,
                 title=re.sub(r"\s+", " ", title.group(1)) if title else None,
                 licence="CC BY 4.0",
@@ -510,40 +511,46 @@ PLOS_END = re.compile(
 )
 PLOS_REV = re.compile(r"Reviewer\s*#\s*(\d+)\s*:\s*")
 PLOS_ANS = re.compile(r"(Yes|No|Partly|N/A|I Don['’]t Know)[.\s]*", re.I)
+PLOS_MAX_ANSWER_CHARS = 20
+PLOS_QUESTION_NO = re.compile(r"(?:^|\n)(\d+)\.\s")
+PLOS_CONSENT_QUESTION = re.compile(r"identity to be public|option to publish", re.I)
 PLOS_SCORE = {"yes": 3, "partly": 2, "no": 1}
 PLOS_SKIPPED = Counter()
 MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
 
 
 def plos_letters(root):
-    out = []
+    letters = []
     for sa in root.iter("sub-article"):
         m = re.fullmatch(r"Decision Letter (\d+)", text_of(sa.find(".//article-title")))
         if m:
-            out.append((int(m.group(1)), sa))
-    return sorted(out, key=lambda t: t[0])
+            letters.append((int(m.group(1)), sa))
+    return sorted(letters, key=lambda t: t[0])
 
 
 def plos_split_letter(text):
-    m = PLOS_START.search(text)
-    text = text[m.start() :] if m else text
+    start = PLOS_START.search(text)
+    text = text[start.start() :] if start else text
     texts, answers = {}, {}
-    for k, block in enumerate(text.split(PLOS_SEP), 1):
+    for block_no, block in enumerate(text.split(PLOS_SEP), 1):
         parts = PLOS_REV.split(block)
-        header, entries = parts[0], list(zip(parts[1::2], parts[2::2]))
-        if not entries or re.search(r"identity to be public|option to publish", header, re.I):
+        header = parts[0]
+        entries = [(int(reviewer), entry) for reviewer, entry in zip(parts[1::2], parts[2::2])]
+        if not entries or PLOS_CONSENT_QUESTION.search(header):
             continue
-        if all(len(t.strip()) <= 20 for _, t in entries):
-            q = re.findall(r"(?:^|\n)(\d+)\.\s", header)
-            for n, t in entries:
-                a = PLOS_ANS.fullmatch(t.strip())
-                if a:
-                    answers.setdefault(int(n), {})[int(q[-1]) if q else k] = (a.group(1), "technically sound" in header.lower())
+        if all(len(entry.strip()) <= PLOS_MAX_ANSWER_CHARS for _, entry in entries):
+            numbers = PLOS_QUESTION_NO.findall(header)
+            question = int(numbers[-1]) if numbers else block_no
+            is_soundness_question = "technically sound" in header.lower()
+            for reviewer, entry in entries:
+                answer = PLOS_ANS.fullmatch(entry.strip())
+                if answer:
+                    answers.setdefault(reviewer, {})[question] = (answer.group(1), is_soundness_question)
             continue
-        for n, t in entries:
-            end = PLOS_END.search(t)
-            t = (t[: end.start()] if end else t).strip()
-            texts[int(n)] = (texts.get(int(n), "") + "\n\n" + t).strip()
+        for reviewer, entry in entries:
+            end = PLOS_END.search(entry)
+            entry = (entry[: end.start()] if end else entry).strip()
+            texts[reviewer] = (texts.get(reviewer, "") + "\n\n" + entry).strip()
     return texts, answers
 
 
@@ -554,61 +561,55 @@ def plos_parse(pmcid):
     if any(text_of(sa.find(".//article-title")) == "Author response to previous submission" for sa in root.iter("sub-article")):
         PLOS_SKIPPED["resubmission"] += 1
         return None
-    sa = next((sa for _, sa in plos_letters(root) if PLOS_REV.search(text_of(sa.find("body")))), None)
-    if sa is None:
+    letter = next((sa for _, sa in plos_letters(root) if PLOS_REV.search(text_of(sa.find("body")))), None)
+    if letter is None:
         return None
     meta = root.find("front/article-meta")
     doi = meta.findtext("article-id[@pub-id-type='doi']") or pmcid
     journal = root.findtext("front/journal-meta/journal-title-group/journal-title")
     field = "multidisciplinary" if journal and journal.upper() == "PLOS ONE" else "biomed"
-    body = sa.find("body")
+    venue = dict(conf="PLOS", field=field, journal=journal)
+    body = letter.find("body")
     paras = [re.sub(r"</?ctrl>", "", text_of(el)) for el in body]
-    date = next((text_of(el) for el in sa.iter("named-content") if el.get("content-type") == "letter-date"), None)
+    date = next((text_of(el) for el in letter.iter("named-content") if el.get("content-type") == "letter-date"), None)
     if not date:
-        m = re.match(r"\s*(\d{1,2} \w{3} \d{4})", paras[0] if paras else "")
-        rec = meta.find("history/date[@date-type='received']")
-        date = (
-            m.group(1)
-            if m
-            else (
-                f"{rec.findtext('day')} {MONTHS[int(rec.findtext('month')) - 1]} {rec.findtext('year')}"
-                if rec is not None
-                else None
-            )
-        )
+        opening = re.match(r"\s*(\d{1,2} \w{3} \d{4})", paras[0] if paras else "")
+        received = meta.find("history/date[@date-type='received']")
+        if opening:
+            date = opening.group(1)
+        elif received is not None:
+            date = f"{received.findtext('day')} {MONTHS[int(received.findtext('month')) - 1]} {received.findtext('year')}"
+        else:
+            date = None
     texts, answers = plos_split_letter("\n\n".join(paras))
     paper = dict(
-        conf="PLOS",
-        field=field,
-        journal=journal,
+        venue,
         paper_id=doi,
         title=text_of(meta.find("title-group/article-title")),
         licence=licence_of(root.find("front")),
         n_split=len(texts),
     )
     reviews = []
-    for n, t in sorted(texts.items()):
-        ans = answers.get(n, {})
-        sound = next((a for a, is_sound in ans.values() if is_sound), None)
+    for reviewer, text in sorted(texts.items()):
+        reviewer_answers = answers.get(reviewer, {})
+        soundness = next((a for a, is_soundness_question in reviewer_answers.values() if is_soundness_question), None)
         reviews.append(
             dict(
-                conf="PLOS",
-                field=field,
-                journal=journal,
+                venue,
                 year=None,
                 paper_id=doi,
-                review_id=f"{doi}.r001#R{n}",
-                reviewer=f"Reviewer {n}",
-                rating=PLOS_SCORE.get(sound.lower()) if sound else None,
-                rating_raw=";".join(f"Q{q}={a}" for q, (a, _) in sorted(ans.items())) or None,
-                text=t,
+                review_id=f"{doi}.r001#R{reviewer}",
+                reviewer=f"Reviewer {reviewer}",
+                rating=PLOS_SCORE.get(soundness.lower()) if soundness else None,
+                rating_raw=";".join(f"Q{q}={a}" for q, (a, _) in sorted(reviewer_answers.items())) or None,
+                text=text,
                 review_time=date,
             )
         )
     return paper, reviews
 
 
-def plos(out=OUT):
+def plos(out=settings.OTHER_REVIEWS_DIR):
     papers, reviews = epmc_collect("plos", PLOS_JOURNALS, plos_parse, extra=' AND "Decision Letter 0"')
     for r in reviews:
         r["review_time"] = pd.to_datetime(r["review_time"], format="%d %b %Y", errors="coerce")
@@ -617,65 +618,70 @@ def plos(out=OUT):
     finalize("plos", reviews, papers, out, stats=dict(PLOS_SKIPPED, letters=len(papers), letters_split_2plus=split2))
 
 
-COP = settings.RAW_JOURNAL_REVIEWS_DIR / "copernicus"
+COP_RAW_DIR = settings.RAW_JOURNAL_REVIEWS_DIR / "copernicus"
 COP_CROSSREF = "https://api.crossref.org/prefixes/10.5194/works"
 COP_SCORE = {"accept": 4, "minor-revision": 3, "major-revision": 2, "reject": 1}
 COP_SKIPPED = Counter()
 COP_PDF_JUNK = re.compile(
     r"^(C\d+|Interactive|comment|Interactive comment|Printer-friendly version|Discussion paper|Full screen / Esc)$"
 )
+COP_OVERSAMPLE = 1.2
+COP_MIN_HTML_CHARS = 300
+COP_NAMED_REFEREE_FIRST = 101
 
 
 def copernicus_cap(year):
     return 500 if year >= 2022 else 300
 
 
+def crossref_row(item):
+    return dict(
+        doi=item["DOI"].lower(),
+        created=item["created"]["date-time"],
+        url=item.get("resource", {}).get("primary", {}).get("URL"),
+        rec=item.get("review", {}).get("recommendation"),
+        kind=item.get("review", {}).get("type"),
+    )
+
+
 def crossref_index():
-    done = COP / "crossref" / "done.json"
+    folder = COP_RAW_DIR / "crossref"
+    done = folder / "done.json"
     if not done.exists():
-        cursor, n = "*", 0
+        cursor, pages = "*", 0
         with tqdm(desc="crossref pages", unit="page") as bar:
             while True:
                 r = session().get(
                     COP_CROSSREF,
                     params={"filter": "type:peer-review,from-created-date:2018-01-01", "rows": 1000, "cursor": cursor},
-                    timeout=120,
+                    timeout=TIMEOUT,
                 )
                 r.raise_for_status()
                 msg = r.json()["message"]
-                rows = [
-                    dict(
-                        doi=i["DOI"].lower(),
-                        created=i["created"]["date-time"],
-                        url=i.get("resource", {}).get("primary", {}).get("URL"),
-                        rec=i.get("review", {}).get("recommendation"),
-                        kind=i.get("review", {}).get("type"),
-                    )
-                    for i in msg["items"]
-                ]
-                (COP / "crossref").mkdir(parents=True, exist_ok=True)
-                (COP / "crossref" / f"page_{n:04d}.json").write_text(json.dumps(rows))
-                n += 1
+                rows = [crossref_row(item) for item in msg["items"]]
+                folder.mkdir(parents=True, exist_ok=True)
+                (folder / f"page_{pages:04d}.json").write_text(json.dumps(rows))
+                pages += 1
                 bar.update()
                 if not msg["items"] or not msg.get("next-cursor"):
                     break
                 cursor = msg["next-cursor"]
-        done.write_text(json.dumps(n))
-    rows = [r for p in sorted((COP / "crossref").glob("page_*.json")) for r in json.loads(p.read_text())]
+        done.write_text(json.dumps(pages))
+    rows = [r for page in sorted(folder.glob("page_*.json")) for r in json.loads(page.read_text())]
     return [r for r in rows if re.search(r"-rc\d+$", r["doi"])]
 
 
 def copernicus_page(url, ms):
-    html = fetch(url, COP / "html" / f"{ms}.html")
+    html = fetch(url, COP_RAW_DIR / "html" / f"{ms}.html")
     if html and b"http-equiv=refresh" in html[:2000]:
         target = re.search(rb'url=([^"\'>]+)', html).group(1).decode()
-        html = fetch(target, COP / "html" / f"{ms}.disc.html")
+        html = fetch(target, COP_RAW_DIR / "html" / f"{ms}.disc.html")
     return html.decode("utf-8", "replace") if html else None
 
 
 def copernicus_pdf_text(url, name):
     try:
-        raw = fetch(url, COP / "pdf" / name)
+        raw = fetch(url, COP_RAW_DIR / "pdf" / name)
     except Blocked, requests.ConnectionError:
         COP_SKIPPED["pdf fetch error"] += 1
         return ""
@@ -696,8 +702,8 @@ def copernicus_pdf_text(url, name):
 
 def copernicus_parse(item):
     ms, recs = item
-    m = re.match(rf"https?://[^/]+/preprints/(?:\d{{4}}/)?{re.escape(ms)}(?=[/#]|$)", recs[0]["url"] or "")
-    url = (m.group(0) if m else f"https://{ms.split('-')[0]}.copernicus.org/preprints/{ms}") + "/"
+    crossref_url = re.match(rf"https?://[^/]+/preprints/(?:\d{{4}}/)?{re.escape(ms)}(?=[/#]|$)", recs[0]["url"] or "")
+    url = (crossref_url.group(0) if crossref_url else f"https://{ms.split('-')[0]}.copernicus.org/preprints/{ms}") + "/"
     try:
         html = copernicus_page(url, ms)
     except Blocked:
@@ -710,43 +716,47 @@ def copernicus_parse(item):
         COP_SKIPPED["no page"] += 1
         return None
     soup = BeautifulSoup(html, "html.parser")
-    title = soup.title.get_text(" ", strip=True) if soup.title else ""
-    journal, _, title = title.partition(" - Peer review - ") if " - Peer review - " in title else title.partition(" - ")
+    page_title = soup.title.get_text(" ", strip=True) if soup.title else ""
+    sep = " - Peer review - " if " - Peer review - " in page_title else " - "
+    journal, _, title = page_title.partition(sep)
+    pid = f"10.5194/{ms}"
+    venue = dict(conf="Copernicus", field="geoscience", journal=journal.strip())
     by_rc = {r["doi"].rsplit("-", 1)[1].upper(): r for r in recs}
-    reviews, seen, names = [], set(), {}
+    reviews = []
+    seen = set()
+    names = {}
     for tag in soup.select("span.part-title strong"):
         rc = tag.get_text(strip=True)
         if not re.fullmatch(r"RC\d+", rc):
             continue
         content = tag.find_parent("span").find_next_sibling("span")
         head = clean(content.get_text(" ", strip=True)) if content else ""
-        m = re.search(r",\s*([^,]+?),\s*(\d{1,2} \w{3} \d{4})", head)
-        who, when = (m.group(1), m.group(2)) if m else ("?", None)
-        n = re.search(r"Referee #(\d+)", who)
-        label = f"Referee {n.group(1)}" if n else names.setdefault(who, f"Referee {len(names) + 101}")
+        byline = re.search(r",\s*([^,]+?),\s*(\d{1,2} \w{3} \d{4})", head)
+        who, when = byline.groups() if byline else ("?", None)
+        referee_no = re.search(r"Referee #(\d+)", who)
+        if referee_no:
+            label = f"Referee {referee_no.group(1)}"
+        else:
+            label = names.setdefault(who, f"Referee {len(names) + COP_NAMED_REFEREE_FIRST}")
         if label in seen:
             continue
         li = tag.find_parent("li")
         body = li.find("div", class_=re.compile(rf"\b{rc}\b")) if li else None
         text = body.get_text("\n", strip=True) if body else ""
         text = re.split(r"\n\s*Citation\s*:", text)[0]
-        pdfs = [
-            urljoin(url, a["href"].strip())
-            for a in (li.find_all("a", href=True) if li else [])
-            if re.search(rf"-{rc}(-supplement)?\.pdf$", a["href"].strip())
-        ]
-        if len(clean(text)) < 300 and pdfs:
-            text = (text + "\n\n" + "\n\n".join(copernicus_pdf_text(p, p.rsplit("/", 1)[1]) for p in pdfs)).strip()
+        hrefs = [a["href"].strip() for a in li.find_all("a", href=True)] if li else []
+        pdfs = [urljoin(url, href) for href in hrefs if re.search(rf"-{rc}(-supplement)?\.pdf$", href)]
+        if len(clean(text)) < COP_MIN_HTML_CHARS and pdfs:
+            pdf_texts = [copernicus_pdf_text(pdf, pdf.rsplit("/", 1)[1]) for pdf in pdfs]
+            text = (text + "\n\n" + "\n\n".join(pdf_texts)).strip()
         seen.add(label)
         rec = by_rc.get(rc, {})
         reviews.append(
             dict(
-                conf="Copernicus",
-                field="geoscience",
-                journal=journal.strip(),
+                venue,
                 year=int(rec.get("created", "0000")[:4]),
-                paper_id=f"10.5194/{ms}",
-                review_id=f"10.5194/{ms}-{rc.lower()}",
+                paper_id=pid,
+                review_id=f"{pid}-{rc.lower()}",
                 reviewer=label,
                 rating=COP_SCORE.get(rec.get("rec")),
                 rating_raw=rec.get("rec"),
@@ -754,34 +764,29 @@ def copernicus_parse(item):
                 review_time=str(datetime.strptime(when, "%d %b %Y").date()) if when else rec.get("created"),
             )
         )
-    paper = dict(
-        conf="Copernicus",
-        field="geoscience",
-        journal=journal.strip(),
-        paper_id=f"10.5194/{ms}",
-        title=title.strip(),
-        licence="CC BY 4.0",
-    )
-    return paper, reviews
+    return dict(venue, paper_id=pid, title=title.strip(), licence="CC BY 4.0"), reviews
 
 
-def copernicus(out=OUT):
+def copernicus(out=settings.OTHER_REVIEWS_DIR):
     by_ms = defaultdict(list)
     for r in crossref_index():
-        by_ms[r["doi"].removeprefix("10.5194/").rsplit("-", 1)[0]].append(r)
+        ms = r["doi"].removeprefix("10.5194/").rsplit("-", 1)[0]
+        by_ms[ms].append(r)
     by_year = defaultdict(list)
     for ms, recs in by_ms.items():
-        if len(recs) >= 2:
+        if len(recs) >= MIN_REVIEWS:
             by_year[int(min(r["created"] for r in recs)[:4])].append(ms)
     papers, reviews = [], []
     for y in YEARS:
-        cands = shuffled(by_year.get(y, []))[: int(copernicus_cap(y) * 1.2)]
-        print("copernicus", y, "candidates with 2+ RC", len(by_year.get(y, [])), "fetching", len(cands))
-        items = [(ms, sorted(by_ms[ms], key=lambda r: r["created"])) for ms in cands]
+        year_ms = by_year.get(y, [])
+        candidates = shuffled(year_ms)[: int(copernicus_cap(y) * COP_OVERSAMPLE)]
+        print("copernicus", y, "candidates with 2+ RC", len(year_ms), "fetching", len(candidates))
+        items = [(ms, sorted(by_ms[ms], key=lambda r: r["created"])) for ms in candidates]
         for res in pmap(copernicus_parse, items, f"copernicus {y}", workers=2):
             if res:
-                papers.append(res[0])
-                reviews += res[1]
+                paper, paper_reviews = res
+                papers.append(paper)
+                reviews += paper_reviews
     print("skipped papers:", dict(COP_SKIPPED))
     finalize("copernicus", reviews, papers, out, max_papers=copernicus_cap, stats=dict(COP_SKIPPED))
 
@@ -809,7 +814,7 @@ ICML_FIELDS = {
 }
 
 
-def val(content, key):
+def value_of(content, key):
     v = content.get(key)
     return v.get("value") if isinstance(v, dict) else v
 
@@ -818,7 +823,7 @@ def icml_download(year, raw):
     import openreview
 
     client = openreview.api.OpenReviewClient(
-        baseurl="https://api2.openreview.net", username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD
+        baseurl=OPENREVIEW_API, username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD
     )
     notes = client.get_all_notes(content={"venueid": f"ICML.cc/{year}/Conference"}, details="replies")
     with open(raw, "w") as f:
@@ -830,24 +835,26 @@ def icml_reviews(year, raw):
     rows = []
     with open(raw) as f:
         for line in tqdm(f, desc=f"icml {year} submissions"):
-            s = json.loads(line)
-            for r in s["replies"]:
-                if not any(inv.endswith("/Official_Review") for inv in r.get("invitations", [])):
+            sub = json.loads(line)
+            for reply in sub["replies"]:
+                if not any(inv.endswith("/Official_Review") for inv in reply.get("invitations", [])):
                     continue
-                c = r["content"]
-                text = "\n\n".join(f"[{tag}]\n{val(c, k)}" for k, tag in ICML_FIELDS[year] if val(c, k))
+                content = reply["content"]
+                text = "\n\n".join(
+                    f"[{tag}]\n{value_of(content, key)}" for key, tag in ICML_FIELDS[year] if value_of(content, key)
+                )
                 rows.append(
                     dict(
                         conf="ICML",
                         year=year,
-                        paper_id=s["id"],
-                        review_id=r["id"],
+                        paper_id=sub["id"],
+                        review_id=reply["id"],
                         text=text,
-                        rating=val(c, "overall_recommendation"),
-                        confidence=val(c, "confidence"),
-                        primary_area=val(s["content"], "primary_area"),
-                        review_time=r.get("cdate"),
-                        modified_time=r.get("mdate"),
+                        rating=value_of(content, "overall_recommendation"),
+                        confidence=value_of(content, "confidence"),
+                        primary_area=value_of(sub["content"], "primary_area"),
+                        review_time=reply.get("cdate"),
+                        modified_time=reply.get("mdate"),
                     )
                 )
     return pd.DataFrame(rows)
