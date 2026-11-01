@@ -20,13 +20,40 @@ from settings import settings
 
 PANEL_FILES = ["panels.jsonl", "panels_icml.jsonl", "panels_other.jsonl"]
 SOURCES = {"_icml": ("icml_sample.parquet", []), "_other": ("other_reviews.parquet", ["field", "journal"])}
-MARKERS = ["commendable", "meticulous", "intricate", "delve", "showcas", "noteworthy", "underscore", "pivotal",
-           "seamless", "invaluable", "notably", "realm", "comprehensive", "crucial", "robust", "leverag", "nuanced",
-           "multifaceted", "paramount", "elucidat", "garner", "tapestry", "landscape", "holistic", "valuable insights"]
+MARKERS = [
+    "commendable",
+    "meticulous",
+    "intricate",
+    "delve",
+    "showcas",
+    "noteworthy",
+    "underscore",
+    "pivotal",
+    "seamless",
+    "invaluable",
+    "notably",
+    "realm",
+    "comprehensive",
+    "crucial",
+    "robust",
+    "leverag",
+    "nuanced",
+    "multifaceted",
+    "paramount",
+    "elucidat",
+    "garner",
+    "tapestry",
+    "landscape",
+    "holistic",
+    "valuable insights",
+]
 MARKER_RX = re.compile(r"\b(" + "|".join(MARKERS) + ")", re.IGNORECASE)
-EDIT_RX = re.compile(r"(after|post)[- ]?(the )?(rebuttal|discussion|response)|concerns? (have been|were|was|are) (addressed|resolved)"
-                     r"|thank(s| you)[^.]{0,40}(response|rebuttal|clarification)|(rais|updat|increas|lower|revis)(e|ed|ing) (my|the) (score|rating|review)"
-                     r"|\[?(update|revision|edit)d?[:\]]", re.IGNORECASE)
+EDIT_RX = re.compile(
+    r"(after|post)[- ]?(the )?(rebuttal|discussion|response)|concerns? (have been|were|was|are) (addressed|resolved)"
+    r"|thank(s| you)[^.]{0,40}(response|rebuttal|clarification)|(rais|updat|increas|lower|revis)(e|ed|ing) (my|the) (score|rating|review)"
+    r"|\[?(update|revision|edit)d?[:\]]",
+    re.IGNORECASE,
+)
 
 
 def load_claims(path):
@@ -75,11 +102,16 @@ def review_rows(df, review_ids, paper):
     df["shared_lenient"] = df.target.map(t_reviewers).ge(2)
     for j, rid in enumerate(review_ids):
         g = df[df.review == j]
-        yield dict(review_id=rid, paper_id=paper, n_claims=len(g),
-                   share_shared=g.shared.mean() if len(g) else np.nan,
-                   share_shared_lenient=g.shared_lenient.mean() if len(g) else np.nan,
-                   n_unique=int((~g.shared).sum()), share_specific=g.specific.mean() if len(g) else np.nan,
-                   **{f"cat_{c}": float((g.category == c).mean()) if len(g) else np.nan for c in CATEGORIES})
+        yield dict(
+            review_id=rid,
+            paper_id=paper,
+            n_claims=len(g),
+            share_shared=g.shared.mean() if len(g) else np.nan,
+            share_shared_lenient=g.shared_lenient.mean() if len(g) else np.nan,
+            n_unique=int((~g.shared).sum()),
+            share_specific=g.specific.mean() if len(g) else np.nan,
+            **{f"cat_{c}": float((g.category == c).mean()) if len(g) else np.nan for c in CATEGORIES},
+        )
 
 
 def ml_panels(model, tag, data, out):
@@ -96,10 +128,16 @@ def ml_panels(model, tag, data, out):
         df = assign(p, claims)
         m = panel_metrics(df)
         rv = rmeta.reindex(p["review_ids"])
-        m.update(panel_id=pid, total_chars=float(rv.chars.sum()), rating_mean=rv.rating.mean(),
-                 rating_sd=rv.rating.std(ddof=0), confidence_mean=rv.confidence.mean(),
-                 n_marker_reviews=int(rv.any_marker.fillna(False).sum()),
-                 n_rebuttal_text=int(rv.rebuttal_text.fillna(False).sum()), n_edited=int(rv.edited.fillna(False).sum()))
+        m.update(
+            panel_id=pid,
+            total_chars=float(rv.chars.sum()),
+            rating_mean=rv.rating.mean(),
+            rating_sd=rv.rating.std(ddof=0),
+            confidence_mean=rv.confidence.mean(),
+            n_marker_reviews=int(rv.any_marker.fillna(False).sum()),
+            n_rebuttal_text=int(rv.rebuttal_text.fillna(False).sum()),
+            n_edited=int(rv.edited.fillna(False).sum()),
+        )
         if kind == "placebo":
             _, conf, year, _ = pid.split("_")
             m.update(conf=conf, year=int(year), placebo_kind="same_area3" if pid.startswith("placeboA_") else "shuffled4")
@@ -130,8 +168,14 @@ def source_panels(model, tag, data, out):
             continue
         m = panel_metrics(df, ks=(2,))
         first = meta.loc[p["review_ids"][0]]
-        m.update(panel_id=pid, placebo=pid.startswith("otherplacebo_"), conf=first.conf, year=int(first.year),
-                 rating_sd=meta.rating.reindex(p["review_ids"]).std(ddof=0), **first[extra].to_dict())
+        m.update(
+            panel_id=pid,
+            placebo=pid.startswith("otherplacebo_"),
+            conf=first.conf,
+            year=int(first.year),
+            rating_sd=meta.rating.reindex(p["review_ids"]).std(ddof=0),
+            **first[extra].to_dict(),
+        )
         rows.append(m)
     out_table = pd.DataFrame(rows)
     out_table.to_parquet(out / f"{tag[1:]}_panel_outcomes_{model}.parquet")
@@ -153,8 +197,12 @@ def panel_pairs(df, review_ids):
         if ga.empty or gb.empty:
             continue
         sa, sb = ga[ga.specific.astype(bool)], gb[gb.specific.astype(bool)]
-        yield dict(a=review_ids[a], b=review_ids[b], hit=hit(ga.cluster.to_numpy(), gb.cluster.to_numpy()),
-                   hit_spec=hit(sa.cluster.to_numpy(), sb.cluster.to_numpy()) if len(sa) and len(sb) else np.nan)
+        yield dict(
+            a=review_ids[a],
+            b=review_ids[b],
+            hit=hit(ga.cluster.to_numpy(), gb.cluster.to_numpy()),
+            hit_spec=hit(sa.cluster.to_numpy(), sb.cluster.to_numpy()) if len(sa) and len(sb) else np.nan,
+        )
 
 
 def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
@@ -249,15 +297,22 @@ def standardize(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=N
     print(T.round(2).to_string(index=False))
 
 
-ICLR_SUBMITTED = {2017: 490, 2018: 1018, 2019: 1579, 2020: 2594, 2021: 3014, 2022: 3422, 2023: 4955, 2024: 7404,
-                  2025: 11672}
+ICLR_SUBMITTED = {2017: 490, 2018: 1018, 2019: 1579, 2020: 2594, 2021: 3014, 2022: 3422, 2023: 4955, 2024: 7404, 2025: 11672}
 ICLR_WITHDRAWN = {2017: 0, 2018: 83, 2019: 160, 2020: 369, 2021: 403, 2022: 779, 2023: 1145, 2024: 1661, 2025: 2991}
 
 
-def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DATA_DIR), out=str(settings.REPORTS_DIR / "match_std_withdrawals.csv")):
+def withdrawals(
+    model=settings.DEFAULT_MODEL,
+    target=0.23,
+    data=str(settings.DATA_DIR),
+    out=str(settings.REPORTS_DIR / "match_std_withdrawals.csv"),
+):
     data = Path(data)
-    R = pd.read_parquet(data / "reviews.parquet", columns=["paper_id", "review_id", "rating", "year", "withdrawn"],
-                        filters=[("conf", "==", "ICLR")])
+    R = pd.read_parquet(
+        data / "reviews.parquet",
+        columns=["paper_id", "review_id", "rating", "year", "withdrawn"],
+        filters=[("conf", "==", "ICLR")],
+    )
     m = R.groupby("paper_id").agg(year=("year", "first"), rating=("rating", "mean"), withdrawn=("withdrawn", "first"))
     m["pct"] = m.groupby("year").rating.rank(pct=True)
     decile = np.minimum((m.pct * 10).astype(int), 9)
@@ -273,8 +328,7 @@ def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DAT
     paper = R.set_index("review_id").paper_id.reindex(P.a).to_numpy()
     P["pct"], P["weight"] = m.pct.reindex(paper).to_numpy(), m.weight.reindex(paper).to_numpy()
     P["keep"] = P.pct > m.extra.reindex(paper).to_numpy()
-    rows = {"as published": year_rates(P), "weight": year_rates(P, P.weight.to_numpy()),
-            "drop": year_rates(P[P.keep])}
+    rows = {"as published": year_rates(P), "weight": year_rates(P, P.weight.to_numpy()), "drop": year_rates(P[P.keep])}
     T = pd.DataFrame({k: {y: v[0] for y, v in r.items()} for k, r in rows.items()})
     T = T.join(pd.DataFrame({f"{k}_se": {y: v[1] for y, v in r.items()} for k, r in rows.items()}))
     T["withdrawn_share"] = pd.Series(share)
@@ -287,8 +341,12 @@ def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DAT
     rated = R[~R.withdrawn & R.rating.notna()]
     T["rating_icc"] = rated.groupby("year")[["paper_id", "rating"]].apply(icc)
     pm = P.groupby(["year", "panel_id"]).agg(hit=("hit", "mean"), pct=("pct", "first")).reset_index()
-    q = pm.groupby(["year", pd.cut(pm.pct, [0, .2, .4, .6, .8, 1], labels=[f"q{i}" for i in range(1, 6)])],
-                   observed=True).hit.mean().unstack().mul(100)
+    q = (
+        pm.groupby(["year", pd.cut(pm.pct, [0, 0.2, 0.4, 0.6, 0.8, 1], labels=[f"q{i}" for i in range(1, 6)])], observed=True)
+        .hit.mean()
+        .unstack()
+        .mul(100)
+    )
     T = T.join(q.add_prefix("raw_rating_"))
     T.index.name = "year"
     T.to_csv(out)

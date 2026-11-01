@@ -84,8 +84,10 @@ def panel_metrics(df, ks=(1, 2, 3, 4)):
     t_reviewers = df.groupby("target").review.nunique()
     weights = reviewers / reviewers.sum()
     m.update(
-        n_clusters=int(reviewers.size), n_targets=int(t_reviewers.size),
-        n_shared_clusters=int((reviewers >= 2).sum()), n_shared_targets=int((t_reviewers >= 2).sum()),
+        n_clusters=int(reviewers.size),
+        n_targets=int(t_reviewers.size),
+        n_shared_clusters=int((reviewers >= 2).sum()),
+        n_shared_targets=int((t_reviewers >= 2).sum()),
         share_shared_claims=float(df.cluster.map(reviewers).ge(2).mean()),
         share_shared_claims_lenient=float(df.target.map(t_reviewers).ge(2).mean()),
         share_unique_clusters=float((reviewers == 1).mean()),
@@ -113,4 +115,3 @@ def _variant(df, suffix):
     reviewers = df.groupby("cluster").review.nunique()
     d, sh, _ = rarefy(df, "cluster", (3,))[3]
     return {f"S3_{suffix}": sh, f"D3_{suffix}": d, f"share_shared_claims_{suffix}": float(df.cluster.map(reviewers).ge(2).mean())}
-

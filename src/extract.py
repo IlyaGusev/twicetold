@@ -14,14 +14,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from prompts import render
 from settings import settings
 
-PAPER_KIND = {"ml": ("machine-learning conference paper", "machine-learning paper"),
-              "general": ("scientific paper submitted to a journal", "scientific paper")}
+PAPER_KIND = {
+    "ml": ("machine-learning conference paper", "machine-learning paper"),
+    "general": ("scientific paper submitted to a journal", "scientific paper"),
+}
 
 CATEGORIES = [
-    "novelty", "baselines/comparisons", "ablation", "experiments-scope", "statistical-rigor",
-    "theory/correctness", "assumptions", "unsupported-claim", "weak-results", "clarity/presentation",
-    "related-work", "reproducibility/details", "compute-cost/scalability", "generalization",
-    "limitations/societal", "typo/formatting", "other",
+    "novelty",
+    "baselines/comparisons",
+    "ablation",
+    "experiments-scope",
+    "statistical-rigor",
+    "theory/correctness",
+    "assumptions",
+    "unsupported-claim",
+    "weak-results",
+    "clarity/presentation",
+    "related-work",
+    "reproducibility/details",
+    "compute-cost/scalability",
+    "generalization",
+    "limitations/societal",
+    "typo/formatting",
+    "other",
 ]
 TARGETS = ["method", "theory", "experiments", "results", "claims", "related-work", "presentation", "other"]
 
@@ -31,16 +46,25 @@ def pass1_instructions(paper_kind="ml"):
 
 
 PASS1_SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["claims"],
-    "properties": {"claims": {"type": "array", "items": {
-        "type": "object", "additionalProperties": False,
-        "required": ["claim", "category", "target", "specific"],
-        "properties": {
-            "claim": {"type": "string"},
-            "category": {"type": "string", "enum": CATEGORIES},
-            "target": {"type": "string", "enum": TARGETS},
-            "specific": {"type": "boolean"},
-        }}}},
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["claims"],
+    "properties": {
+        "claims": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["claim", "category", "target", "specific"],
+                "properties": {
+                    "claim": {"type": "string"},
+                    "category": {"type": "string", "enum": CATEGORIES},
+                    "target": {"type": "string", "enum": TARGETS},
+                    "specific": {"type": "boolean"},
+                },
+            },
+        }
+    },
 }
 
 
@@ -49,19 +73,33 @@ def pass2_instructions(paper_kind="ml", different=False):
 
 
 PASS2_SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["targets", "clusters"],
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["targets", "clusters"],
     "properties": {
-        "targets": {"type": "array", "items": {
-            "type": "object", "additionalProperties": False, "required": ["target_id", "element"],
-            "properties": {"target_id": {"type": "integer"}, "element": {"type": "string"}}}},
-        "clusters": {"type": "array", "items": {
-            "type": "object", "additionalProperties": False,
-            "required": ["target_id", "problem", "claim_ids"],
-            "properties": {
-                "target_id": {"type": "integer"},
-                "problem": {"type": "string"},
-                "claim_ids": {"type": "array", "items": {"type": "string"}},
-            }}}},
+        "targets": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["target_id", "element"],
+                "properties": {"target_id": {"type": "integer"}, "element": {"type": "string"}},
+            },
+        },
+        "clusters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["target_id", "problem", "claim_ids"],
+                "properties": {
+                    "target_id": {"type": "integer"},
+                    "problem": {"type": "string"},
+                    "claim_ids": {"type": "array", "items": {"type": "string"}},
+                },
+            },
+        },
+    },
 }
 
 _client = None
@@ -85,8 +123,9 @@ def openrouter_client():
     if _openrouter is None:
         from openai import OpenAI
 
-        _openrouter = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=settings.OPENROUTER_API_KEY,
-                             max_retries=6, timeout=180)
+        _openrouter = OpenAI(
+            base_url="https://openrouter.ai/api/v1", api_key=settings.OPENROUTER_API_KEY, max_retries=6, timeout=180
+        )
     return _openrouter
 
 
@@ -98,11 +137,13 @@ def openrouter_call(instructions, text, schema, name, model, effort):
     else:
         fmt = {"type": "json_object"}
         instructions += f"\n\nReturn one JSON object that follows this JSON schema exactly:\n{json.dumps(schema)}"
-    for temperature in ((None,) if spec.strict else (0.0, 0.8, 0.8, 0.8)):
+    for temperature in (None,) if spec.strict else (0.0, 0.8, 0.8, 0.8):
         r = openrouter_client().chat.completions.create(
-            model=spec.id, **({} if temperature is None else {"temperature": temperature}),
+            model=spec.id,
+            **({} if temperature is None else {"temperature": temperature}),
             messages=[{"role": "system", "content": instructions}, {"role": "user", "content": text}],
-            response_format=fmt, extra_body={"reasoning": {"effort": effort}, "provider": provider},
+            response_format=fmt,
+            extra_body={"reasoning": {"effort": effort}, "provider": provider},
         )
         record(model, r.usage.prompt_tokens, r.usage.completion_tokens)
         try:
@@ -126,8 +167,11 @@ def conforms(x, s):
         return x in s["enum"]
     t = s["type"]
     if t == "object":
-        return isinstance(x, dict) and all(k in x for k in s.get("required", [])) and \
-            all(k in s["properties"] and conforms(v, s["properties"][k]) for k, v in x.items())
+        return (
+            isinstance(x, dict)
+            and all(k in x for k in s.get("required", []))
+            and all(k in s["properties"] and conforms(v, s["properties"][k]) for k, v in x.items())
+        )
     if t == "array":
         return isinstance(x, list) and all(conforms(v, s["items"]) for v in x)
     return isinstance(x, {"string": str, "integer": int, "boolean": bool}[t]) and not (t == "integer" and isinstance(x, bool))
@@ -159,12 +203,17 @@ def local_call(instructions, text, schema, max_tokens, model, local_model_path):
             _llm = Llama(model_path=local_model_path, n_ctx=8192, n_threads=os.cpu_count(), verbose=False)
         r = _llm.create_chat_completion(
             messages=[{"role": "system", "content": instructions}, {"role": "user", "content": text}],
-            response_format={"type": "json_object", "schema": schema}, temperature=0.0, max_tokens=max_tokens)
+            response_format={"type": "json_object", "schema": schema},
+            temperature=0.0,
+            max_tokens=max_tokens,
+        )
     record(model, r["usage"]["prompt_tokens"], r["usage"]["completion_tokens"])
     return json.loads(r["choices"][0]["message"]["content"])
 
 
-def call(instructions, text, schema, name, model=settings.DEFAULT_MODEL, effort=settings.PASS1_REASONING_EFFORT, local_model_path=None):
+def call(
+    instructions, text, schema, name, model=settings.DEFAULT_MODEL, effort=settings.PASS1_REASONING_EFFORT, local_model_path=None
+):
     if local_model_path:
         try:
             return local_call(instructions, text, schema, 1200 if name == "claims" else 2500, model, local_model_path)
@@ -175,7 +224,10 @@ def call(instructions, text, schema, name, model=settings.DEFAULT_MODEL, effort=
             if model in settings.OPENROUTER_ROUTES:
                 return openrouter_call(instructions, text, schema, name, model, effort)
             resp = client().responses.create(
-                model=model, instructions=instructions, input=text, reasoning={"effort": effort},
+                model=model,
+                instructions=instructions,
+                input=text,
+                reasoning={"effort": effort},
                 text={"format": {"type": "json_schema", "name": name, "schema": schema, "strict": True}},
             )
             record(model, resp.usage.input_tokens, resp.usage.output_tokens)
@@ -218,22 +270,33 @@ def run(items, worker, out_path, key, model, threads, budget, local_model_path):
     if cost() > budget:
         print("budget cap reached", flush=True)
     s = spent.get(model, {"in": 0, "out": 0, "calls": 0})
-    print(f"finished: {s['calls']} calls, {s['in']/1e6:.2f}M in, {s['out']/1e6:.2f}M out, ${cost():.2f}", flush=True)
+    print(f"finished: {s['calls']} calls, {s['in'] / 1e6:.2f}M in, {s['out'] / 1e6:.2f}M out, ${cost():.2f}", flush=True)
 
 
 def pass1_worker(item, model, instructions, local_model_path, effort):
-    out = call(instructions, item["text"][:settings.REVIEW_TEXT_MAX_CHARS], PASS1_SCHEMA, "claims", model=model, effort=effort,
-               local_model_path=local_model_path)
+    out = call(
+        instructions,
+        item["text"][: settings.REVIEW_TEXT_MAX_CHARS],
+        PASS1_SCHEMA,
+        "claims",
+        model=model,
+        effort=effort,
+        local_model_path=local_model_path,
+    )
     return dict(review_id=item["review_id"], model=model, **out)
 
 
 def pass2_worker(item, model, instructions, local_model_path, effort):
-    lines = [f"R{j}-{k} [{c['category']}; {c['target']}]: {c['claim']}"
-             for j, claims in enumerate(item["claims"]) for k, c in enumerate(claims)]
+    lines = [
+        f"R{j}-{k} [{c['category']}; {c['target']}]: {c['claim']}"
+        for j, claims in enumerate(item["claims"])
+        for k, c in enumerate(claims)
+    ]
     if not lines:
         return dict(panel_id=item["panel_id"], model=model, review_ids=item["review_ids"], clusters=[])
-    out = call(instructions, "\n".join(lines), PASS2_SCHEMA, "clusters", model=model, effort=effort,
-               local_model_path=local_model_path)
+    out = call(
+        instructions, "\n".join(lines), PASS2_SCHEMA, "clusters", model=model, effort=effort, local_model_path=local_model_path
+    )
     return dict(panel_id=item["panel_id"], model=model, review_ids=item["review_ids"], **out)
 
 
@@ -246,18 +309,39 @@ def load_claims(path):
     return claims
 
 
-def pass1(reviews, model=settings.DEFAULT_MODEL, tag="", threads=48, budget=60.0, paper_kind="ml", local_model_path=None,
-          data=str(settings.DATA_DIR), effort=settings.PASS1_REASONING_EFFORT):
+def pass1(
+    reviews,
+    model=settings.DEFAULT_MODEL,
+    tag="",
+    threads=48,
+    budget=60.0,
+    paper_kind="ml",
+    local_model_path=None,
+    data=str(settings.DATA_DIR),
+    effort=settings.PASS1_REASONING_EFFORT,
+):
     import pandas as pd
 
     items = pd.read_parquet(reviews, columns=["review_id", "text"]).to_dict("records")
-    worker = partial(pass1_worker, model=model, instructions=pass1_instructions(paper_kind),
-                     local_model_path=local_model_path, effort=effort)
+    worker = partial(
+        pass1_worker, model=model, instructions=pass1_instructions(paper_kind), local_model_path=local_model_path, effort=effort
+    )
     run(items, worker, Path(data) / f"claims_{model}{tag}.jsonl", "review_id", model, threads, budget, local_model_path)
 
 
-def pass2(panels, model=settings.DEFAULT_MODEL, tag="", threads=48, budget=60.0, paper_kind="ml", local_model_path=None,
-          claims_files=None, effort=settings.PASS2_REASONING_EFFORT, data=str(settings.DATA_DIR), different=False):
+def pass2(
+    panels,
+    model=settings.DEFAULT_MODEL,
+    tag="",
+    threads=48,
+    budget=60.0,
+    paper_kind="ml",
+    local_model_path=None,
+    claims_files=None,
+    effort=settings.PASS2_REASONING_EFFORT,
+    data=str(settings.DATA_DIR),
+    different=False,
+):
     if claims_files is None:
         claims_files = f"claims_{model}{tag}.jsonl"
     if isinstance(claims_files, str):
@@ -266,12 +350,20 @@ def pass2(panels, model=settings.DEFAULT_MODEL, tag="", threads=48, budget=60.0,
     for name in claims_files:
         claims.update(load_claims(Path(data) / name))
     panels = [json.loads(line) for line in open(panels)]
-    items = [dict(panel_id=p["panel_id"], review_ids=p["review_ids"], claims=[claims[r] for r in p["review_ids"]])
-             for p in panels if all(r in claims for r in p["review_ids"])]
+    items = [
+        dict(panel_id=p["panel_id"], review_ids=p["review_ids"], claims=[claims[r] for r in p["review_ids"]])
+        for p in panels
+        if all(r in claims for r in p["review_ids"])
+    ]
     if len(items) < len(panels):
         print(f"{len(panels) - len(items)} panels skipped: a review has no claims (pass-1 error or not run)", flush=True)
-    worker = partial(pass2_worker, model=model, instructions=pass2_instructions(paper_kind, different),
-                     local_model_path=local_model_path, effort=effort)
+    worker = partial(
+        pass2_worker,
+        model=model,
+        instructions=pass2_instructions(paper_kind, different),
+        local_model_path=local_model_path,
+        effort=effort,
+    )
     run(items, worker, Path(data) / f"clusters_{model}{tag}.jsonl", "panel_id", model, threads, budget, local_model_path)
 
 

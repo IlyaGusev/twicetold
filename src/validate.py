@@ -1,6 +1,6 @@
 import json
-from itertools import combinations
 import sys
+from itertools import combinations
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -16,11 +16,32 @@ from settings import settings
 BLIND_YEARS = [2018, 2022, 2024, 2026]
 BLIND_PER_YEAR = 10
 PAIRS_PER_STRATUM = 100
-BLIND_OUTCOMES = ["n_claims", "n_clusters", "n_targets", "n_shared_clusters", "share_shared_claims",
-                  "share_shared_claims_lenient", "D3", "S3", "U3", "T3", "pair_rate_strict", "hit_rate_strict",
-                  "share_specific", "hill_shannon"]
-VARIANT_COLS = ["S3", "D3", "U3", "share_shared_claims", "hit_rate_strict", "pair_rate_strict", "share_specific",
-                "claims_per_review"]
+BLIND_OUTCOMES = [
+    "n_claims",
+    "n_clusters",
+    "n_targets",
+    "n_shared_clusters",
+    "share_shared_claims",
+    "share_shared_claims_lenient",
+    "D3",
+    "S3",
+    "U3",
+    "T3",
+    "pair_rate_strict",
+    "hit_rate_strict",
+    "share_specific",
+    "hill_shannon",
+]
+VARIANT_COLS = [
+    "S3",
+    "D3",
+    "U3",
+    "share_shared_claims",
+    "hit_rate_strict",
+    "pair_rate_strict",
+    "share_specific",
+    "claims_per_review",
+]
 
 
 def read_jsonl(path):
@@ -34,7 +55,9 @@ def write_jsonl(path, items):
 
 
 def load_flags(data):
-    return pd.read_parquet(Path(data) / "detector_scores.parquet", columns=["review_id", "llm_flag"]).set_index("review_id").llm_flag
+    return (
+        pd.read_parquet(Path(data) / "detector_scores.parquet", columns=["review_id", "llm_flag"]).set_index("review_id").llm_flag
+    )
 
 
 def review_texts(data):
@@ -121,8 +144,21 @@ def pairs_set(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
                     continue
                 fa, fb = bool(flag.get(x.review_id, False)), bool(flag.get(y.review_id, False))
                 key = period if period == "pre" else ("post_flag" if fa or fb else "post_noflag")
-                pools[(key, s)].append({"paper_id": pid, "year": year, "stratum": s, "a_review": x.review_id, "b_review": y.review_id,
-                                        "a_flag": fa, "b_flag": fb, "a_claim": x.claim, "b_claim": y.claim, "a_cat": x.category, "b_cat": y.category})
+                pools[(key, s)].append(
+                    {
+                        "paper_id": pid,
+                        "year": year,
+                        "stratum": s,
+                        "a_review": x.review_id,
+                        "b_review": y.review_id,
+                        "a_flag": fa,
+                        "b_flag": fb,
+                        "a_claim": x.claim,
+                        "b_claim": y.claim,
+                        "a_cat": x.category,
+                        "b_cat": y.category,
+                    }
+                )
                 seen += 1
                 if seen > 30:
                     break
@@ -139,8 +175,16 @@ def pairs_set(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
     K["pair_id"] = [f"Q{i:03d}" for i in range(len(K))]
     out.mkdir(exist_ok=True)
     K.to_parquet(out / "pairs_key.parquet")
-    items = [{"pair_id": r.pair_id, "claim_a": r.a_claim, "claim_b": r.b_claim,
-              "review_a": texts.get(r.a_review, "")[:6000], "review_b": texts.get(r.b_review, "")[:6000]} for r in K.itertuples()]
+    items = [
+        {
+            "pair_id": r.pair_id,
+            "claim_a": r.a_claim,
+            "claim_b": r.b_claim,
+            "review_a": texts.get(r.a_review, "")[:6000],
+            "review_b": texts.get(r.b_review, "")[:6000],
+        }
+        for r in K.itertuples()
+    ]
     write_split(items, out / "pairs_input_{}.jsonl")
     print(len(K), "pairs;", K.groupby(["year", "stratum"]).size().to_dict())
 
@@ -162,15 +206,22 @@ def spec_set(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
 
 def opus_metrics(blind, ks=range(4)):
     claims, panels = load_opus(blind, [k for k in ks if (blind / f"opus_claims_{k}.jsonl").exists()])
-    return pd.DataFrame([dict(panel_id=pid, **panel_metrics(assign(p, claims))) for pid, p in panels.items()]).set_index("panel_id")
+    return pd.DataFrame([dict(panel_id=pid, **panel_metrics(assign(p, claims))) for pid, p in panels.items()]).set_index(
+        "panel_id"
+    )
 
 
 def model_metrics(blind, data, model, tag):
     key = blind_key(blind)
     claims = model_claims(data / f"claims_{model}{tag}.jsonl")
     panels = load_jsonl(data / f"clusters_{model}{tag}.jsonl", "panel_id")
-    return pd.DataFrame([dict(panel_id=code, year=v["year"], **panel_metrics(assign(panels[code], claims)))
-                         for code, v in key.items() if code in panels]).set_index("panel_id")
+    return pd.DataFrame(
+        [
+            dict(panel_id=code, year=v["year"], **panel_metrics(assign(panels[code], claims)))
+            for code, v in key.items()
+            if code in panels
+        ]
+    ).set_index("panel_id")
 
 
 def reference_agreement(blind):
@@ -183,7 +234,9 @@ def reference_agreement(blind):
     for k in BLIND_OUTCOMES:
         a, b = both[f"{k}_a"], both[f"{k}_b"]
         d = b - a
-        print(f"{k:30s} {a.mean():7.3f} {b.mean():7.3f} rho {spearmanr(a, b).statistic:5.2f}  bias {d.mean():+.3f} (SE {d.std(ddof=1)/np.sqrt(len(d)):.3f})")
+        print(
+            f"{k:30s} {a.mean():7.3f} {b.mean():7.3f} rho {spearmanr(a, b).statistic:5.2f}  bias {d.mean():+.3f} (SE {d.std(ddof=1) / np.sqrt(len(d)):.3f})"
+        )
 
 
 def blind(model=settings.DEFAULT_MODEL, tag="", data=settings.DATA_DIR):
@@ -201,7 +254,7 @@ def blind(model=settings.DEFAULT_MODEL, tag="", data=settings.DATA_DIR):
     print("\nBias (model - opus) by year, with SE:")
     for k in ["n_claims", "n_clusters", "n_shared_clusters", "share_shared_claims", "S3", "U3", "hit_rate_strict"]:
         d = both[f"{k}_model"] - both[f"{k}_opus"]
-        print(f"  {k:22s}", {y: f"{v.mean():+.3f} ({v.std(ddof=1)/np.sqrt(len(v)):.3f})" for y, v in d.groupby(both.year)})
+        print(f"  {k:22s}", {y: f"{v.mean():+.3f} ({v.std(ddof=1) / np.sqrt(len(v)):.3f})" for y, v in d.groupby(both.year)})
     print("\nEquivalence (TOST) of year bias: p that |bias(2026) - bias(2018-2022)| < bound")
     for k, bound in [("share_shared_claims", 0.03), ("S3", 0.3), ("hit_rate_strict", 0.03)]:
         d = both[f"{k}_model"] - both[f"{k}_opus"]
@@ -238,24 +291,43 @@ def pairs(data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
     K["flagged"] = K.a_flag | K.b_flag
     K["pipe_problem"] = K.stratum == "same_cluster"
     K["pipe_target"] = K.stratum != "different"
-    both = K.join(load_judgments(pdir, "a").add_suffix("_a"), how="inner").join(load_judgments(pdir, "b").add_suffix("_b"), how="inner")
+    both = K.join(load_judgments(pdir, "a").add_suffix("_a"), how="inner").join(
+        load_judgments(pdir, "b").add_suffix("_b"), how="inner"
+    )
     print(f"{len(both)} pairs with both adjudications")
     for q in ["same_problem", "same_target"]:
-        print(f"  run agreement on {q}: {(both[q+'_a'] == both[q+'_b']).mean():.3f}, kappa {cohen_kappa_score(both[q+'_a'], both[q+'_b']):.3f}")
+        print(
+            f"  run agreement on {q}: {(both[q + '_a'] == both[q + '_b']).mean():.3f}, kappa {cohen_kappa_score(both[q + '_a'], both[q + '_b']):.3f}"
+        )
     both["ref_problem"] = both.same_problem_a & both.same_problem_b
     both["ref_problem_any"] = both.same_problem_a | both.same_problem_b
     both["ref_target"] = both.same_target_a & both.same_target_b
     rows = []
     post = both.period == "post"
-    for name, g in [("all", both), ("pre", both[~post]), ("post", both[post]),
-                    ("post, unflagged", both[post & ~both.flagged]), ("post, flagged", both[post & both.flagged])]:
+    for name, g in [
+        ("all", both),
+        ("pre", both[~post]),
+        ("post", both[post]),
+        ("post, unflagged", both[post & ~both.flagged]),
+        ("post, flagged", both[post & both.flagged]),
+    ]:
         for ref in ["ref_problem", "ref_problem_any"]:
             tp = (g.pipe_problem & g[ref]).sum()
             fp = (g.pipe_problem & ~g[ref]).sum()
             fn = (~g.pipe_problem & g[ref]).sum()
             tn = (~g.pipe_problem & ~g[ref]).sum()
-            rows.append({"subset": name, "reference": ref, "n": len(g), "precision": tp / max(tp + fp, 1), "recall": tp / max(tp + fn, 1),
-                         "fpr": fp / max(fp + tn, 1), "n_pipe_merge": int(g.pipe_problem.sum()), "n_ref_merge": int(g[ref].sum())})
+            rows.append(
+                {
+                    "subset": name,
+                    "reference": ref,
+                    "n": len(g),
+                    "precision": tp / max(tp + fp, 1),
+                    "recall": tp / max(tp + fn, 1),
+                    "fpr": fp / max(fp + tn, 1),
+                    "n_pipe_merge": int(g.pipe_problem.sum()),
+                    "n_ref_merge": int(g[ref].sum()),
+                }
+            )
     out = pd.DataFrame(rows)
     out.to_csv(Path(reports) / "pairs_validation.csv", index=False)
     print(out.round(3).to_string())
@@ -272,10 +344,14 @@ def spec_block(d, name):
     print(f"  share specific: pipeline {d.pl.mean():.3f}, annotator A {d.ann_a.mean():.3f}, annotator B {d.ann_b.mean():.3f}")
     print(f"  kappa A vs B {cohen_kappa_score(d.ann_a, d.ann_b):.3f}; agreement {np.mean(d.ann_a == d.ann_b):.3f}")
     for a in "ab":
-        print(f"  kappa pipeline vs {a.upper()} {cohen_kappa_score(d.pl, d[f'ann_{a}']):.3f}; agreement {np.mean(d.pl == d[f'ann_{a}']):.3f}")
+        print(
+            f"  kappa pipeline vs {a.upper()} {cohen_kappa_score(d.pl, d[f'ann_{a}']):.3f}; agreement {np.mean(d.pl == d[f'ann_{a}']):.3f}"
+        )
     both = d[d.ann_a == d.ann_b]
-    print(f"  on the {len(both)} items where A and B agree: pipeline accuracy {np.mean(both.pl == both.ann_a):.3f}, "
-          f"precision {np.mean(both[both.pl].ann_a):.3f}, recall {np.mean(both[both.ann_a].pl):.3f}")
+    print(
+        f"  on the {len(both)} items where A and B agree: pipeline accuracy {np.mean(both.pl == both.ann_a):.3f}, "
+        f"precision {np.mean(both[both.pl].ann_a):.3f}, recall {np.mean(both[both.ann_a].pl):.3f}"
+    )
 
 
 def spec(data=settings.DATA_DIR):
@@ -298,15 +374,20 @@ def ampere(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
 
     data = Path(data)
     A = pd.read_parquet(data / "ampere_full.parquet").set_index("review_id")
-    claims = {r["review_id"]: [c["claim"] for c in r["claims"]]
-              for r in read_jsonl(data / f"claims_{model}_ampere.jsonl") if "claims" in r}
+    claims = {
+        r["review_id"]: [c["claim"] for c in r["claims"]]
+        for r in read_jsonl(data / f"claims_{model}_ampere.jsonl")
+        if "claims" in r
+    }
     A = A[A.index.isin(claims)]
     A["n_claims"] = A.index.map(lambda i: len(claims[i]))
     print(len(A), "reviews")
     for k in ["n_prop", "n_eval", "n_req"]:
         print(f"spearman(n_claims, {k}) = {spearmanr(A.n_claims, A[k]).statistic:.3f}")
     A["n_crit"] = A.n_eval + A.n_req
-    print(f"spearman(n_claims, n_eval+n_req) = {spearmanr(A.n_claims, A.n_crit).statistic:.3f}; means claims {A.n_claims.mean():.1f}, eval+req {A.n_crit.mean():.1f}, req {A.n_req.mean():.1f}")
+    print(
+        f"spearman(n_claims, n_eval+n_req) = {spearmanr(A.n_claims, A.n_crit).statistic:.3f}; means claims {A.n_claims.mean():.1f}, eval+req {A.n_crit.mean():.1f}, req {A.n_req.mean():.1f}"
+    )
 
     cov, cov_eval, prec = [], [], []
     for rid, row in tqdm(A.iterrows(), total=len(A), desc="ampere reviews"):
@@ -317,7 +398,7 @@ def ampere(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
         sents = list(row.sents)
         E = openai_embed(sents + cl, "text-embedding-3-small", batch=512, threads=1)
         E /= np.linalg.norm(E, axis=1, keepdims=True)
-        sim = E[:len(sents)] @ E[len(sents):].T
+        sim = E[: len(sents)] @ E[len(sents) :].T
         for s, lab in zip(sim.max(1), row.labels):
             if lab == "request":
                 cov.append(s >= 0.5)
@@ -342,22 +423,49 @@ def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setti
     S = pd.read_parquet(data / f"sub3_outcomes_{model}.parquet")
     S = S[S.n_claims > 0].set_index("paper_id")
     j = S.join(P[["S3", "D3", "share_shared_claims", "hit_rate_strict"]], suffixes=("", "_full"))
-    out["sub3"] = pd.DataFrame([{"year": y, "n": len(g), "S3_recluster": g.S3.mean(), "S3_rarefied": g.S3_full.mean(),
-                                 "D3_recluster": g.D3.mean(), "D3_rarefied": g.D3_full.mean(),
-                                 "share_recluster": g.share_shared_claims.mean(), "share_rarefied": g.share_shared_claims_full.mean(),
-                                 "se_S3": se(g.S3)} for y, g in j.groupby("year")]).set_index("year")
+    out["sub3"] = pd.DataFrame(
+        [
+            {
+                "year": y,
+                "n": len(g),
+                "S3_recluster": g.S3.mean(),
+                "S3_rarefied": g.S3_full.mean(),
+                "D3_recluster": g.D3.mean(),
+                "D3_rarefied": g.D3_full.mean(),
+                "share_recluster": g.share_shared_claims.mean(),
+                "share_rarefied": g.share_shared_claims_full.mean(),
+                "se_S3": se(g.S3),
+            }
+            for y, g in j.groupby("year")
+        ]
+    ).set_index("year")
     N = pd.read_parquet(data / f"panel_outcomes_{model}_noq.parquet")
     N = N[N.n_claims > 0].set_index("paper_id")
     j = N.join(P[VARIANT_COLS], suffixes=("", "_full"))
     cols = ["S3", "share_shared_claims", "claims_per_review", "D3"]
-    out["noq"] = pd.DataFrame([dict(year=y, n=len(g), **{f"{c}_noq": g[c].mean() for c in cols},
-                                    **{f"{c}_full": g[f"{c}_full"].mean() for c in cols}, se_S3=se(g.S3))
-                               for y, g in j.groupby("year")]).set_index("year")
+    out["noq"] = pd.DataFrame(
+        [
+            dict(
+                year=y,
+                n=len(g),
+                **{f"{c}_noq": g[c].mean() for c in cols},
+                **{f"{c}_full": g[f"{c}_full"].mean() for c in cols},
+                se_S3=se(g.S3),
+            )
+            for y, g in j.groupby("year")
+        ]
+    ).set_index("year")
     W = pd.read_parquet(data / f"panel_outcomes_{model}_wd.parquet")
     W = W[W.n_claims > 0]
     nw = P[(P.conf == "ICLR") & (P.year == 2026)]
-    out["wd"] = pd.DataFrame({"withdrawn": W[VARIANT_COLS].mean(), "withdrawn_se": W[VARIANT_COLS].agg(se),
-                              "kept": nw[VARIANT_COLS].mean(), "kept_se": nw[VARIANT_COLS].agg(se)})
+    out["wd"] = pd.DataFrame(
+        {
+            "withdrawn": W[VARIANT_COLS].mean(),
+            "withdrawn_se": W[VARIANT_COLS].agg(se),
+            "kept": nw[VARIANT_COLS].mean(),
+            "kept_se": nw[VARIANT_COLS].agg(se),
+        }
+    )
     out["wd"].loc["n"] = [len(W), np.nan, len(nw), np.nan]
     for k, v in out.items():
         v.round(4).to_csv(Path(reports) / f"variant_{k}_{model}.csv")
@@ -393,8 +501,14 @@ def pair_audit_set(data=settings.DATA_DIR, year=2026, n=60, seed=9, k=5):
     meta = pd.read_parquet(data / "panel_outcomes_gpt-6-luna.parquet", columns=["panel_id", "conf", "year", "n_reviews"])
     ids = set(meta[(meta.conf == "ICLR") & (meta.year == year) & (meta.n_reviews == 4)].panel_id)
     used = {v["paper_id"] for v in blind_key(data / "blind3").values()}
-    panels = [p for p in read_jsonl(data / "panels.jsonl") if p["panel_id"] in ids and p["panel_id"] not in used
-              and all(r in flag.index for r in p["review_ids"]) and flag[p["review_ids"]].sum() == 2]
+    panels = [
+        p
+        for p in read_jsonl(data / "panels.jsonl")
+        if p["panel_id"] in ids
+        and p["panel_id"] not in used
+        and all(r in flag.index for r in p["review_ids"])
+        and flag[p["review_ids"]].sum() == 2
+    ]
     chosen = [panels[i] for i in rng.choice(len(panels), n, replace=False)]
     text = review_texts(data)
     pairs = []
@@ -432,12 +546,16 @@ def pair_audit(data=settings.DATA_DIR, annotators=("x", "y"), reports=settings.R
     T = pd.DataFrame([{"pair": c, "paper": key[c]["paper_id"], "flagged": key[c]["flagged"], **v} for c, v in rates.items()])
     T = T.dropna(subset=annotators)
     T["rate"] = T[annotators].mean(axis=1)
-    print(f"pairs {len(T)}; annotator agreement on pair match rate: r = {pearsonr(T[annotators[0]], T[annotators[1]])[0]:.2f}, "
-          f"mean abs diff {np.abs(T[annotators[0]] - T[annotators[1]]).mean():.2f} points")
+    print(
+        f"pairs {len(T)}; annotator agreement on pair match rate: r = {pearsonr(T[annotators[0]], T[annotators[1]])[0]:.2f}, "
+        f"mean abs diff {np.abs(T[annotators[0]] - T[annotators[1]]).mean():.2f} points"
+    )
     W = T.pivot_table(index="paper", columns="flagged", values="rate").dropna()
     d = W[True] - W[False]
-    print(f"papers {len(W)}: flagged pair {W[True].mean():.2f}, unflagged pair {W[False].mean():.2f}, "
-          f"difference {d.mean():+.2f} (SE {d.sem():.2f}), relative {d.mean() / W[False].mean():+.0%}")
+    print(
+        f"papers {len(W)}: flagged pair {W[True].mean():.2f}, unflagged pair {W[False].mean():.2f}, "
+        f"difference {d.mean():+.2f} (SE {d.sem():.2f}), relative {d.mean() / W[False].mean():+.0%}"
+    )
     for a in annotators:
         Wa = T.pivot_table(index="paper", columns="flagged", values=a).dropna()
         da = Wa[True] - Wa[False]
@@ -452,8 +570,11 @@ def flag_set(data=settings.DATA_DIR, year=2026, n=50, seed=8, k=5):
     flag = load_flags(data)
     meta = pd.read_parquet(data / "panel_outcomes_gpt-6-luna.parquet", columns=["panel_id", "conf", "year", "n_reviews"])
     ids = set(meta[(meta.conf == "ICLR") & (meta.year == year) & (meta.n_reviews == 4)].panel_id)
-    panels = [p for p in read_jsonl(data / "panels.jsonl") if p["panel_id"] in ids
-              and all(r in flag.index for r in p["review_ids"]) and flag[p["review_ids"]].sum() == 2]
+    panels = [
+        p
+        for p in read_jsonl(data / "panels.jsonl")
+        if p["panel_id"] in ids and all(r in flag.index for r in p["review_ids"]) and flag[p["review_ids"]].sum() == 2
+    ]
     chosen = [panels[i] for i in rng.choice(len(panels), n, replace=False)]
     text = review_texts(data)
     out.mkdir(exist_ok=True)
@@ -487,8 +608,11 @@ def flags(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
     for model in ["gpt-6-luna", "gpt-6.1-sol"]:
         mc = model_claims(data / f"claims_{model}.jsonl")
         mp = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
-        sources[model] = {code: pair_hits(mp[v["paper_id"]], mc, mp[v["paper_id"]]["review_ids"])
-                          for code, v in key.items() if v["paper_id"] in mp}
+        sources[model] = {
+            code: pair_hits(mp[v["paper_id"]], mc, mp[v["paper_id"]]["review_ids"])
+            for code, v in key.items()
+            if v["paper_id"] in mp
+        }
     rows = []
     for src, by_paper in sources.items():
         for code, hits in by_paper.items():
@@ -500,14 +624,19 @@ def flags(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
     T = pd.DataFrame(rows)
     T["diff"] = T.ll - T.hh
     T.to_csv(Path(reports) / "flags_blind3.csv", index=False)
-    print(T.groupby("source").agg(papers=("paper", "size"), ll=("ll", "mean"), hh=("hh", "mean"), diff=("diff", "mean"),
-                                  se=("diff", "sem")).round(2).to_string())
+    print(
+        T.groupby("source")
+        .agg(papers=("paper", "size"), ll=("ll", "mean"), hh=("hh", "mean"), diff=("diff", "mean"), se=("diff", "sem"))
+        .round(2)
+        .to_string()
+    )
 
 
 def swap_detector(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
-    import ai
     from sklearn.feature_extraction.text import TfidfTransformer
     from sklearn.linear_model import LogisticRegression
+
+    import ai
 
     data = Path(data)
     key = blind_key(data / "blind3")
@@ -532,8 +661,13 @@ def swap_detector(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
     T["p_swap"] = clf.predict_proba(tfidf.transform(ai.style_features(T.swap_text)))[:, 1]
     print("refit reproduces stored scores: max |diff|", float(np.abs(T.p_orig.values - stored.p_llm[T.review_id].values).max()))
     T["flag_orig"], T["flag_swap"] = T.p_orig >= q99, T.p_swap >= q99
-    out = T.groupby("target").agg(n=("review_id", "size"), p_orig=("p_orig", "median"), p_swap=("p_swap", "median"),
-                                  flag_orig=("flag_orig", "mean"), flag_swap=("flag_swap", "mean"))
+    out = T.groupby("target").agg(
+        n=("review_id", "size"),
+        p_orig=("p_orig", "median"),
+        p_swap=("p_swap", "median"),
+        flag_orig=("flag_orig", "mean"),
+        flag_swap=("flag_swap", "mean"),
+    )
     print(out.round(3).to_string())
     T.drop(columns=["orig_text", "swap_text"]).to_csv(Path(reports) / "swap_detector.csv", index=False)
 
@@ -555,18 +689,27 @@ def swap(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
             if ll and hh:
                 rows.append({"version": name, "paper": code, "ll": np.mean(ll), "hh": np.mean(hh)})
             for j, r in enumerate(real):
-                sizes.append({"version": name, "review": r, "flagged": bool(flag[r]), "claims": len(claims.get(p["review_ids"][j], []))})
+                sizes.append(
+                    {"version": name, "review": r, "flagged": bool(flag[r]), "claims": len(claims.get(p["review_ids"][j], []))}
+                )
     T = pd.DataFrame(rows)
     T["diff"] = T.ll - T.hh
     T.to_csv(Path(reports) / "swap_blind4.csv", index=False)
-    print(T.groupby("version").agg(papers=("paper", "size"), ll=("ll", "mean"), hh=("hh", "mean"), diff=("diff", "mean"),
-                                   se=("diff", "sem")).round(2).to_string())
+    print(
+        T.groupby("version")
+        .agg(papers=("paper", "size"), ll=("ll", "mean"), hh=("hh", "mean"), diff=("diff", "mean"), se=("diff", "sem"))
+        .round(2)
+        .to_string()
+    )
     w = T.pivot(index="paper", columns="version", values="diff").dropna()
     d = w.swapped - w.original
     print(f"swapped - original gap, paired: {d.mean():+.2f} (SE {d.sem():.2f}), papers {len(w)}")
     S = pd.DataFrame(sizes).pivot_table(index=["review", "flagged"], columns="version", values="claims").dropna().reset_index()
-    print("claims per review (original -> swapped):", S.groupby("flagged")[["original", "swapped"]].mean().round(2).to_dict("index"),
-          f"| spearman {S.original.corr(S.swapped, method='spearman'):.2f}")
+    print(
+        "claims per review (original -> swapped):",
+        S.groupby("flagged")[["original", "swapped"]].mean().round(2).to_dict("index"),
+        f"| spearman {S.original.corr(S.swapped, method='spearman'):.2f}",
+    )
 
 
 def drift(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
@@ -576,10 +719,15 @@ def drift(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
     ref = opus_metrics(blind2, range(k))[["hit_rate_strict", "share_shared_claims"]].add_suffix("_opus")
     rows = []
     for model in ["gpt-6-luna", "gpt-6.1-sol"]:
-        P = pd.read_parquet(data / f"panel_outcomes_{model}.parquet", columns=["paper_id", "conf", "hit_rate_strict", "share_shared_claims"])
+        P = pd.read_parquet(
+            data / f"panel_outcomes_{model}.parquet", columns=["paper_id", "conf", "hit_rate_strict", "share_shared_claims"]
+        )
         P = P[P.conf == "ICLR"].set_index("paper_id")
-        rows.append(P.loc[[v["paper_id"] for v in key.values()], ["hit_rate_strict", "share_shared_claims"]]
-                    .set_axis(list(key), axis=0).add_suffix(f"_{model.split('-')[-1]}"))
+        rows.append(
+            P.loc[[v["paper_id"] for v in key.values()], ["hit_rate_strict", "share_shared_claims"]]
+            .set_axis(list(key), axis=0)
+            .add_suffix(f"_{model.split('-')[-1]}")
+        )
     T = pd.concat([ref, *rows], axis=1).dropna()
     T["year"] = [key[c]["year"] for c in T.index]
     T.to_csv(Path(reports) / "drift_blind2.csv")
@@ -588,15 +736,24 @@ def drift(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
         for src in ["opus", "luna", "sol"]:
             g = T.groupby("year")[f"{col}_{src}"]
             m, s = g.mean() * 100, g.sem() * 100
-            print(f"  {src:5s}", {y: f"{m[y]:.2f} ({s[y]:.2f})" for y in m.index}, f"change {m.iloc[-1] - m.iloc[0]:+.2f} (SE {np.hypot(*s):.2f})")
+            print(
+                f"  {src:5s}",
+                {y: f"{m[y]:.2f} ({s[y]:.2f})" for y in m.index},
+                f"change {m.iloc[-1] - m.iloc[0]:+.2f} (SE {np.hypot(*s):.2f})",
+            )
         for src in ["luna", "sol"]:
             d = (T[f"{col}_{src}"] - T[f"{col}_opus"]) * 100
             g = d.groupby(T.year)
-            print(f"  {src} - opus by year", g.mean().round(2).to_dict(),
-                  f"drift {g.mean().iloc[-1] - g.mean().iloc[0]:+.2f} (SE {np.hypot(*g.sem()):.2f})")
+            print(
+                f"  {src} - opus by year",
+                g.mean().round(2).to_dict(),
+                f"drift {g.mean().iloc[-1] - g.mean().iloc[0]:+.2f} (SE {np.hypot(*g.sem()):.2f})",
+            )
 
 
-def robust(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR, tex=settings.TABLES_DIR / "robust.tex"):
+def robust(
+    model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR, tex=settings.TABLES_DIR / "robust.tex"
+):
     data = Path(data)
     P = pd.read_parquet(data / f"panel_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
     pairs = pd.read_parquet(data / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "hit_spec"])
@@ -607,28 +764,50 @@ def robust(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setting
     wd = pd.read_parquet(data / f"panel_outcomes_{model}_wd.parquet").query("n_claims > 0")
     with_wd = pd.concat([P, wd.assign(year=2026)])
     same = P[P.paper_id.isin(sol.paper_id)]
-    checks = [("Raw match rate", P, "hit_rate_strict", 2023), ("Specific claims only", spec, "hit_spec", 2023),
-              ("Same part of paper (lenient)", P, "hit_rate_lenient", 2023),
-              ("3-review subsets, grouped again", sub3, "hit_rate_strict", 2023),
-              ("Questions field removed", noq, "hit_rate_strict", 2024),
-              ("Withdrawn 2026 papers added", with_wd, "hit_rate_strict", 2023),
-              ("Main model, second model's papers", same, "hit_rate_strict", 2023),
-              ("Second model (gpt-6.1-sol)", sol, "hit_rate_strict", 2023),
-              ("Main model, claims in shared groups", same, "share_shared_claims", 2023),
-              ("Second model, claims in shared groups", sol, "share_shared_claims", 2023)]
+    checks = [
+        ("Raw match rate", P, "hit_rate_strict", 2023),
+        ("Specific claims only", spec, "hit_spec", 2023),
+        ("Same part of paper (lenient)", P, "hit_rate_lenient", 2023),
+        ("3-review subsets, grouped again", sub3, "hit_rate_strict", 2023),
+        ("Questions field removed", noq, "hit_rate_strict", 2024),
+        ("Withdrawn 2026 papers added", with_wd, "hit_rate_strict", 2023),
+        ("Main model, second model's papers", same, "hit_rate_strict", 2023),
+        ("Second model (gpt-6.1-sol)", sol, "hit_rate_strict", 2023),
+        ("Main model, claims in shared groups", same, "share_shared_claims", 2023),
+        ("Second model, claims in shared groups", sol, "share_shared_claims", 2023),
+    ]
     rows = []
     for name, df, col, base in checks:
         a, b = df[df.year == base][col].dropna() * 100, df[df.year == 2026][col].dropna() * 100
-        rows.append({"check": name, "base_year": base, "base": a.mean(), "y2026": b.mean(), "change": b.mean() - a.mean(),
-                     "se": np.hypot(se(a), se(b))})
+        rows.append(
+            {
+                "check": name,
+                "base_year": base,
+                "base": a.mean(),
+                "y2026": b.mean(),
+                "change": b.mean() - a.mean(),
+                "se": np.hypot(se(a), se(b)),
+            }
+        )
     S = pd.read_csv(Path(reports) / f"match_std_{model}.csv").query("conf == 'ICLR'").set_index("year")
-    rows.insert(1, {"check": "Standardized", "base_year": 2023, "base": S.loc[2023, "std"], "y2026": S.loc[2026, "std"],
-                    "change": S.loc[2026, "std"] - S.loc[2023, "std"], "se": np.hypot(S.loc[2023, "std_se"], S.loc[2026, "std_se"])})
+    rows.insert(
+        1,
+        {
+            "check": "Standardized",
+            "base_year": 2023,
+            "base": S.loc[2023, "std"],
+            "y2026": S.loc[2026, "std"],
+            "change": S.loc[2026, "std"] - S.loc[2023, "std"],
+            "se": np.hypot(S.loc[2023, "std_se"], S.loc[2026, "std_se"]),
+        },
+    )
     out = pd.DataFrame(rows)
     out.round(3).to_csv(Path(reports) / f"robust_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     lines = [r"\begin{tabular}{lrrrr}", r"\toprule", r"Check & Base year & Base & 2026 & Change (SE) \\", r"\midrule"]
-    lines += [f"{r.check} & {r.base_year} & {r.base:.1f} & {r.y2026:.1f} & {r.change:+.1f} ({r.se:.1f}) \\\\" for r in out.itertuples()]
+    lines += [
+        f"{r.check} & {r.base_year} & {r.base:.1f} & {r.y2026:.1f} & {r.change:+.1f} ({r.se:.1f}) \\\\" for r in out.itertuples()
+    ]
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
@@ -651,8 +830,12 @@ def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.DAT
     P = P[P.conf == "ICLR"]
     D = pd.read_parquet(data / "detector_scores.parquet", columns=["review_id", "p_llm", "llm_flag"]).set_index("review_id")
     trained = set(pd.read_parquet(data / "intel_reviews.parquet", columns=["paper_id", "year"]).query("year <= 2023").paper_id)
-    periods = {f"{ICLR_FROM}": (ICLR_FROM, ICLR_FROM), "2021-2022": (2021, 2022), "2023": (2023, 2023),
-               "2024-2026 (real flags)": (2024, 2026)}
+    periods = {
+        f"{ICLR_FROM}": (ICLR_FROM, ICLR_FROM),
+        "2021-2022": (2021, 2022),
+        "2023": (2023, 2023),
+        "2024-2026 (real flags)": (2024, 2026),
+    }
     rows = []
     for name, (lo, hi) in tqdm(periods.items(), desc="periods"):
         S = P[P.year.between(lo, hi) & P.a.isin(D.index) & P.b.isin(D.index)]
@@ -692,12 +875,14 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
         rows.append(dict(group=group, label=label, est=est, se=se, papers=papers))
 
     pipe = "Pipeline"
-    for label, T, f, c in [("ICLR 2024–26", iclr, flag, ()),
-                           ("+ length and claim count", iclr, flag, ("log_short", "log_long", "claims_short", "claims_long")),
-                           ("NeurIPS 2024–25", P[(P.conf == "NeurIPS") & (P.year >= 2024)], flag, ()),
-                           ("CoCoDet labels, ICLR", both_coco, coco, ()),
-                           ("Main model, 500 ICLR 2026 papers", main_same, flag, ()),
-                           ("Second model, same papers", sol, flag, ())]:
+    for label, T, f, c in [
+        ("ICLR 2024–26", iclr, flag, ()),
+        ("+ length and claim count", iclr, flag, ("log_short", "log_long", "claims_short", "claims_long")),
+        ("NeurIPS 2024–25", P[(P.conf == "NeurIPS") & (P.year >= 2024)], flag, ()),
+        ("CoCoDet labels, ICLR", both_coco, coco, ()),
+        ("Main model, 500 ICLR 2026 papers", main_same, flag, ()),
+        ("Second model, same papers", sol, flag, ()),
+    ]:
         g = fe_gap(T, f, c)
         add(pipe, label, g["two"], g["two_se"], T.panel_id.nunique())
     ref = "Blind Claude Opus"
@@ -732,12 +917,15 @@ def f1000_reviewer_names(xml_dir):
                 continue
             n = meta.find(".//contrib/name")
             if n is not None:
-                names[meta.findtext("article-id[@pub-id-type='doi']")] = f"{n.findtext('given-names')} {n.findtext('surname')}".lower()
+                names[meta.findtext("article-id[@pub-id-type='doi']")] = (
+                    f"{n.findtext('given-names')} {n.findtext('surname')}".lower()
+                )
     return pd.Series(names)
 
 
 def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
     import statsmodels.formula.api as smf
+
     from fetch import RAW
 
     data, reports = Path(data), Path(reports)
@@ -747,8 +935,11 @@ def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=se
     L = pd.read_parquet(data / "other_reviews.parquet", columns=["review_id", "n_chars"]).set_index("review_id").n_chars
     R = pd.concat([P.rename(columns={"a": "rid", "b": "other"}), P.rename(columns={"b": "rid", "a": "other"})])
     R["log_len"], R["log_len_other"] = np.log(L.reindex(R.rid).to_numpy()), np.log(L.reindex(R.other).to_numpy())
-    rv = R.groupby(["rid", "panel_id", "year"]).agg(hit=("hit", "mean"), log_len=("log_len", "first"),
-                                                     log_len_other=("log_len_other", "mean"), size=("other", "size")).reset_index()
+    rv = (
+        R.groupby(["rid", "panel_id", "year"])
+        .agg(hit=("hit", "mean"), log_len=("log_len", "first"), log_len_other=("log_len_other", "mean"), size=("other", "size"))
+        .reset_index()
+    )
     rv["name"], rv["post"] = rv.rid.map(name), (rv.year >= 2025).astype(int)
     rv["hit"] *= 100
     span = rv.groupby("name").post.agg(["min", "max"])
@@ -757,18 +948,30 @@ def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=se
 
     def fit(label, f, d):
         m = clustered(smf.ols(f, data=d), d.panel_id, d.name.fillna(d.rid))
-        return dict(label=label, est=m.params["post"], se=m.bse["post"], reports=int(m.nobs), reviewers=d.name.nunique(),
-                    pre=d[d.post == 0].hit.mean(), post=d[d.post == 1].hit.mean())
+        return dict(
+            label=label,
+            est=m.params["post"],
+            se=m.bse["post"],
+            reports=int(m.nobs),
+            reviewers=d.name.nunique(),
+            pre=d[d.post == 0].hit.mean(),
+            post=d[d.post == 1].hit.mean(),
+        )
 
-    out = pd.DataFrame([fit("All reports, pooled", "hit ~ post" + ctrl, rv),
-                        fit("Reviewers seen in both periods, pooled", "hit ~ post" + ctrl, both),
-                        fit("Reviewers seen in both periods, reviewer fixed effects", "hit ~ post + C(name)" + ctrl, both)])
+    out = pd.DataFrame(
+        [
+            fit("All reports, pooled", "hit ~ post" + ctrl, rv),
+            fit("Reviewers seen in both periods, pooled", "hit ~ post" + ctrl, both),
+            fit("Reviewers seen in both periods, reviewer fixed effects", "hit ~ post + C(name)" + ctrl, both),
+        ]
+    )
     out.to_csv(reports / "reviewer_fe_f1000.csv", index=False)
     print(out.round(2).to_string(index=False))
 
 
 def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
     import statsmodels.formula.api as smf
+
     from outcomes import STD_FORMULA, pair_design
 
     data, reports = Path(data), Path(reports)
@@ -783,12 +986,23 @@ def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=set
     P["nflag"] = flag.reindex(P.a).to_numpy().astype(float) + flag.reindex(P.b).to_numpy().astype(float)
     papers = P.groupby("year").panel_id.nunique()
     print(f"{P.panel_id.nunique()} ICLR papers with an abstract score; by year {papers.to_dict()}")
-    print("share of abstracts CoCoDet labels AI or mixed:", P.groupby("year").score.apply(lambda s: (s > 0.5).mean()).round(3).to_dict())
+    print(
+        "share of abstracts CoCoDet labels AI or mixed:",
+        P.groupby("year").score.apply(lambda s: (s > 0.5).mean()).round(3).to_dict(),
+    )
     rows = []
     for subset, S in [("all pairs", P), ("neither flagged", P[P.nflag == 0]), ("both flagged", P[P.nflag == 2])]:
         m = clustered(smf.ols(STD_FORMULA + " + z", data=S), S.panel_id)
-        rows.append(dict(kind="slope per SD of paper score", subset=subset, year="", est=m.params["z"] * 100, se=m.bse["z"] * 100,
-                         papers=S.panel_id.nunique()))
+        rows.append(
+            dict(
+                kind="slope per SD of paper score",
+                subset=subset,
+                year="",
+                est=m.params["z"] * 100,
+                se=m.bse["z"] * 100,
+                papers=S.panel_id.nunique(),
+            )
+        )
     for subset, S in [("all pairs", P), ("neither flagged", P[P.nflag == 0])]:
         for kind, extra in [("standardized rate", ""), ("standardized rate + paper score", " + z + I(z**2)")]:
             fit = clustered(smf.ols(STD_FORMULA + extra, data=S), S.panel_id)
@@ -796,15 +1010,30 @@ def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=set
             is_year, x_mean = names.str.startswith("C(year)"), fit.model.exog.mean(0)
             for y in sorted(S.year.unique()):
                 x = np.where(is_year, names == f"C(year)[T.{y}]", x_mean)
-                rows.append(dict(kind=kind, subset=subset, year=y, est=x @ fit.params.to_numpy() * 100, se=np.sqrt(x @ V @ x) * 100,
-                                 papers=S[S.year == y].panel_id.nunique()))
+                rows.append(
+                    dict(
+                        kind=kind,
+                        subset=subset,
+                        year=y,
+                        est=x @ fit.params.to_numpy() * 100,
+                        se=np.sqrt(x @ V @ x) * 100,
+                        papers=S[S.year == y].panel_id.nunique(),
+                    )
+                )
     out = pd.DataFrame(rows)
     out.to_csv(reports / "paper_side.csv", index=False)
     print(out[out.kind.str.startswith("slope")].round(2).to_string(index=False))
-    print(out[~out.kind.str.startswith("slope")].pivot_table(index=["subset", "kind"], columns="year", values="est").round(2).to_string())
+    print(
+        out[~out.kind.str.startswith("slope")]
+        .pivot_table(index=["subset", "kind"], columns="year", values="est")
+        .round(2)
+        .to_string()
+    )
 
 
-def instruments(models="gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash", data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
+def instruments(
+    models="gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash", data=settings.DATA_DIR, reports=settings.REPORTS_DIR
+):
     from scipy.stats import spearmanr
 
     from outcomes import ICLR_FROM, panel_pairs, review_chars, year_rates
@@ -836,7 +1065,15 @@ def instruments(models="gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash
             rows.append(dict(model=m, stat=f"match rate {y}", est=g.hit.mean() * 100, se=se(g.hit) * 100, n=len(g)))
         for base in [2023, 2025]:
             a, b = pm[pm.year == base].hit, pm[pm.year == 2026].hit
-            rows.append(dict(model=m, stat=f"change {base}-2026", est=(b.mean() - a.mean()) * 100, se=np.hypot(se(a), se(b)) * 100, n=len(a) + len(b)))
+            rows.append(
+                dict(
+                    model=m,
+                    stat=f"change {base}-2026",
+                    est=(b.mean() - a.mean()) * 100,
+                    se=np.hypot(se(a), se(b)) * 100,
+                    n=len(a) + len(b),
+                )
+            )
         S = P[P.year >= ICLR_FROM].copy()
         la, lb = np.log(chars.reindex(S.a).to_numpy()), np.log(chars.reindex(S.b).to_numpy())
         S["log_short"], S["log_long"] = np.minimum(la, lb), np.maximum(la, lb)
@@ -845,20 +1082,38 @@ def instruments(models="gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash
         for y in [2023, 2025, 2026]:
             rows.append(dict(model=m, stat=f"standardized rate {y}", est=std[y][0], se=std[y][1], n=int((S.year == y).sum())))
         for base in [2023, 2025]:
-            rows.append(dict(model=m, stat=f"standardized change {base}-2026", est=std[2026][0] - std[base][0],
-                             se=np.hypot(std[base][1], std[2026][1]), n=int(S.year.isin([base, 2026]).sum())))
+            rows.append(
+                dict(
+                    model=m,
+                    stat=f"standardized change {base}-2026",
+                    est=std[2026][0] - std[base][0],
+                    se=np.hypot(std[base][1], std[2026][1]),
+                    n=int(S.year.isin([base, 2026]).sum()),
+                )
+            )
         late = P[P.year >= 2024]
         gap = fe_gap(late, flag.astype(float))
-        rows.append(dict(model=m, stat="gap: two flagged vs none, 2024-26", est=gap["two"], se=gap["two_se"], n=late.panel_id.nunique()))
+        rows.append(
+            dict(model=m, stat="gap: two flagged vs none, 2024-26", est=gap["two"], se=gap["two_se"], n=late.panel_id.nunique())
+        )
         blind = [pid for pid in opus.index if pid in panels]
         if not blind:
             continue
-        bm = pd.DataFrame([dict(panel_id=pid, **panel_metrics(assign(panels[pid], claims))) for pid in blind]).set_index("panel_id")
+        bm = pd.DataFrame([dict(panel_id=pid, **panel_metrics(assign(panels[pid], claims))) for pid in blind]).set_index(
+            "panel_id"
+        )
         both = opus.join(bm, how="inner", suffixes=("_opus", "_model"))
         d = both.hit_rate_strict_model - both.hit_rate_strict_opus
         rows.append(dict(model=m, stat="blind: bias vs Opus", est=d.mean() * 100, se=se(d) * 100, n=len(d)))
-        rows.append(dict(model=m, stat="blind: rank agreement with Opus",
-                         est=spearmanr(both.hit_rate_strict_opus, both.hit_rate_strict_model).statistic, se=np.nan, n=len(d)))
+        rows.append(
+            dict(
+                model=m,
+                stat="blind: rank agreement with Opus",
+                est=spearmanr(both.hit_rate_strict_opus, both.hit_rate_strict_model).statistic,
+                se=np.nan,
+                n=len(d),
+            )
+        )
     for m in models[1:]:
         a, b = panel_rate[models[0]].align(panel_rate[m], join="inner")
         rows.append(dict(model=m, stat=f"rank agreement with {models[0]}", est=spearmanr(a, b).statistic, se=np.nan, n=len(a)))
@@ -869,8 +1124,29 @@ def instruments(models="gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash
 
 
 if __name__ == "__main__":
-    fire.Fire({"blind_set": blind_set, "pairs_set": pairs_set, "spec_set": spec_set, "blind": blind, "pairs": pairs,
-               "spec": spec, "ampere": ampere, "variants": variants, "robust": robust,
-               "drift_set": drift_set, "drift": drift, "flag_set": flag_set, "flags": flags, "swap": swap, "swap_detector": swap_detector,
-               "pair_audit_set": pair_audit_set, "pair_audit": pair_audit, "detector_placebo": detector_placebo, "rq1_evidence": rq1_evidence,
-               "reviewer_fe": reviewer_fe, "paper_side": paper_side, "instruments": instruments})
+    fire.Fire(
+        {
+            "blind_set": blind_set,
+            "pairs_set": pairs_set,
+            "spec_set": spec_set,
+            "blind": blind,
+            "pairs": pairs,
+            "spec": spec,
+            "ampere": ampere,
+            "variants": variants,
+            "robust": robust,
+            "drift_set": drift_set,
+            "drift": drift,
+            "flag_set": flag_set,
+            "flags": flags,
+            "swap": swap,
+            "swap_detector": swap_detector,
+            "pair_audit_set": pair_audit_set,
+            "pair_audit": pair_audit,
+            "detector_placebo": detector_placebo,
+            "rq1_evidence": rq1_evidence,
+            "reviewer_fe": reviewer_fe,
+            "paper_side": paper_side,
+            "instruments": instruments,
+        }
+    )

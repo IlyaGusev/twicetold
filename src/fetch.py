@@ -1,8 +1,8 @@
-import sys
 import io
 import json
 import random
 import re
+import sys
 import threading
 import unicodedata
 import xml.etree.ElementTree as ET
@@ -20,6 +20,7 @@ from pypdf import PdfReader
 from requests.adapters import HTTPAdapter
 from tqdm import tqdm
 from urllib3.util.retry import Retry
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from settings import settings
 
@@ -126,11 +127,23 @@ def epmc_search(query, cache):
     hits, cursor = [], "*"
     with tqdm(desc=f"europepmc {cache.parent.name} {cache.stem}", unit="page") as bar:
         while True:
-            r = session().get(f"{EPMC}/search", params=dict(query=query, format="json", resultType="lite", pageSize=1000, cursorMark=cursor), timeout=120)
+            r = session().get(
+                f"{EPMC}/search",
+                params=dict(query=query, format="json", resultType="lite", pageSize=1000, cursorMark=cursor),
+                timeout=120,
+            )
             r.raise_for_status()
             d = r.json()
-            hits += [dict(pmcid=h.get("pmcid"), doi=h.get("doi"), year=h.get("pubYear"), journal=h.get("journalTitle"), title=h.get("title"))
-                     for h in d["resultList"]["result"]]
+            hits += [
+                dict(
+                    pmcid=h.get("pmcid"),
+                    doi=h.get("doi"),
+                    year=h.get("pubYear"),
+                    journal=h.get("journalTitle"),
+                    title=h.get("title"),
+                )
+                for h in d["resultList"]["result"]
+            ]
             bar.update()
             if d.get("nextCursorMark") in (None, cursor) or not d["resultList"]["result"]:
                 break
@@ -173,7 +186,7 @@ def collect(candidates, parse, desc, batch=100):
     papers, reviews, found, i = [], [], 0, 0
     cands = shuffled(candidates)
     for i in range(0, len(cands), batch):
-        for res in pmap(parse, cands[i:i + batch], desc):
+        for res in pmap(parse, cands[i : i + batch], desc):
             if res is None:
                 continue
             p, rs = res
@@ -202,16 +215,26 @@ SCIPOST_API = "https://scipost.org/api/submissions/"
 SCIPOST_PAGE = 100
 SCIPOST_SCALE = {"top": 6, "high": 5, "good": 4, "ok": 3, "low": 2, "poor": 1}
 SCIPOST_CRITERIA = ["validity", "significance", "originality", "clarity", "formatting", "grammar"]
-SCIPOST_FIELDS = [("strengths", "STRENGTHS"), ("weaknesses", "WEAKNESSES"), ("report", "REPORT"), ("requested_changes", "REQUESTED CHANGES")]
+SCIPOST_FIELDS = [
+    ("strengths", "STRENGTHS"),
+    ("weaknesses", "WEAKNESSES"),
+    ("report", "REPORT"),
+    ("requested_changes", "REQUESTED CHANGES"),
+]
 
 
 def scipost_page(offset):
-    raw = fetch(f"{SCIPOST_API}?format=json&limit={SCIPOST_PAGE}&offset={offset}", settings.RAW_JOURNAL_REVIEWS_DIR / "scipost" / f"page_{offset:06d}.json")
+    raw = fetch(
+        f"{SCIPOST_API}?format=json&limit={SCIPOST_PAGE}&offset={offset}",
+        settings.RAW_JOURNAL_REVIEWS_DIR / "scipost" / f"page_{offset:06d}.json",
+    )
     return json.loads(raw)["results"]
 
 
 def scipost(out=OUT):
-    count = json.loads(fetch(f"{SCIPOST_API}?format=json&limit=1", settings.RAW_JOURNAL_REVIEWS_DIR / "scipost" / "count.json"))["count"]
+    count = json.loads(fetch(f"{SCIPOST_API}?format=json&limit=1", settings.RAW_JOURNAL_REVIEWS_DIR / "scipost" / "count.json"))[
+        "count"
+    ]
     subs = [s for p in pmap(scipost_page, range(0, count, SCIPOST_PAGE), "scipost pages") for s in p]
     reviews, papers = [], []
     for s in subs:
@@ -223,13 +246,31 @@ def scipost(out=OUT):
                 continue
             text = "\n\n".join(f"[{tag}] {clean(r[k])}" for k, tag in SCIPOST_FIELDS if clean(r.get(k)))
             scores = [SCIPOST_SCALE[r[c]] for c in SCIPOST_CRITERIA[:4] if r.get(c) in SCIPOST_SCALE]
-            reviews.append(dict(conf="SciPost", field=(s.get("acad_field") or "physics").lower(), journal=s["submitted_to"],
-                                year=int(s["submission_date"][:4]), paper_id=pid, review_id=r["doi_string"] or f"{pid}#r{r['report_nr']}",
-                                reviewer=f"Reviewer {r['report_nr']}", rating=round(sum(scores) / len(scores)) if scores else None,
-                                rating_raw=";".join(f"{c}={r[c]}" for c in SCIPOST_CRITERIA if r.get(c) not in (None, "", "-")) or None,
-                                text=text, review_time=r["date_submitted"]))
-        papers.append(dict(conf="SciPost", field=(s.get("acad_field") or "physics").lower(), journal=s["submitted_to"],
-                           paper_id=pid, title=s["title"], licence="CC BY 4.0"))
+            reviews.append(
+                dict(
+                    conf="SciPost",
+                    field=(s.get("acad_field") or "physics").lower(),
+                    journal=s["submitted_to"],
+                    year=int(s["submission_date"][:4]),
+                    paper_id=pid,
+                    review_id=r["doi_string"] or f"{pid}#r{r['report_nr']}",
+                    reviewer=f"Reviewer {r['report_nr']}",
+                    rating=round(sum(scores) / len(scores)) if scores else None,
+                    rating_raw=";".join(f"{c}={r[c]}" for c in SCIPOST_CRITERIA if r.get(c) not in (None, "", "-")) or None,
+                    text=text,
+                    review_time=r["date_submitted"],
+                )
+            )
+        papers.append(
+            dict(
+                conf="SciPost",
+                field=(s.get("acad_field") or "physics").lower(),
+                journal=s["submitted_to"],
+                paper_id=pid,
+                title=s["title"],
+                licence="CC BY 4.0",
+            )
+        )
     finalize("scipost", reviews, papers, out)
 
 
@@ -280,8 +321,14 @@ def f1000_parse(pmcid):
     doi = front.findtext("article-id[@pub-id-type='doi']") or pmcid
     pid = re.sub(r"\.\d+$", "", doi)
     journal = root.findtext("front/journal-meta/journal-title-group/journal-title")
-    paper = dict(conf="F1000", field="biomed", journal=journal, paper_id=pid,
-                 title=text_of(front.find("title-group/article-title")), licence=licence_of(root.find("front")))
+    paper = dict(
+        conf="F1000",
+        field="biomed",
+        journal=journal,
+        paper_id=pid,
+        title=text_of(front.find("title-group/article-title")),
+        licence=licence_of(root.find("front")),
+    )
     reviews = []
     for sa in root.iter("sub-article"):
         if sa.get("article-type") not in ("reviewer-report", "peer-review", "ref-report"):
@@ -290,23 +337,47 @@ def f1000_parse(pmcid):
         meta = meta if meta is not None else sa.find("front/article-meta")
         if meta is None or not re.search(r"version 1\b", text_of(meta.find("title-group/article-title")), re.I):
             continue
-        label = next((cm.findtext("meta-value") for cm in sa.iter("custom-meta") if cm.findtext("meta-name") == "recommendation"), None)
+        label = next(
+            (cm.findtext("meta-value") for cm in sa.iter("custom-meta") if cm.findtext("meta-name") == "recommendation"), None
+        )
         if label is None:
             m = re.search(r"Recommendation:\s*([^.]+)", text_of(sa.find(".//notes")) or "")
             label = m.group(1) if m else None
         if label is None and sa.find("body") is not None:
             m = re.search(r"I confirm that I have read this submission[^.]*", text_of(sa.find("body")))
             s = m.group(0) if m else ""
-            label = ("Not Approved" if "do not consider" in s else "Approved with Reservations" if "reservations" in s
-                     else "Approved" if "acceptable scientific standard" in s else None)
+            label = (
+                "Not Approved"
+                if "do not consider" in s
+                else "Approved with Reservations"
+                if "reservations" in s
+                else "Approved"
+                if "acceptable scientific standard" in s
+                else None
+            )
             label = f"{label} (from confirmation statement)" if label else None
         d = meta.find("pub-date")
-        when = f"{d.findtext('year')}-{int(d.findtext('month') or 1):02d}-{int(d.findtext('day') or 1):02d}" if d is not None else None
+        when = (
+            f"{d.findtext('year')}-{int(d.findtext('month') or 1):02d}-{int(d.findtext('day') or 1):02d}"
+            if d is not None
+            else None
+        )
         body = sa.find("body")
-        reviews.append(dict(conf="F1000", field="biomed", journal=journal, year=int(when[:4]) if when else None, paper_id=pid,
-                            review_id=meta.findtext("article-id[@pub-id-type='doi']") or f"{pmcid}#{sa.get('id')}",
-                            reviewer=None, rating=f1000_rating(label) if label else None, rating_raw=label,
-                            text=f1000_report_text(body) if body is not None else "", review_time=when))
+        reviews.append(
+            dict(
+                conf="F1000",
+                field="biomed",
+                journal=journal,
+                year=int(when[:4]) if when else None,
+                paper_id=pid,
+                review_id=meta.findtext("article-id[@pub-id-type='doi']") or f"{pmcid}#{sa.get('id')}",
+                reviewer=None,
+                rating=f1000_rating(label) if label else None,
+                rating_raw=label,
+                text=f1000_report_text(body) if body is not None else "",
+                review_time=when,
+            )
+        )
     return paper, reviews
 
 
@@ -330,10 +401,22 @@ def fuzzy(phrase):
 
 
 BMC_START = re.compile(fuzzy("Reviewer's report") + r"\s?:", re.I)
-BMC_STOPS = re.compile("|".join(fuzzy(s) for s in [
-    "Are the methods appropriate", "Are you able to assess", "Quality of written English", "Declaration of competing",
-    "Level of interest", "Statistical review", "Statement on potential review bias", "I agree to the open peer review",
-    "Reviewer Publication Consent"]))
+BMC_STOPS = re.compile(
+    "|".join(
+        fuzzy(s)
+        for s in [
+            "Are the methods appropriate",
+            "Are you able to assess",
+            "Quality of written English",
+            "Declaration of competing",
+            "Level of interest",
+            "Statistical review",
+            "Statement on potential review bias",
+            "I agree to the open peer review",
+            "Reviewer Publication Consent",
+        ]
+    )
+)
 BMC_DATE = re.compile(r"Date\s?:\s*(\d{1,2}\s+\w{3}\s+\d{4})")
 BMC_TITLE = re.compile(r"Title\s?:\s*(.*?)\s*Version\s?:", re.S)
 
@@ -342,14 +425,16 @@ def bmc_body(t):
     m = BMC_START.search(t)
     if not m:
         return None
-    t = t[m.end():]
+    t = t[m.end() :]
     s = BMC_STOPS.search(t)
     return t[: s.start()] if s else t
 
 
 def bmc(out=OUT):
     fetch(BMC_URL, settings.RAW_JOURNAL_REVIEWS_DIR / "bmc" / "train.parquet")
-    df = pd.read_parquet(settings.RAW_JOURNAL_REVIEWS_DIR / "bmc" / "train.parquet", columns=["title", "review", "review_src", "year"])
+    df = pd.read_parquet(
+        settings.RAW_JOURNAL_REVIEWS_DIR / "bmc" / "train.parquet", columns=["title", "review", "review_src", "year"]
+    )
     df = df[df.review_src.str.contains(r"_V0_R\d+\.pdf$")]
     reviews, papers = [], []
     for r in df.itertuples():
@@ -357,24 +442,72 @@ def bmc(out=OUT):
         n = re.search(r"_R(\d+)\.pdf$", r.review_src).group(1)
         d = BMC_DATE.search(r.review)
         title = BMC_TITLE.search(r.review)
-        reviews.append(dict(conf="BMC-Med", field="medicine", journal="BMC Medicine", year=r.year, paper_id=doi,
-                            review_id=r.review_src.removesuffix(".pdf"), reviewer=f"Reviewer {n}", rating=None, rating_raw=None,
-                            text=bmc_body(r.review) or "", review_time=pd.to_datetime(d.group(1), format="%d %b %Y", errors="coerce") if d else None))
-        papers.append(dict(conf="BMC-Med", field="medicine", journal="BMC Medicine", paper_id=doi,
-                           title=re.sub(r"\s+", " ", title.group(1)) if title else None, licence="CC BY 4.0"))
-    print("V0 reports", len(reviews), "with empty body (no header or text only in an attachment)", sum(not x["text"] for x in reviews))
+        reviews.append(
+            dict(
+                conf="BMC-Med",
+                field="medicine",
+                journal="BMC Medicine",
+                year=r.year,
+                paper_id=doi,
+                review_id=r.review_src.removesuffix(".pdf"),
+                reviewer=f"Reviewer {n}",
+                rating=None,
+                rating_raw=None,
+                text=bmc_body(r.review) or "",
+                review_time=pd.to_datetime(d.group(1), format="%d %b %Y", errors="coerce") if d else None,
+            )
+        )
+        papers.append(
+            dict(
+                conf="BMC-Med",
+                field="medicine",
+                journal="BMC Medicine",
+                paper_id=doi,
+                title=re.sub(r"\s+", " ", title.group(1)) if title else None,
+                licence="CC BY 4.0",
+            )
+        )
+    print(
+        "V0 reports",
+        len(reviews),
+        "with empty body (no header or text only in an attachment)",
+        sum(not x["text"] for x in reviews),
+    )
     finalize("bmc", reviews, papers, out)
 
 
-PLOS_JOURNALS = ["PLoS One", "PLoS Biol", "PLoS Comput Biol", "PLoS Genet", "PLoS Med", "PLoS Pathog", "PLoS Negl Trop Dis",
-                 "PLOS Glob Public Health", "PLOS Digit Health"]
+PLOS_JOURNALS = [
+    "PLoS One",
+    "PLoS Biol",
+    "PLoS Comput Biol",
+    "PLoS Genet",
+    "PLoS Med",
+    "PLoS Pathog",
+    "PLoS Negl Trop Dis",
+    "PLOS Glob Public Health",
+    "PLOS Digit Health",
+]
 PLOS_SEP = "**********"
 PLOS_START = re.compile(r"Reviewers?['’]? (?:comments|Responses to Questions)|Comments to the Author", re.I)
-PLOS_END = re.compile("|".join([r"PLOS authors have the option to publish", r"Do you want your identity to be public",
-                                r"\[NOTE: If reviewer comments", r"While revising your submission", r"\[Note: HTML markup is below",
-                                r"To ensure your figures meet", r"Figure Files:", r"Data Requirements:",
-                                r"Reproducibility:(?=\W*To enhance)", r"Any attachments provided with reviews", r"(?m:^-{10,}[- ]*$)",
-                                r"General editorial requests"]), re.I)
+PLOS_END = re.compile(
+    "|".join(
+        [
+            r"PLOS authors have the option to publish",
+            r"Do you want your identity to be public",
+            r"\[NOTE: If reviewer comments",
+            r"While revising your submission",
+            r"\[Note: HTML markup is below",
+            r"To ensure your figures meet",
+            r"Figure Files:",
+            r"Data Requirements:",
+            r"Reproducibility:(?=\W*To enhance)",
+            r"Any attachments provided with reviews",
+            r"(?m:^-{10,}[- ]*$)",
+            r"General editorial requests",
+        ]
+    ),
+    re.I,
+)
 PLOS_REV = re.compile(r"Reviewer\s*#\s*(\d+)\s*:\s*")
 PLOS_ANS = re.compile(r"(Yes|No|Partly|N/A|I Don['’]t Know)[.\s]*", re.I)
 PLOS_SCORE = {"yes": 3, "partly": 2, "no": 1}
@@ -393,7 +526,7 @@ def plos_letters(root):
 
 def plos_split_letter(text):
     m = PLOS_START.search(text)
-    text = text[m.start():] if m else text
+    text = text[m.start() :] if m else text
     texts, answers = {}, {}
     for k, block in enumerate(text.split(PLOS_SEP), 1):
         parts = PLOS_REV.split(block)
@@ -434,18 +567,44 @@ def plos_parse(pmcid):
     if not date:
         m = re.match(r"\s*(\d{1,2} \w{3} \d{4})", paras[0] if paras else "")
         rec = meta.find("history/date[@date-type='received']")
-        date = m.group(1) if m else (f"{rec.findtext('day')} {MONTHS[int(rec.findtext('month')) - 1]} {rec.findtext('year')}" if rec is not None else None)
+        date = (
+            m.group(1)
+            if m
+            else (
+                f"{rec.findtext('day')} {MONTHS[int(rec.findtext('month')) - 1]} {rec.findtext('year')}"
+                if rec is not None
+                else None
+            )
+        )
     texts, answers = plos_split_letter("\n\n".join(paras))
-    paper = dict(conf="PLOS", field=field, journal=journal, paper_id=doi, title=text_of(meta.find("title-group/article-title")),
-                 licence=licence_of(root.find("front")), n_split=len(texts))
+    paper = dict(
+        conf="PLOS",
+        field=field,
+        journal=journal,
+        paper_id=doi,
+        title=text_of(meta.find("title-group/article-title")),
+        licence=licence_of(root.find("front")),
+        n_split=len(texts),
+    )
     reviews = []
     for n, t in sorted(texts.items()):
         ans = answers.get(n, {})
         sound = next((a for a, is_sound in ans.values() if is_sound), None)
-        reviews.append(dict(conf="PLOS", field=field, journal=journal, year=None, paper_id=doi, review_id=f"{doi}.r001#R{n}",
-                            reviewer=f"Reviewer {n}", rating=PLOS_SCORE.get(sound.lower()) if sound else None,
-                            rating_raw=";".join(f"Q{q}={a}" for q, (a, _) in sorted(ans.items())) or None,
-                            text=t, review_time=date))
+        reviews.append(
+            dict(
+                conf="PLOS",
+                field=field,
+                journal=journal,
+                year=None,
+                paper_id=doi,
+                review_id=f"{doi}.r001#R{n}",
+                reviewer=f"Reviewer {n}",
+                rating=PLOS_SCORE.get(sound.lower()) if sound else None,
+                rating_raw=";".join(f"Q{q}={a}" for q, (a, _) in sorted(ans.items())) or None,
+                text=t,
+                review_time=date,
+            )
+        )
     return paper, reviews
 
 
@@ -462,7 +621,9 @@ COP = settings.RAW_JOURNAL_REVIEWS_DIR / "copernicus"
 COP_CROSSREF = "https://api.crossref.org/prefixes/10.5194/works"
 COP_SCORE = {"accept": 4, "minor-revision": 3, "major-revision": 2, "reject": 1}
 COP_SKIPPED = Counter()
-COP_PDF_JUNK = re.compile(r"^(C\d+|Interactive|comment|Interactive comment|Printer-friendly version|Discussion paper|Full screen / Esc)$")
+COP_PDF_JUNK = re.compile(
+    r"^(C\d+|Interactive|comment|Interactive comment|Printer-friendly version|Discussion paper|Full screen / Esc)$"
+)
 
 
 def copernicus_cap(year):
@@ -475,13 +636,23 @@ def crossref_index():
         cursor, n = "*", 0
         with tqdm(desc="crossref pages", unit="page") as bar:
             while True:
-                r = session().get(COP_CROSSREF, params={"filter": "type:peer-review,from-created-date:2018-01-01", "rows": 1000, "cursor": cursor},
-                                  timeout=120)
+                r = session().get(
+                    COP_CROSSREF,
+                    params={"filter": "type:peer-review,from-created-date:2018-01-01", "rows": 1000, "cursor": cursor},
+                    timeout=120,
+                )
                 r.raise_for_status()
                 msg = r.json()["message"]
-                rows = [dict(doi=i["DOI"].lower(), created=i["created"]["date-time"], url=i.get("resource", {}).get("primary", {}).get("URL"),
-                             rec=i.get("review", {}).get("recommendation"), kind=i.get("review", {}).get("type"))
-                        for i in msg["items"]]
+                rows = [
+                    dict(
+                        doi=i["DOI"].lower(),
+                        created=i["created"]["date-time"],
+                        url=i.get("resource", {}).get("primary", {}).get("URL"),
+                        rec=i.get("review", {}).get("recommendation"),
+                        kind=i.get("review", {}).get("type"),
+                    )
+                    for i in msg["items"]
+                ]
                 (COP / "crossref").mkdir(parents=True, exist_ok=True)
                 (COP / "crossref" / f"page_{n:04d}.json").write_text(json.dumps(rows))
                 n += 1
@@ -505,7 +676,7 @@ def copernicus_page(url, ms):
 def copernicus_pdf_text(url, name):
     try:
         raw = fetch(url, COP / "pdf" / name)
-    except (Blocked, requests.ConnectionError):
+    except Blocked, requests.ConnectionError:
         COP_SKIPPED["pdf fetch error"] += 1
         return ""
     if not raw:
@@ -516,7 +687,7 @@ def copernicus_pdf_text(url, name):
         print("pdf error", name, e)
         return ""
     m = re.search(r"Received and published:.*\n", text)
-    text = text[m.end():] if m else text
+    text = text[m.end() :] if m else text
     end = text.rfind("Interactive comment on ")
     text = text[:end] if end > 0 else text
     text = "\n".join(line for line in text.splitlines() if not COP_PDF_JUNK.match(line.strip()))
@@ -559,18 +730,38 @@ def copernicus_parse(item):
         body = li.find("div", class_=re.compile(rf"\b{rc}\b")) if li else None
         text = body.get_text("\n", strip=True) if body else ""
         text = re.split(r"\n\s*Citation\s*:", text)[0]
-        pdfs = [urljoin(url, a["href"].strip()) for a in (li.find_all("a", href=True) if li else [])
-                if re.search(rf"-{rc}(-supplement)?\.pdf$", a["href"].strip())]
+        pdfs = [
+            urljoin(url, a["href"].strip())
+            for a in (li.find_all("a", href=True) if li else [])
+            if re.search(rf"-{rc}(-supplement)?\.pdf$", a["href"].strip())
+        ]
         if len(clean(text)) < 300 and pdfs:
             text = (text + "\n\n" + "\n\n".join(copernicus_pdf_text(p, p.rsplit("/", 1)[1]) for p in pdfs)).strip()
         seen.add(label)
         rec = by_rc.get(rc, {})
-        reviews.append(dict(conf="Copernicus", field="geoscience", journal=journal.strip(), year=int(rec.get("created", "0000")[:4]),
-                            paper_id=f"10.5194/{ms}", review_id=f"10.5194/{ms}-{rc.lower()}", reviewer=label,
-                            rating=COP_SCORE.get(rec.get("rec")), rating_raw=rec.get("rec"), text=text,
-                            review_time=str(datetime.strptime(when, "%d %b %Y").date()) if when else rec.get("created")))
-    paper = dict(conf="Copernicus", field="geoscience", journal=journal.strip(), paper_id=f"10.5194/{ms}", title=title.strip(),
-                 licence="CC BY 4.0")
+        reviews.append(
+            dict(
+                conf="Copernicus",
+                field="geoscience",
+                journal=journal.strip(),
+                year=int(rec.get("created", "0000")[:4]),
+                paper_id=f"10.5194/{ms}",
+                review_id=f"10.5194/{ms}-{rc.lower()}",
+                reviewer=label,
+                rating=COP_SCORE.get(rec.get("rec")),
+                rating_raw=rec.get("rec"),
+                text=text,
+                review_time=str(datetime.strptime(when, "%d %b %Y").date()) if when else rec.get("created"),
+            )
+        )
+    paper = dict(
+        conf="Copernicus",
+        field="geoscience",
+        journal=journal.strip(),
+        paper_id=f"10.5194/{ms}",
+        title=title.strip(),
+        licence="CC BY 4.0",
+    )
     return paper, reviews
 
 
@@ -595,15 +786,27 @@ def copernicus(out=OUT):
     finalize("copernicus", reviews, papers, out, max_papers=copernicus_cap, stats=dict(COP_SKIPPED))
 
 
-ICML_FIELDS = {2025: [("summary", "SUMMARY"), ("claims_and_evidence", "CLAIMS AND EVIDENCE"),
-                      ("methods_and_evaluation_criteria", "METHODS AND EVALUATION"), ("theoretical_claims", "THEORY"),
-                      ("experimental_designs_or_analyses", "EXPERIMENTS"), ("supplementary_material", "SUPPLEMENT"),
-                      ("relation_to_broader_scientific_literature", "RELATED WORK"),
-                      ("essential_references_not_discussed", "MISSING REFERENCES"),
-                      ("other_strengths_and_weaknesses", "STRENGTHS AND WEAKNESSES"),
-                      ("other_comments_or_suggestions", "OTHER"), ("questions_for_authors", "QUESTIONS")],
-               2026: [("summary", "SUMMARY"), ("strengths_and_weaknesses", "STRENGTHS AND WEAKNESSES"),
-                      ("key_questions_for_authors", "QUESTIONS"), ("limitations", "LIMITATIONS")]}
+ICML_FIELDS = {
+    2025: [
+        ("summary", "SUMMARY"),
+        ("claims_and_evidence", "CLAIMS AND EVIDENCE"),
+        ("methods_and_evaluation_criteria", "METHODS AND EVALUATION"),
+        ("theoretical_claims", "THEORY"),
+        ("experimental_designs_or_analyses", "EXPERIMENTS"),
+        ("supplementary_material", "SUPPLEMENT"),
+        ("relation_to_broader_scientific_literature", "RELATED WORK"),
+        ("essential_references_not_discussed", "MISSING REFERENCES"),
+        ("other_strengths_and_weaknesses", "STRENGTHS AND WEAKNESSES"),
+        ("other_comments_or_suggestions", "OTHER"),
+        ("questions_for_authors", "QUESTIONS"),
+    ],
+    2026: [
+        ("summary", "SUMMARY"),
+        ("strengths_and_weaknesses", "STRENGTHS AND WEAKNESSES"),
+        ("key_questions_for_authors", "QUESTIONS"),
+        ("limitations", "LIMITATIONS"),
+    ],
+}
 
 
 def val(content, key):
@@ -614,8 +817,9 @@ def val(content, key):
 def icml_download(year, raw):
     import openreview
 
-    client = openreview.api.OpenReviewClient(baseurl="https://api2.openreview.net",
-                                             username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD)
+    client = openreview.api.OpenReviewClient(
+        baseurl="https://api2.openreview.net", username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD
+    )
     notes = client.get_all_notes(content={"venueid": f"ICML.cc/{year}/Conference"}, details="replies")
     with open(raw, "w") as f:
         f.writelines(json.dumps(dict(id=n.id, content=n.content, replies=n.details.get("replies", []))) + "\n" for n in notes)
@@ -632,9 +836,20 @@ def icml_reviews(year, raw):
                     continue
                 c = r["content"]
                 text = "\n\n".join(f"[{tag}]\n{val(c, k)}" for k, tag in ICML_FIELDS[year] if val(c, k))
-                rows.append(dict(conf="ICML", year=year, paper_id=s["id"], review_id=r["id"], text=text,
-                                 rating=val(c, "overall_recommendation"), confidence=val(c, "confidence"),
-                                 primary_area=val(s["content"], "primary_area"), review_time=r.get("cdate"), modified_time=r.get("mdate")))
+                rows.append(
+                    dict(
+                        conf="ICML",
+                        year=year,
+                        paper_id=s["id"],
+                        review_id=r["id"],
+                        text=text,
+                        rating=val(c, "overall_recommendation"),
+                        confidence=val(c, "confidence"),
+                        primary_area=val(s["content"], "primary_area"),
+                        review_time=r.get("cdate"),
+                        modified_time=r.get("mdate"),
+                    )
+                )
     return pd.DataFrame(rows)
 
 

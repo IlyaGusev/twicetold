@@ -17,31 +17,77 @@ from outcomes import ICLR_FROM, in_window
 from settings import settings
 
 COL, PAGE = 3.03, 6.3
-plt.rcParams.update({
-    "font.family": "serif", "font.serif": ["Times New Roman", "Nimbus Roman", "DejaVu Serif"], "mathtext.fontset": "stix",
-    "font.size": 7.5, "axes.titlesize": 8, "axes.labelsize": 7.5, "xtick.labelsize": 7, "ytick.labelsize": 7,
-    "legend.fontsize": 7, "legend.frameon": False, "axes.titlelocation": "left", "axes.titlepad": 4,
-    "axes.spines.top": False, "axes.spines.right": False, "axes.linewidth": 0.6,
-    "xtick.major.width": 0.6, "ytick.major.width": 0.6, "xtick.major.size": 2.5, "ytick.major.size": 2.5,
-    "lines.linewidth": 1.2, "lines.markersize": 3.5, "errorbar.capsize": 0, "pdf.fonttype": 42,
-})
-C = {"ICLR": "#0072B2", "NeurIPS": "#D55E00", "ICML": "#009E73", "flag": "#E69F00", "flag_light": "#F3CF7F",
-     "grey": "#8C8C8C", "light": "#C8C8C8", "ink": "#222222", "band": "#EFEFEF"}
+plt.rcParams.update(
+    {
+        "font.family": "serif",
+        "font.serif": ["Times New Roman", "Nimbus Roman", "DejaVu Serif"],
+        "mathtext.fontset": "stix",
+        "font.size": 7.5,
+        "axes.titlesize": 8,
+        "axes.labelsize": 7.5,
+        "xtick.labelsize": 7,
+        "ytick.labelsize": 7,
+        "legend.fontsize": 7,
+        "legend.frameon": False,
+        "axes.titlelocation": "left",
+        "axes.titlepad": 4,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.linewidth": 0.6,
+        "xtick.major.width": 0.6,
+        "ytick.major.width": 0.6,
+        "xtick.major.size": 2.5,
+        "ytick.major.size": 2.5,
+        "lines.linewidth": 1.2,
+        "lines.markersize": 3.5,
+        "errorbar.capsize": 0,
+        "pdf.fonttype": 42,
+    }
+)
+C = {
+    "ICLR": "#0072B2",
+    "NeurIPS": "#D55E00",
+    "ICML": "#009E73",
+    "flag": "#E69F00",
+    "flag_light": "#F3CF7F",
+    "grey": "#8C8C8C",
+    "light": "#C8C8C8",
+    "ink": "#222222",
+    "band": "#EFEFEF",
+}
 ORDER = ["ICLR", "NeurIPS", "ICML", "SciPost", "F1000", "PLOS", "BMC-Med", "Copernicus"]
 JOURNALS = {"SciPost": "SciPost", "F1000": "F1000", "PLOS": "PLOS", "BMC-Med": "BMC Medicine", "Copernicus": "Copernicus"}
 COCODET = ["cocodet_main.jsonl", "cocodet_icml.jsonl", "cocodet_other.jsonl"]
-SHORT = {"+ length and claim count": "+ length, claim count", "CoCoDet labels, ICLR": "CoCoDet labels",
-         "Main model, 500 ICLR 2026 papers": "Main model, 500 papers", "Second model, same papers": "Second model, same 500",
-         "End to end, 50 papers": "End to end (50 papers)", "After style swap, 48 papers": "Style swap (48)",
-         "Pair audit, 60 papers": "Pair audit (60)", "Top-45% scores, ICLR 2020": "ICLR 2020",
-         "Top-45% scores, ICLR 2021-2022": "ICLR 2021–22", "Top-45% scores, ICLR 2023": "ICLR 2023"}
-CATEGORY_NAMES = {"clarity/presentation": "Clarity, presentation", "experiments-scope": "Scope of experiments",
-                  "baselines/comparisons": "Baselines", "theory/correctness": "Theory, correctness",
-                  "reproducibility/details": "Missing details", "typo/formatting": "Typos, formatting",
-                  "novelty": "Novelty", "related-work": "Related work", "assumptions": "Assumptions",
-                  "unsupported-claim": "Unsupported claim", "ablation": "Ablations", "weak-results": "Weak results",
-                  "compute-cost/scalability": "Compute cost", "generalization": "Generalization",
-                  "statistical-rigor": "Statistical rigor", "limitations/societal": "Limitations, societal"}
+SHORT = {
+    "+ length and claim count": "+ length, claim count",
+    "CoCoDet labels, ICLR": "CoCoDet labels",
+    "Main model, 500 ICLR 2026 papers": "Main model, 500 papers",
+    "Second model, same papers": "Second model, same 500",
+    "End to end, 50 papers": "End to end (50 papers)",
+    "After style swap, 48 papers": "Style swap (48)",
+    "Pair audit, 60 papers": "Pair audit (60)",
+    "Top-45% scores, ICLR 2020": "ICLR 2020",
+    "Top-45% scores, ICLR 2021-2022": "ICLR 2021–22",
+    "Top-45% scores, ICLR 2023": "ICLR 2023",
+}
+CATEGORY_NAMES = {
+    "clarity/presentation": "Clarity, presentation",
+    "experiments-scope": "Scope of experiments",
+    "baselines/comparisons": "Baselines",
+    "theory/correctness": "Theory, correctness",
+    "reproducibility/details": "Missing details",
+    "typo/formatting": "Typos, formatting",
+    "novelty": "Novelty",
+    "related-work": "Related work",
+    "assumptions": "Assumptions",
+    "unsupported-claim": "Unsupported claim",
+    "ablation": "Ablations",
+    "weak-results": "Weak results",
+    "compute-cost/scalability": "Compute cost",
+    "generalization": "Generalization",
+    "statistical-rigor": "Statistical rigor",
+    "limitations/societal": "Limitations, societal",
+}
 
 
 def chatgpt(ax, right=2026.5):
@@ -109,7 +155,11 @@ def likeness(figs=settings.FIGURES_DIR):
 
 
 def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    flags = pd.read_parquet(settings.DATA_DIR / "detector_scores.parquet", columns=["review_id", "llm_flag"]).set_index("review_id").llm_flag.astype(int)
+    flags = (
+        pd.read_parquet(settings.DATA_DIR / "detector_scores.parquet", columns=["review_id", "llm_flag"])
+        .set_index("review_id")
+        .llm_flag.astype(int)
+    )
     P = pd.read_parquet(settings.DATA_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     P["pair_type"] = (P.a.map(flags) + P.b.map(flags)).map({0: "HH", 1: "HL", 2: "LL"})
     E = pd.read_csv(settings.REPORTS_DIR / f"rq1_evidence_{model}.csv")
@@ -145,8 +195,16 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         placebo = gname.startswith("Placebo")
         color = C["grey"] if placebo else C["ink"]
         for r in g.itertuples():
-            ax.errorbar(r.est, y, xerr=1.96 * r.se, fmt="s" if gname.startswith("Blind") else "o", ms=3.5,
-                        color=color, mfc="white" if placebo else color, elinewidth=1.0)
+            ax.errorbar(
+                r.est,
+                y,
+                xerr=1.96 * r.se,
+                fmt="s" if gname.startswith("Blind") else "o",
+                ms=3.5,
+                color=color,
+                mfc="white" if placebo else color,
+                elinewidth=1.0,
+            )
             ticks.append(y)
             labels.append(SHORT.get(r.label, r.label).replace("-", "–"))
             bold.append(False)
@@ -188,8 +246,10 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     fig, ax = plt.subplots(figsize=(COL - 0.1, 1.7))
     fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.14)
     chatgpt(ax)
-    q = {conf: line(ax, Q[(Q.conf == conf) & (Q.placebo_kind == "shuffled4")], "hit_rate_strict", C[conf])
-         for conf in ["ICLR", "NeurIPS"]}
+    q = {
+        conf: line(ax, Q[(Q.conf == conf) & (Q.placebo_kind == "shuffled4")], "hit_rate_strict", C[conf])
+        for conf in ["ICLR", "NeurIPS"]
+    }
     end_label(ax, 2025, q["NeurIPS"].loc[2025], "NeurIPS", C["NeurIPS"], dx=0, dy=-8, ha="center", va="top")
     end_label(ax, ICLR_FROM, q["ICLR"].loc[ICLR_FROM], "ICLR", C["ICLR"], dx=-2, dy=8, ha="left", va="bottom")
     ax.set_ylim(-0.3, 1.8)
@@ -216,10 +276,21 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     for yi, change in zip(y, d.change):
         ax.text(27.5, yi, f"{change:+.1f}".replace("-", "−"), ha="right", va="center", fontsize=7, color=C["ink"])
     top = len(d) - 1
-    handles = [plt.Line2D([], [], ls="", marker="o", ms=3.5, mfc="white", color=C["grey"]),
-               plt.Line2D([], [], ls="", marker="o", ms=3.5, color=C["ink"])]
-    ax.legend(handles, [f"{ICLR_FROM}–2022 (mean of years)", "2026"], loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2,
-              handletextpad=0.3, columnspacing=1.2, borderaxespad=0.0, frameon=False)
+    handles = [
+        plt.Line2D([], [], ls="", marker="o", ms=3.5, mfc="white", color=C["grey"]),
+        plt.Line2D([], [], ls="", marker="o", ms=3.5, color=C["ink"]),
+    ]
+    ax.legend(
+        handles,
+        [f"{ICLR_FROM}–2022 (mean of years)", "2026"],
+        loc="lower left",
+        bbox_to_anchor=(0, 1.0),
+        ncol=2,
+        handletextpad=0.3,
+        columnspacing=1.2,
+        borderaxespad=0.0,
+        frameon=False,
+    )
     ax.text(27.5, top + 0.9, "change", ha="right", va="center", fontsize=7, color=C["grey"])
     few_ticks(ax, "x")
     ax.set_yticks(y, [CATEGORY_NAMES.get(c, c) for c in d.index])
@@ -240,10 +311,13 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         pre, last = g[g.year.between(2019, 2023)], g[g.year == g.year.max()].iloc[0]
         dx = last.ai_wordshare - pre.ai_wordshare.mean()
         dy = last.match_std - pre.match_std.mean()
-        se = np.sqrt(last.match_std_se ** 2 + (pre.match_std_se ** 2).sum() / len(pre) ** 2)
+        se = np.sqrt(last.match_std_se**2 + (pre.match_std_se**2).sum() / len(pre) ** 2)
         ax.errorbar(dx, dy, yerr=1.96 * se, fmt="o", ms=3.5, color=C["ink"], elinewidth=1.0)
-        y, off, ha, va = {"BMC-Med": (dy + 1.96 * se, (0, 2), "center", "bottom"), "SciPost": (dy - 1.96 * se, (0, -2), "center", "top"),
-                          "Copernicus": (dy, (4, -3), "left", "top")}.get(conf, (dy, (4, 0), "left", "center"))
+        y, off, ha, va = {
+            "BMC-Med": (dy + 1.96 * se, (0, 2), "center", "bottom"),
+            "SciPost": (dy - 1.96 * se, (0, -2), "center", "top"),
+            "Copernicus": (dy, (4, -3), "left", "top"),
+        }.get(conf, (dy, (4, 0), "left", "center"))
         ax.annotate(name, (dx, y), xytext=off, textcoords="offset points", fontsize=7, ha=ha, va=va)
     ax.axhline(0, color=C["light"], lw=0.6, zorder=0)
     ax.set_xlim(-4, 32)
@@ -279,8 +353,13 @@ def journals(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 def journals_cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     other = in_window(pd.read_parquet(settings.DATA_DIR / f"other_panel_outcomes_{model}.parquet"))
-    journal_grid(figs, "figA_journals_cross.pdf", "Match rate (%)", (-0.2, 3.4),
-                 lambda ax, conf: line(ax, other[(other.conf == conf) & other.placebo], "hit_rate_strict", C["ink"]))
+    journal_grid(
+        figs,
+        "figA_journals_cross.pdf",
+        "Match rate (%)",
+        (-0.2, 3.4),
+        lambda ax, conf: line(ax, other[(other.conf == conf) & other.placebo], "hit_rate_strict", C["ink"]),
+    )
 
 
 def area(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
@@ -313,7 +392,9 @@ def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     end_label(ax, 2026, i.intra.iloc[-1], "ICLR, same paper", C["ICLR"])
     end_label(ax, 2025, n.intra.iloc[-1], "NeurIPS, same paper", C["NeurIPS"], dy=6, ha="right", dx=0)
     end_label(ax, 2026, i.inter_area.iloc[-1], "ICLR, different\npapers, same area", C["ICLR"])
-    end_label(ax, 2023, n.set_index("year").inter_area.loc[2023], "NeurIPS, different papers", C["NeurIPS"], dx=0, dy=-10, ha="center")
+    end_label(
+        ax, 2023, n.set_index("year").inter_area.loc[2023], "NeurIPS, different papers", C["NeurIPS"], dx=0, dy=-10, ha="center"
+    )
     ax.set_xlim(2019.6, 2026.4)
     ax.set_ylim(0, 0.9)
     years(ax)
@@ -329,8 +410,15 @@ def all_figures(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 def summarize(df, placebo):
     g = df.groupby(["conf", "year"])
-    out = pd.DataFrame({"papers": g.size(), "reviews": g.n_reviews.sum(), "claims_per_review": g.claims_per_review.mean(),
-                        "match": g.hit_rate_strict.mean() * 100, "match_se": g.hit_rate_strict.sem() * 100})
+    out = pd.DataFrame(
+        {
+            "papers": g.size(),
+            "reviews": g.n_reviews.sum(),
+            "claims_per_review": g.claims_per_review.mean(),
+            "match": g.hit_rate_strict.mean() * 100,
+            "match_se": g.hit_rate_strict.sem() * 100,
+        }
+    )
     return out.join(placebo.groupby(["conf", "year"]).hit_rate_strict.mean().mul(100).rename("match_other_papers"))
 
 
@@ -339,19 +427,34 @@ def by_year(model=settings.DEFAULT_MODEL):
     ml_placebo = pd.read_parquet(settings.DATA_DIR / f"placebo_outcomes_{model}.parquet").query("placebo_kind == 'shuffled4'")
     icml = pd.read_parquet(settings.DATA_DIR / f"icml_panel_outcomes_{model}.parquet")
     other = pd.read_parquet(settings.DATA_DIR / f"other_panel_outcomes_{model}.parquet")
-    T = pd.concat([summarize(ml, ml_placebo), summarize(icml, icml[icml.placebo]),
-                   summarize(other[~other.placebo], other[other.placebo])])
+    T = pd.concat(
+        [summarize(ml, ml_placebo), summarize(icml, icml[icml.placebo]), summarize(other[~other.placebo], other[other.placebo])]
+    )
 
-    alpha = pd.concat([pd.read_csv(settings.REPORTS_DIR / "llm_share.csv"),
-                       pd.read_csv(settings.REPORTS_DIR / "llm_share_all.csv").query("conf not in ['ICLR', 'NeurIPS']")])
+    alpha = pd.concat(
+        [
+            pd.read_csv(settings.REPORTS_DIR / "llm_share.csv"),
+            pd.read_csv(settings.REPORTS_DIR / "llm_share_all.csv").query("conf not in ['ICLR', 'NeurIPS']"),
+        ]
+    )
     T = T.join(alpha.set_index(["conf", "year"]).alpha.mul(100).rename("ai_wordshare"))
 
-    meta = pd.concat([pd.read_parquet(settings.DATA_DIR / f, columns=["review_id", "conf", "year"])
-                      for f in ["reviews.parquet", "icml_sample.parquet", "other_reviews.parquet"]]).drop_duplicates("review_id")
-    det = pd.concat([pd.read_json(settings.DATA_DIR / f, lines=True) for f in COCODET]).drop_duplicates("review_id").merge(meta, on="review_id")
+    meta = pd.concat(
+        [
+            pd.read_parquet(settings.DATA_DIR / f, columns=["review_id", "conf", "year"])
+            for f in ["reviews.parquet", "icml_sample.parquet", "other_reviews.parquet"]
+        ]
+    ).drop_duplicates("review_id")
+    det = (
+        pd.concat([pd.read_json(settings.DATA_DIR / f, lines=True) for f in COCODET])
+        .drop_duplicates("review_id")
+        .merge(meta, on="review_id")
+    )
     det["flag"] = det[["human", "mix", "ai"]].idxmax(axis=1) != "human"
     T = T.join(det.groupby(["conf", "year"]).flag.mean().mul(100).rename("ai_cocodet"))
-    style = pd.read_parquet(settings.DATA_DIR / "detector_scores.parquet", columns=["review_id", "llm_flag"]).merge(meta, on="review_id")
+    style = pd.read_parquet(settings.DATA_DIR / "detector_scores.parquet", columns=["review_id", "llm_flag"]).merge(
+        meta, on="review_id"
+    )
     T = T.join(style.groupby(["conf", "year"]).llm_flag.mean().mul(100).rename("ai_flagged"))
     S = pd.read_csv(settings.REPORTS_DIR / f"match_std_{model}.csv").set_index(["conf", "year"])
     T = T.join(S[["std", "std_se"]].rename(columns={"std": "match_std", "std_se": "match_std_se"}))
@@ -366,14 +469,19 @@ def fmt(v, d=1):
 
 
 def latex(T):
-    lines = [r"\begin{tabular}{llrrrrrrrrr}", r"\toprule",
-             r"Source & Year & Papers & Reviews & Claims/rev. & Match (\%) & Std. match (\%) & Other papers (\%) & AI-likeness (\%) & Flagged (\%) & CoCoDet (\%) \\",
-             r"\midrule"]
+    lines = [
+        r"\begin{tabular}{llrrrrrrrrr}",
+        r"\toprule",
+        r"Source & Year & Papers & Reviews & Claims/rev. & Match (\%) & Std. match (\%) & Other papers (\%) & AI-likeness (\%) & Flagged (\%) & CoCoDet (\%) \\",
+        r"\midrule",
+    ]
     for conf, g in T.groupby("conf", observed=True):
         for k, r in enumerate(g.itertuples()):
-            lines.append(f"{conf if k == 0 else ''} & {r.year} & {r.papers:,} & {r.reviews:,} & {fmt(r.claims_per_review)} & "
-                         f"{fmt(r.match)} $\\pm$ {fmt(r.match_se)} & {fmt(r.match_std)} $\\pm$ {fmt(r.match_std_se)} & {fmt(r.match_other_papers)} & {fmt(r.ai_wordshare)} & "
-                         f"{fmt(r.ai_flagged)} & {fmt(r.ai_cocodet)} \\\\")
+            lines.append(
+                f"{conf if k == 0 else ''} & {r.year} & {r.papers:,} & {r.reviews:,} & {fmt(r.claims_per_review)} & "
+                f"{fmt(r.match)} $\\pm$ {fmt(r.match_se)} & {fmt(r.match_std)} $\\pm$ {fmt(r.match_std_se)} & {fmt(r.match_other_papers)} & {fmt(r.ai_wordshare)} & "
+                f"{fmt(r.ai_flagged)} & {fmt(r.ai_cocodet)} \\\\"
+            )
         lines.append(r"\midrule")
     lines[-1] = r"\bottomrule"
     lines.append(r"\end{tabular}")
@@ -390,6 +498,19 @@ def table(csv=None, tables=settings.TABLES_DIR, model=settings.DEFAULT_MODEL):
 
 
 if __name__ == "__main__":
-    fire.Fire({"all": all_figures, "ai": ai, "overlap": overlap, "categories": categories, "fields": fields,
-               "embedding": embedding, "area": area, "likeness": likeness, "cross": cross, "journals": journals,
-               "journals_cross": journals_cross, "table": table})
+    fire.Fire(
+        {
+            "all": all_figures,
+            "ai": ai,
+            "overlap": overlap,
+            "categories": categories,
+            "fields": fields,
+            "embedding": embedding,
+            "area": area,
+            "likeness": likeness,
+            "cross": cross,
+            "journals": journals,
+            "journals_cross": journals_cross,
+            "table": table,
+        }
+    )

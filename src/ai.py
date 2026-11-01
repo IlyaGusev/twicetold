@@ -23,22 +23,37 @@ from settings import settings
 
 TAGS = r"\[(SUMMARY|MAIN|STRENGTHS|WEAKNESSES|QUESTIONS|LIMITATIONS|OTHER)\]"
 
-OUTLINE_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["points"],
-                  "properties": {"points": {"type": "array", "items": {"type": "string"}}}}
-REVIEW_SCHEMA = {"type": "object", "additionalProperties": False, "required": ["review"],
-                 "properties": {"review": {"type": "string"}}}
-VENUE = {"ICLR": "a machine-learning conference (ICLR)", "NeurIPS": "a machine-learning conference (NeurIPS)",
-         "SciPost": "a physics journal (SciPost)", "F1000": "an open-research biomedical journal (F1000Research)",
-         "BMC-Med": "a medical journal (BMC Medicine)", "PLOS": "a multidisciplinary journal (PLOS ONE)",
-         "Copernicus": "a geoscience journal (Copernicus/EGU)"}
+OUTLINE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["points"],
+    "properties": {"points": {"type": "array", "items": {"type": "string"}}},
+}
+REVIEW_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["review"],
+    "properties": {"review": {"type": "string"}},
+}
+VENUE = {
+    "ICLR": "a machine-learning conference (ICLR)",
+    "NeurIPS": "a machine-learning conference (NeurIPS)",
+    "SciPost": "a physics journal (SciPost)",
+    "F1000": "an open-research biomedical journal (F1000Research)",
+    "BMC-Med": "a medical journal (BMC Medicine)",
+    "PLOS": "a multidisciplinary journal (PLOS ONE)",
+    "Copernicus": "a geoscience journal (Copernicus/EGU)",
+}
 
 COCODET_BASE = "answerdotai/ModernBERT-base"
 COCODET_CLASSES = ["human", "mix", "ai"]
 
-WORD_HASH = HashingVectorizer(ngram_range=(1, 2), n_features=2 ** 18, alternate_sign=False, norm=None, lowercase=True,
-                              dtype=np.float32)
-CHAR_HASH = HashingVectorizer(analyzer="char_wb", ngram_range=(3, 4), n_features=2 ** 18, alternate_sign=False,
-                              norm=None, lowercase=True, dtype=np.float32)
+WORD_HASH = HashingVectorizer(
+    ngram_range=(1, 2), n_features=2**18, alternate_sign=False, norm=None, lowercase=True, dtype=np.float32
+)
+CHAR_HASH = HashingVectorizer(
+    analyzer="char_wb", ngram_range=(3, 4), n_features=2**18, alternate_sign=False, norm=None, lowercase=True, dtype=np.float32
+)
 
 
 def clean(s):
@@ -60,13 +75,15 @@ def load_ml(columns):
 
 def reference_sample(per_source):
     cols = ["conf", "year", "review_id", "text"]
-    ml = pd.read_parquet(settings.DATA_DIR / "reviews.parquet", columns=cols, filters=[("year", ">=", 2018), ("year", "<=", 2021)])
+    ml = pd.read_parquet(
+        settings.DATA_DIR / "reviews.parquet", columns=cols, filters=[("year", ">=", 2018), ("year", "<=", 2021)]
+    )
     other = pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=cols, filters=[("year", "<=", 2021)])
     return pd.concat([ml, other]).sample(frac=1, random_state=0).groupby("conf").head(per_source)
 
 
 def rewrite(row, model):
-    o = extract.call(render("ai_outline"), row.text[:settings.REVIEW_TEXT_MAX_CHARS], OUTLINE_SCHEMA, "outline", model=model)
+    o = extract.call(render("ai_outline"), row.text[: settings.REVIEW_TEXT_MAX_CHARS], OUTLINE_SCHEMA, "outline", model=model)
     if "error" in o:
         return None
     outline = "\n".join(f"- {p}" for p in o["points"])
@@ -141,7 +158,9 @@ def recovered(human, ai, alpha, n, rng):
 def wordshare(out=settings.REPORTS_DIR / "llm_share.csv"):
     rng = np.random.default_rng(0)
     cols = ["conf", "year", "paper_id", "review_id", "text"]
-    reviews = pd.concat([load_ml(cols), pd.read_parquet(settings.DATA_DIR / "icml_sample.parquet", columns=cols)], ignore_index=True)
+    reviews = pd.concat(
+        [load_ml(cols), pd.read_parquet(settings.DATA_DIR / "icml_sample.parquet", columns=cols)], ignore_index=True
+    )
     llm = pd.read_parquet(settings.DATA_DIR / "intel_reviews.parquet", columns=["label", "text", "paper_id"]).query("label == 1")
 
     pre = reviews[reviews.year.between(2018, 2022)]
@@ -160,8 +179,7 @@ def wordshare(out=settings.REPORTS_DIR / "llm_share.csv"):
     rows = []
     for (conf, year), g in tqdm(reviews.groupby(["conf", "year"]), desc="venue-years"):
         g = g[~g.paper_id.isin(train)]
-        rows.append(dict(conf=conf, year=year, n=len(g), **estimate(rates, g.text, rng),
-                         in_reference=2018 <= year <= 2022))
+        rows.append(dict(conf=conf, year=year, n=len(g), **estimate(rates, g.text, rng), in_reference=2018 <= year <= 2022))
     out_df = pd.DataFrame(rows)
     print(out_df.round(3).to_string(index=False))
     out_df.to_csv(out, index=False)
@@ -170,7 +188,9 @@ def wordshare(out=settings.REPORTS_DIR / "llm_share.csv"):
 def wordshare_fields(reference=settings.DATA_DIR / "ai_reference.jsonl", out=settings.REPORTS_DIR / "llm_share_all.csv"):
     rng, boot_rng = np.random.default_rng(1), np.random.default_rng(0)
     cols = ["conf", "year", "paper_id", "review_id", "text"]
-    reviews = pd.concat([load_ml(cols), pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=cols)], ignore_index=True)
+    reviews = pd.concat(
+        [load_ml(cols), pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=cols)], ignore_index=True
+    )
     ai = pd.DataFrame(read_jsonl(reference)).merge(reviews[["review_id", "paper_id"]], on="review_id")
 
     rows = []
@@ -185,8 +205,9 @@ def wordshare_fields(reference=settings.DATA_DIR / "ai_reference.jsonl", out=set
         for a in [0.1, 0.3]:
             n = min(2000, len(held[0]), int(len(q_test) / a))
             rec.append(f"{a:.1f}->{recovered(held, ai_held, a, n, rng):.3f}")
-        tqdm.write(f"{conf}: vocab {len(rates[1])}, human train {len(h_train)}, AI train {len(q_train)}, "
-                   f"recovery {' '.join(rec)}")
+        tqdm.write(
+            f"{conf}: vocab {len(rates[1])}, human train {len(h_train)}, AI train {len(q_train)}, recovery {' '.join(rec)}"
+        )
         for year, g in R.groupby("year"):
             g = g[~g.paper_id.isin(train)]
             rows.append(dict(conf=conf, year=year, n=len(g), **estimate(rates, g.text, boot_rng)))
@@ -248,10 +269,12 @@ def cocodet(input, name=None, max_len=512, batch=8, threads=2, limit=None):
     model = load_cocodet()
     with open(out, "a") as f, torch.inference_mode():
         for k, i in enumerate(tqdm(range(0, len(df), batch), desc="cocodet batches")):
-            b = df.iloc[i:i + batch]
+            b = df.iloc[i : i + batch]
             enc = tok(b.text.tolist(), truncation=True, max_length=max_len, padding=True, return_tensors="pt")
             probs = model(enc["input_ids"], enc["attention_mask"]).tolist()
-            f.writelines(json.dumps(dict(review_id=rid, **dict(zip(COCODET_CLASSES, p)))) + "\n" for rid, p in zip(b.review_id, probs))
+            f.writelines(
+                json.dumps(dict(review_id=rid, **dict(zip(COCODET_CLASSES, p)))) + "\n" for rid, p in zip(b.review_id, probs)
+            )
             if k % 250 == 0:
                 f.flush()
 
@@ -263,7 +286,7 @@ def style_features(texts):
 
 def p_llm(clf, tfidf, texts, desc):
     starts = tqdm(range(0, len(texts), 5000), desc=desc)
-    return np.concatenate([clf.predict_proba(tfidf.transform(style_features(texts.iloc[i:i + 5000])))[:, 1] for i in starts])
+    return np.concatenate([clf.predict_proba(tfidf.transform(style_features(texts.iloc[i : i + 5000])))[:, 1] for i in starts])
 
 
 def style(out=settings.DATA_DIR / "detector_scores.parquet", by_cell=settings.REPORTS_DIR / "detector_by_cell.csv"):
@@ -287,9 +310,17 @@ def style(out=settings.DATA_DIR / "detector_scores.parquet", by_cell=settings.RE
     S["llm_grade"] = np.select([S.p_llm < q90, S.p_llm < q99, S.p_llm <= 0.95], [0, 1, 2], 3)
     print(f"pre-period thresholds: q90={q90:.3f}, q99={q99:.3f}")
     print("share flagged (>= pre-period 99th pct) by venue-year:")
-    print(S.groupby(["conf", "year"]).agg(flag=("llm_flag", "mean"), p_mean=("p_llm", "mean"),
-                                          g2plus=("llm_grade", lambda g: (g >= 2).mean()),
-                                          g3=("llm_grade", lambda g: (g == 3).mean())).round(3).to_string())
+    print(
+        S.groupby(["conf", "year"])
+        .agg(
+            flag=("llm_flag", "mean"),
+            p_mean=("p_llm", "mean"),
+            g2plus=("llm_grade", lambda g: (g >= 2).mean()),
+            g3=("llm_grade", lambda g: (g == 3).mean()),
+        )
+        .round(3)
+        .to_string()
+    )
 
     ss = S.text.str.extractall(r"\[(SUMMARY|STRENGTHS)\](.*?)(?=\[[A-Z]+\]|\Z)")[1].groupby(level=0).apply(" ".join)
     S["p_llm_ss"] = np.nan
@@ -304,14 +335,18 @@ def style(out=settings.DATA_DIR / "detector_scores.parquet", by_cell=settings.RE
     m = S.merge(gz, on="review_id")
     for y in (2023, 2024):
         g = m[m.year == y]
-        print(f"ICLR {y}: GPTZero isAI {g.gz_isAI.mean():.3f}, ours flagged {g.llm_flag.mean():.3f}; "
-              f"AUC of p_llm for GPTZero isAI {roc_auc_score(g.gz_isAI, g.p_llm):.3f}; "
-              f"corr(p_llm, gz_ai) {np.corrcoef(g.p_llm, g.gz_ai)[0, 1]:.3f}; "
-              f"P(flag|isAI) {g[g.gz_isAI].llm_flag.mean():.3f}, P(isAI|flag) {g[g.llm_flag].gz_isAI.mean():.3f}")
-    S.groupby(["conf", "year"]).agg(flag=("llm_flag", "mean"), p_mean=("p_llm", "mean"),
-                                    g2plus=("llm_grade", lambda g: (g >= 2).mean())).round(4).to_csv(by_cell)
+        print(
+            f"ICLR {y}: GPTZero isAI {g.gz_isAI.mean():.3f}, ours flagged {g.llm_flag.mean():.3f}; "
+            f"AUC of p_llm for GPTZero isAI {roc_auc_score(g.gz_isAI, g.p_llm):.3f}; "
+            f"corr(p_llm, gz_ai) {np.corrcoef(g.p_llm, g.gz_ai)[0, 1]:.3f}; "
+            f"P(flag|isAI) {g[g.gz_isAI].llm_flag.mean():.3f}, P(isAI|flag) {g[g.llm_flag].gz_isAI.mean():.3f}"
+        )
+    S.groupby(["conf", "year"]).agg(
+        flag=("llm_flag", "mean"), p_mean=("p_llm", "mean"), g2plus=("llm_grade", lambda g: (g >= 2).mean())
+    ).round(4).to_csv(by_cell)
 
 
 if __name__ == "__main__":
-    fire.Fire({"reference": reference, "wordshare": wordshare, "wordshare_fields": wordshare_fields,
-               "cocodet": cocodet, "style": style})
+    fire.Fire(
+        {"reference": reference, "wordshare": wordshare, "wordshare_fields": wordshare_fields, "cocodet": cocodet, "style": style}
+    )
