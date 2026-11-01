@@ -34,7 +34,8 @@ sources live at `RAW_JOURNAL_REVIEWS_DIR`, both set in `src/settings.py`.
    has its own budget cap; inspect the script's argument and logs before starting it.
 
 Claims and groupings use model-named JSONL files in `data/`. Rows record the request settings. A different model or
-reasoning effort needs a different short name; do not overwrite model outputs.
+reasoning effort needs a different short name; do not overwrite model outputs. Git LFS stores the main
+`gpt-6-luna-high` files and their `_icml`, `_other`, `_noq` and `_wd` variants.
 
 `data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs, sample reviews and panels, and LLM
 reference labels. `adjudicate/` holds claim judgments; `adjudicate2/` holds grouping judgments. JSONL and Parquet

@@ -1,4 +1,3 @@
-import json
 import sys
 from pathlib import Path
 
@@ -11,7 +10,6 @@ from tqdm import tqdm
 
 from settings import settings
 
-COVER_MIN_SIM = 0.5
 VARIANT_COLS = [
     "S3",
     "D3",
@@ -21,11 +19,6 @@ VARIANT_COLS = [
     "share_specific",
     "claims_per_review",
 ]
-
-
-def read_jsonl(path):
-    with open(path) as f:
-        return [json.loads(line) for line in f if line.strip()]
 
 
 def load_flags(data):
@@ -41,54 +34,6 @@ def clustered(model, *groups):
 
 def se(x):
     return x.std(ddof=1) / np.sqrt(x.count())
-
-
-def ampere(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
-    from scipy.stats import spearmanr
-
-    from between import openai_embed
-
-    data = Path(data)
-    reviews = pd.read_parquet(data / "ampere_full.parquet").set_index("review_id")
-    claims = {
-        r["review_id"]: [c["claim"] for c in r["claims"]]
-        for r in read_jsonl(data / f"claims_{model}_ampere.jsonl")
-        if "claims" in r
-    }
-    reviews = reviews[reviews.index.isin(claims)]
-    reviews["n_claims"] = reviews.index.map(lambda i: len(claims[i]))
-    print(len(reviews), "reviews")
-    for k in ["n_prop", "n_eval", "n_req"]:
-        print(f"spearman(n_claims, {k}) = {spearmanr(reviews.n_claims, reviews[k]).statistic:.3f}")
-    reviews["n_crit"] = reviews.n_eval + reviews.n_req
-    print(
-        f"spearman(n_claims, n_eval+n_req) = {spearmanr(reviews.n_claims, reviews.n_crit).statistic:.3f}; "
-        f"means claims {reviews.n_claims.mean():.1f}, eval+req {reviews.n_crit.mean():.1f}, req {reviews.n_req.mean():.1f}"
-    )
-
-    covered_req, covered_eval, claim_on_argument = [], [], []
-    for rid, row in tqdm(reviews.iterrows(), total=len(reviews), desc="ampere reviews"):
-        review_claims = claims[rid]
-        if not review_claims:
-            covered_req += [False] * row.n_req
-            covered_eval += [False] * row.n_eval
-            continue
-        sents = list(row.sents)
-        emb = openai_embed(sents + review_claims, settings.EMBED_MODEL, batch=512, threads=1)
-        emb /= np.linalg.norm(emb, axis=1, keepdims=True)
-        sim = emb[: len(sents)] @ emb[len(sents) :].T
-        for best, label in zip(sim.max(1), row.labels):
-            if label == "request":
-                covered_req.append(best >= COVER_MIN_SIM)
-            if label == "evaluation":
-                covered_eval.append(best >= COVER_MIN_SIM)
-        is_argument = [label in ("evaluation", "request") for label in row.labels]
-        claim_on_argument += [is_argument[nearest] for nearest in sim.argmax(0)]
-    print(f"request propositions covered by a claim: {np.mean(covered_req):.3f} (n={len(covered_req)})")
-    print(f"evaluation propositions covered by a claim: {np.mean(covered_eval):.3f} (n={len(covered_eval)})")
-    print(
-        f"claims whose nearest proposition is evaluation/request: {np.mean(claim_on_argument):.3f} (n={len(claim_on_argument)})"
-    )
 
 
 def nonempty_outcomes(path):
@@ -394,7 +339,6 @@ def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=set
 if __name__ == "__main__":
     fire.Fire(
         {
-            "ampere": ampere,
             "variants": variants,
             "robust": robust,
             "detector_placebo": detector_placebo,

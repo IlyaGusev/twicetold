@@ -220,6 +220,16 @@ __marimo__/
 .streamlit/secrets.toml
 data/*
 !data/gold/
+!data/claims_gpt-6-luna-high.jsonl
+!data/clusters_gpt-6-luna-high.jsonl
+!data/claims_gpt-6-luna-high_icml.jsonl
+!data/clusters_gpt-6-luna-high_icml.jsonl
+!data/claims_gpt-6-luna-high_other.jsonl
+!data/clusters_gpt-6-luna-high_other.jsonl
+!data/claims_gpt-6-luna-high_noq.jsonl
+!data/clusters_gpt-6-luna-high_noq.jsonl
+!data/claims_gpt-6-luna-high_wd.jsonl
+!data/clusters_gpt-6-luna-high_wd.jsonl
 paper/*.aux
 paper/*.log
 paper/*.bbl
