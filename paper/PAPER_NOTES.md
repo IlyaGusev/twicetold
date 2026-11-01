@@ -118,7 +118,7 @@ dev): Haiku 5.5 0.72, DeepSeek 4.1 flash 0.70, MiMo 0.79 with failures, MiniMax 
 ## Counting rules
 
 - A review with no critique claim counts as a review with an empty claim set in Reviews, Claims/rev. and the rarefied S_k, D_k, U_k (also in the `_spec` and `_m8` subsets); it still enters no pair. `n_reviews` in the outcome tables is the panel size; `paper_n_reviews` is the paper's review count in `papers.parquet`.
-- The summary+strengths style columns (`p_llm_ss`, `llm_flag_ss`) score only reviews whose form has separate strengths and weaknesses fields, stop at section tags only, are missing (not False) when a review has no such text over 200 characters, and use their own pre-period (ICLR 2017–2022) 99th percentile.
+- The summary+strengths style columns (`p_llm_ss`, `llm_flag_ss`) score the `[SUMMARY]` and `[STRENGTHS]` text up to the next section tag, and are missing (not False) when a review has no such text over 200 characters. They skip forms whose strengths field also holds the weaknesses (ICLR 2023, NeurIPS 2022 and 2025) but score summary-only forms (ICLR 2022, NeurIPS 2021). Their 99th-percentile threshold comes from the pre-period ICLR rows with such text, which are ICLR 2022 summaries alone, so it is not comparable with the summary+strengths text from 2024 on. No analysis reads these columns. `reports/within_gpt-6-luna.txt` comes from the removed `analysis_within.py` and an older version of these columns, so it is stale.
 
 ## Figure messages
 

@@ -8,6 +8,7 @@ import pandas as pd
 from extract import CATEGORIES
 
 MATCHED_CLAIMS_PER_REVIEW = 8
+MATCHED_SUFFIX = f"m{MATCHED_CLAIMS_PER_REVIEW}"
 
 
 def load_jsonl(path, key):
@@ -102,7 +103,6 @@ def _rarefied_metrics(df, n_reviews, ks):
 
 
 def panel_metrics(df, n_reviews, ks=(1, 2, 3, 4)):
-    matched_suffix = f"m{MATCHED_CLAIMS_PER_REVIEW}"
     if df.empty:
         return dict(
             n_reviews=n_reviews,
@@ -114,7 +114,7 @@ def panel_metrics(df, n_reviews, ks=(1, 2, 3, 4)):
             claims_per_review=0.0,
             **_rarefied_metrics(df, n_reviews, ks),
             **_subset_metrics(df, "spec", n_reviews),
-            **_subset_metrics(df, matched_suffix, n_reviews),
+            **_subset_metrics(df, MATCHED_SUFFIX, n_reviews),
         )
     cluster_reviewers = df.groupby("cluster").review.nunique()
     target_reviewers = df.groupby("target").review.nunique()
@@ -141,5 +141,9 @@ def panel_metrics(df, n_reviews, ks=(1, 2, 3, 4)):
     specific_claims = df[df.specific.astype(bool)]
     metrics.update(_subset_metrics(specific_claims, "spec", n_reviews))
     matched = df.sample(frac=1, random_state=0).groupby("review").head(MATCHED_CLAIMS_PER_REVIEW)
-    metrics.update(_subset_metrics(matched, matched_suffix, n_reviews))
+    metrics.update(_subset_metrics(matched, MATCHED_SUFFIX, n_reviews))
     return metrics
+
+
+def score_panel(panel, claims_by_review, ks=(1, 2, 3, 4)):
+    return panel_metrics(assign(panel, claims_by_review), len(panel["review_ids"]), ks)

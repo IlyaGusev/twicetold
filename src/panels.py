@@ -81,8 +81,14 @@ def sol(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), years=(2023, 20
     print(f"{len(chosen)} panels, {len(review_ids)} reviews")
 
 
-def ml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), placebo_per_cell=300, seed=2026):
-    data, out = Path(data), Path(out)
+def ml(
+    data=str(settings.DATA_DIR),
+    out=str(settings.DATA_DIR),
+    placebo_per_cell=300,
+    seed=2026,
+    current_corpus=str(settings.DATA_DIR),
+):
+    data, out, current_corpus = Path(data), Path(out), Path(current_corpus)
     rng = np.random.default_rng(seed)
     reviews = pd.read_parquet(data / "reviews.parquet", columns=["conf", "year", "paper_id", "review_id"])
     papers = pd.read_parquet(data / "papers.parquet", columns=["conf", "year", "paper_id", "withdrawn", "n_reviews", "decision"])
@@ -101,9 +107,10 @@ def ml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), placebo_per_cell
     sample = sample.sort_values(["conf", "year", "paper_id", "review_id"])
     sample["text"] = texts_by_id(data / "reviews.parquet", set(sample.review_id)).reindex(sample.review_id).to_numpy()
     sample.to_parquet(out / "sample_reviews.parquet")
-    corpus_ids = pd.read_parquet(settings.DATA_DIR / "reviews.parquet", columns=["review_id"]).review_id
-    in_corpus = sample[sample.review_id.isin(corpus_ids)]
-    write_panels(out / "panels.jsonl", (p for p in by_paper_panels(in_corpus) if len(p["review_ids"]) >= MIN_REVIEWS))
+    current_corpus_ids = pd.read_parquet(current_corpus / "reviews.parquet", columns=["review_id"]).review_id
+    in_current_corpus = sample[sample.review_id.isin(current_corpus_ids)]
+    panels = [p for p in by_paper_panels(in_current_corpus) if len(p["review_ids"]) >= MIN_REVIEWS]
+    write_panels(out / "panels.jsonl", panels)
 
     def placebo():
         for (conf, year), g in sample.groupby(["conf", "year"]):
@@ -144,8 +151,20 @@ def icml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), per_year=1500,
     )
 
 
-def other(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), placebo_per_cell=150, seed=2027):
-    data, out = Path(data), Path(out)
+def preprint_shares(reviews):
+    journal_of_paper = reviews.groupby(["conf", "year", "paper_id"]).journal.first()
+    is_preprint = journal_of_paper.eq(COPERNICUS_PREPRINT_JOURNAL)
+    return is_preprint.groupby(level=["conf", "year"]).agg(papers="size", preprints="sum", preprint_share="mean").reset_index()
+
+
+def other(
+    data=str(settings.DATA_DIR),
+    out=str(settings.DATA_DIR),
+    placebo_per_cell=150,
+    seed=2027,
+    reports=str(settings.REPORTS_DIR),
+):
+    data, out, reports = Path(data), Path(out), Path(reports)
     rng = np.random.default_rng(seed)
     reviews = cap_reviews_per_paper(rng, pd.read_parquet(data / "other_reviews.parquet"))
     reviews = reviews.sort_values(["conf", "year", "paper_id", "review_id"])
@@ -167,6 +186,7 @@ def other(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), placebo_per_c
                 yield dict(panel_id=f"otherplacebo_{conf}_{year}_{k}", review_ids=rids)
 
     write_panels(out / "panels_other_placebo.jsonl", placebo())
+    preprint_shares(reviews).to_csv(reports / "other_placebo_preprints.csv", index=False)
     print(reviews.groupby(["conf", "year"]).agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")).to_string())
     print("reviews", len(reviews), "chars", reviews.text.str.len().sum() / 1e6, "M")
 

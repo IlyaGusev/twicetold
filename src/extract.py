@@ -250,7 +250,8 @@ def done_ids(path, key, effort):
         return set()
     done = set()
     with open(path) as f:
-        for row in (json.loads(line) for line in f if line.strip()):
+        rows = (json.loads(line) for line in f if line.strip())
+        for row in rows:
             if row.get("effort", effort) != effort:
                 raise SystemExit(f"{path} has rows made at effort {row['effort']}, not {effort}; use a new short name")
             if "error" not in row:

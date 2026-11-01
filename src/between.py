@@ -225,7 +225,7 @@ def embed_reviews(data, threads):
 def load_reviews(data):
     R = pd.read_parquet(data / "sample_reviews.parquet", columns=["conf", "year", "paper_id", "review_id"])
     R["row"] = np.arange(len(R))
-    areas = pd.read_parquet(data / "paper_areas.parquet", columns=["paper_id", "area_final"])
+    areas = pd.read_parquet(data / "paper_areas.parquet", columns=["paper_id", "area_pred"])
     R = R[R.review_id.isin(main_sample_review_ids(data))].merge(areas, on="paper_id", how="left")
     E = normalize_rows(np.load(data / "review_emb.npy"))
     return R, E
@@ -260,7 +260,7 @@ def cell_similarity(R, E, intra, rng):
     rows = []
     for (conf, year), cell in tqdm(R.groupby(["conf", "year"]), desc="inter-paper"):
         area_sims = []
-        for _, area in cell.groupby(cell.area_final.fillna("none")):
+        for _, area in cell.groupby(cell.area_pred.fillna("none")):
             if area.paper_id.nunique() >= 2:
                 area_sims += cross_paper_sims(area, E, rng, AREA_PAIRS)
         any_sims = cross_paper_sims(cell, E, rng, CELL_PAIRS)

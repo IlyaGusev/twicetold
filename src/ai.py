@@ -217,7 +217,7 @@ def wordshare(out=settings.REPORTS_DIR / "llm_share.csv"):
     train_papers = half_of_papers(pre.paper_id, rng)
     held_out_papers = set(pre.paper_id) - train_papers
     human_train = pre[pre.paper_id.isin(train_papers)]
-    human_test = pre[~pre.paper_id.isin(train_papers)]
+    human_test = pre[pre.paper_id.isin(held_out_papers)]
     llm_train = llm[llm.paper_id.isin(train_papers)]
     llm_test = llm[llm.paper_id.isin(held_out_papers)]
     rates = fit_rates(human_train.text, llm_train.text, 20000)
@@ -396,12 +396,15 @@ def style(out=settings.DATA_DIR / "detector_scores.parquet", by_cell=settings.RE
     scored["p_llm_ss"] = np.nan
     ss_ids = summary_strengths.index[summary_strengths.str.len() > SUMMARY_STRENGTHS_MIN_CHARS]
     scored.loc[ss_ids, "p_llm_ss"] = p_llm(clf, tfidf, summary_strengths.loc[ss_ids], "score summary+strengths")
-    q99_ss = np.quantile(scored[pre_period].p_llm_ss.dropna(), 0.99)
+    calibration_ss = scored[pre_period].p_llm_ss.dropna()
+    q99_ss = np.quantile(calibration_ss, 0.99)
     scored["llm_flag_ss"] = (scored.p_llm_ss >= q99_ss).astype("boolean").where(scored.p_llm_ss.notna())
+    calibration_years = scored.year[calibration_ss.index].value_counts().sort_index().to_dict()
     print(
-        f"summary+strengths exposure available for {len(ss_ids)} reviews, pre-period q99={q99_ss:.3f}; "
-        "flagged share by year (ICLR 2024+):"
+        f"summary+strengths exposure available for {len(ss_ids)} reviews; "
+        f"q99={q99_ss:.3f} from pre-period ICLR summary-only texts, by year {calibration_years}"
     )
+    print("flagged share by year (ICLR 2024+ summary and strengths text, not calibrated to 1%):")
     iclr_2024_on = in_sample & (scored.conf == "ICLR") & (scored.year >= 2024)
     print(scored[iclr_2024_on].groupby("year").llm_flag_ss.mean().round(3).to_dict())
     scored[["review_id", "p_llm", "llm_flag", "llm_grade", "p_llm_ss", "llm_flag_ss"]].to_parquet(out)

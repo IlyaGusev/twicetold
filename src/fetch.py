@@ -164,12 +164,12 @@ def epmc_xml(pmcid, folder):
     try:
         raw = fetch(f"{EPMC}/{pmcid}/fullTextXML", path)
     except requests.RequestException as e:
-        if not isinstance(e, requests.HTTPError) and EPMC_BROKEN_RECORD not in str(e):
-            raise
-        print("skip", pmcid, type(e).__name__)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(b"")
-        return None
+        if isinstance(e, requests.HTTPError) or EPMC_BROKEN_RECORD in str(e):
+            print("skip", pmcid, type(e).__name__)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"")
+            return None
+        raise
     if not raw:
         return None
     try:
@@ -247,7 +247,8 @@ def scipost_page(offset):
 def scipost(out=settings.OTHER_REVIEWS_DIR):
     count = json.loads(fetch(f"{SCIPOST_API}?format=json&limit=1", SCIPOST_RAW_DIR / "count.json"))["count"]
     pages = pmap(scipost_page, range(0, count, SCIPOST_PAGE), "scipost pages")
-    submissions = list({sub["identifier"]: sub for page in pages for sub in page}.values())
+    by_identifier = {sub["identifier"]: sub for page in pages for sub in page}
+    submissions = list(by_identifier.values())
     missing = max(count - len(submissions), 0)
     if missing:
         print(f"scipost: offset pages miss {missing} of {count} submissions; the API order is not stable")
@@ -260,8 +261,8 @@ def scipost(out=settings.OTHER_REVIEWS_DIR):
         for report in sub["reports"]:
             if report["status"] != "vetted" or report["report_type"] != "report_normal":
                 continue
-            fields = {tag: clean(report.get(key)) for key, tag in SCIPOST_FIELDS}
-            fields = {tag: value for tag, value in fields.items() if value}
+            cleaned = {tag: clean(report.get(key)) for key, tag in SCIPOST_FIELDS}
+            fields = {tag: value for tag, value in cleaned.items() if value}
             is_stub = len(" ".join(fields.values())) < MIN_CHARS
             text = "" if is_stub else "\n\n".join(f"[{tag}] {value}" for tag, value in fields.items())
             scores = [SCIPOST_SCALE[report[c]] for c in SCIPOST_RATED if report.get(c) in SCIPOST_SCALE]
@@ -542,13 +543,13 @@ def plos_letters(root):
 
 
 def plos_responses_between(root, first_letter, letter):
-    responses, started = [], False
-    for sa in root.iter("sub-article"):
-        if sa is letter:
-            break
-        started = started or sa is first_letter
-        if started and text_of(sa.find(".//article-title")).startswith("Author response"):
-            responses.append(PLOS_RESPONSE_FILE.sub("", text_of(sa.find("body"))))
+    sub_articles = list(root.iter("sub-article"))
+    between = sub_articles[sub_articles.index(first_letter) : sub_articles.index(letter)]
+    responses = [
+        PLOS_RESPONSE_FILE.sub("", text_of(sa.find("body")))
+        for sa in between
+        if text_of(sa.find(".//article-title")).startswith("Author response")
+    ]
     return " ".join(responses)
 
 
@@ -662,7 +663,7 @@ COP_SUPPLEMENT_NOTE = re.compile(
     r"(?:The comment was uploaded in the form of a supplement|Please also note the supplement to this comment)[.:]?(?:\s*https?://\S+)?"
 )
 COP_PREPRINT_SERVER = "egusphere"
-COP_JOURNAL_NAMES = {"esurf": "ESurf", "gchron": "GChron", "sand": "SaND"}
+COP_JOURNAL_NAMES = {"egusphere": "EGUsphere", "esurf": "ESurf", "gchron": "GChron", "sand": "SaND"}
 
 
 def copernicus_cap(year):
@@ -744,9 +745,8 @@ def copernicus_journal(ms, soup):
     prefix = ms.split("-")[0]
     if prefix == COP_PREPRINT_SERVER:
         final_paper = soup.find("a", string="Final revised paper", href=True)
-        if final_paper is None:
-            return "EGUsphere"
-        prefix = urlparse(final_paper["href"]).hostname.split(".")[0]
+        if final_paper is not None:
+            prefix = urlparse(final_paper["href"]).hostname.split(".")[0]
     return COP_JOURNAL_NAMES.get(prefix, prefix.upper())
 
 

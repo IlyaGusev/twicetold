@@ -22,7 +22,12 @@ from settings import settings
 PANEL_FILES = ["panels.jsonl", "panels_icml.jsonl", "panels_other.jsonl"]
 WITHDRAWN_TAG = "_wd"
 DROP_REASON = "a review of a withdrawn or desk-rejected paper, or a review not in reviews.parquet"
+MIN_PLACEBO_REVIEWS = 2
+PLACEBO_DROP_REASON = f"fewer than {MIN_PLACEBO_REVIEWS} reviews left after removing reviews of withdrawn or desk-rejected papers"
+DROP_REASONS = {"panel": DROP_REASON, "sub3": DROP_REASON, "placebo": PLACEBO_DROP_REASON}
 SOURCE_FILES = {"_icml": "icml_sample.parquet", "_other": "other_reviews.parquet"}
+SOURCE_PANEL_FILES = {"_icml": ["panels_icml.jsonl"], "_other": ["panels_other.jsonl", "panels_other_placebo.jsonl"]}
+STALE_REASON = "a cluster row that does not match the current panel files and source parquet"
 SOURCE_EXTRA_COLUMNS = {"_icml": [], "_other": ["field", "journal"]}
 MARKERS = [
     "commendable",
@@ -154,13 +159,30 @@ def count_true(flags):
     return int(flags.fillna(False).sum())
 
 
-def ml_panels(model, tag, data, out):
+def claims_of_reviews(df, review_ids):
+    if df.empty:
+        return df
+    position = {review_id: j for j, review_id in enumerate(review_ids)}
+    kept = df[df.review_id.isin(review_ids)]
+    return kept.assign(review=kept.review_id.map(position))
+
+
+def placebo_cells(placebo):
+    counted = placebo.assign(
+        trimmed=placebo.n_excluded_reviews > 0,
+        review_pairs=placebo.n_reviews * (placebo.n_reviews - 1) // 2,
+    )
+    return counted.groupby(["conf", "year", "placebo_kind"], as_index=False).agg(
+        panels=("panel_id", "size"), trimmed_panels=("trimmed", "sum"), review_pairs=("review_pairs", "sum")
+    )
+
+
+def ml_panels(model, tag, data, out, reports):
     claims = load_claims(data / f"claims_{model}{tag}.jsonl")
     rmeta = review_meta(claims.keys(), data).set_index("review_id")
     pmeta = paper_meta(data).set_index("paper_id")
-    statuses = review_status(data)
-    corpus_reviews = set(statuses.review_id)
-    excluded = set() if tag == WITHDRAWN_TAG else set(statuses.review_id[~in_main_sample(statuses)])
+    corpus_reviews = set(review_status(data).review_id)
+    excluded = set() if tag == WITHDRAWN_TAG else excluded_review_ids(data)
 
     rows_by_kind = {"panel": [], "placebo": [], "sub3": []}
     dropped = Counter()
@@ -170,13 +192,18 @@ def ml_panels(model, tag, data, out):
         paper = re.sub(r"^(noq|wd|sub3)_", "", panel_id)
         if kind == "panel" and paper not in pmeta.index:
             continue
-        left_corpus = kind == "panel" and not corpus_reviews.issuperset(panel["review_ids"])
-        if left_corpus or not excluded.isdisjoint(panel["review_ids"]):
+        if kind == "placebo":
+            review_ids = [review_id for review_id in panel["review_ids"] if review_id not in excluded]
+            keep = len(review_ids) >= MIN_PLACEBO_REVIEWS
+        else:
+            review_ids = panel["review_ids"]
+            keep = corpus_reviews.issuperset(review_ids) and excluded.isdisjoint(review_ids)
+        if not keep:
             dropped[kind] += 1
             continue
-        df = assign(panel, claims)
-        row = panel_metrics(df, len(panel["review_ids"]))
-        panel_reviews = rmeta.reindex(panel["review_ids"])
+        df = claims_of_reviews(assign(panel, claims), review_ids)
+        row = panel_metrics(df, len(review_ids))
+        panel_reviews = rmeta.reindex(review_ids)
         row.update(
             panel_id=panel_id,
             total_chars=float(panel_reviews.chars.sum()),
@@ -189,22 +216,44 @@ def ml_panels(model, tag, data, out):
         )
         if kind == "placebo":
             _, conf, year, _ = panel_id.split("_")
-            row.update(conf=conf, year=int(year), placebo_kind="same_area3" if panel_id.startswith("placeboA_") else "shuffled4")
+            row.update(
+                conf=conf,
+                year=int(year),
+                placebo_kind="same_area3" if panel_id.startswith("placeboA_") else "shuffled4",
+                n_excluded_reviews=len(panel["review_ids"]) - len(review_ids),
+            )
         else:
             row.update(pmeta.loc[paper].to_dict(), paper_id=paper)
         rows_by_kind[kind].append(row)
         if kind == "panel" and not df.empty:
-            reviews.extend(review_rows(df, panel["review_ids"], paper))
-    for kind, rows in rows_by_kind.items():
-        if rows:
-            pd.DataFrame(rows).to_parquet(out / f"{kind}_outcomes_{model}{tag}.parquet")
-            print(kind, len(rows), "panels,", dropped[kind], "dropped:", DROP_REASON)
-    if rows_by_kind["panel"]:
+            reviews.extend(review_rows(df, review_ids, paper))
+    tables = {kind: pd.DataFrame(rows) for kind, rows in rows_by_kind.items() if rows}
+    for kind, table in tables.items():
+        table.to_parquet(out / f"{kind}_outcomes_{model}{tag}.parquet")
+        print(kind, len(table), "panels,", dropped[kind], "dropped:", DROP_REASONS[kind])
+    if "placebo" in tables:
+        cells = placebo_cells(tables["placebo"])
+        cells.to_csv(reports / f"placebo_cells_{model}{tag}.csv", index=False)
+        print(cells.to_string(index=False))
+    if "panel" in tables:
         review_table = pd.DataFrame(reviews)
         review_table = review_table.merge(rmeta.drop(columns=["paper_id"]), left_on="review_id", right_index=True, how="left")
         review_table = review_table.merge(pmeta[["decision", "area"]], left_on="paper_id", right_index=True, how="left")
         review_table.to_parquet(out / f"review_outcomes_{model}{tag}.parquet")
         print("reviews", len(review_table))
+
+
+def panel_review_ids(data, names):
+    review_ids = {}
+    for name in names:
+        with open(data / name) as f:
+            review_ids.update((panel["panel_id"], panel["review_ids"]) for panel in map(json.loads, f))
+    return review_ids
+
+
+def current_source_panels(data, tag, source_reviews):
+    current = panel_review_ids(data, SOURCE_PANEL_FILES[tag])
+    return {panel_id: review_ids for panel_id, review_ids in current.items() if source_reviews.issuperset(review_ids)}
 
 
 def source_panels(model, tag, data, out):
@@ -213,8 +262,13 @@ def source_panels(model, tag, data, out):
     claims = load_claims(data / f"claims_{model}{tag}.jsonl")
     meta_columns = ["review_id", "conf", "year", "rating"] + extra_columns
     meta = pd.read_parquet(data / SOURCE_FILES[tag], columns=meta_columns).set_index("review_id")
+    current = current_source_panels(data, tag, set(meta.index))
+    n_stale = 0
     rows = []
     for panel_id, panel in tqdm(load_jsonl(data / f"clusters_{model}{tag}.jsonl", "panel_id").items(), desc=source):
+        if current.get(panel_id) != panel["review_ids"]:
+            n_stale += 1
+            continue
         row = panel_metrics(assign(panel, claims), len(panel["review_ids"]), ks=(2,))
         first_review = meta.loc[panel["review_ids"][0]]
         row.update(
@@ -228,14 +282,21 @@ def source_panels(model, tag, data, out):
         rows.append(row)
     table = pd.DataFrame(rows)
     table.to_parquet(out / f"{source}_panel_outcomes_{model}.parquet")
+    print(len(rows), "panels,", n_stale, "dropped:", STALE_REASON)
     print(table.groupby(["placebo", "conf", "year"]).hit_rate_strict.mean().mul(100).round(2).unstack(0).to_string())
 
 
-def panels(model=settings.DEFAULT_MODEL, tag="", data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
+def panels(
+    model=settings.DEFAULT_MODEL,
+    tag="",
+    data=str(settings.DATA_DIR),
+    out=str(settings.DATA_DIR),
+    reports=str(settings.REPORTS_DIR),
+):
     if tag in SOURCE_FILES:
         source_panels(model, tag, Path(data), Path(out))
     else:
-        ml_panels(model, tag, Path(data), Path(out))
+        ml_panels(model, tag, Path(data), Path(out), Path(reports))
 
 
 def hit(clusters_a, clusters_b):
@@ -263,7 +324,7 @@ def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(set
     data = Path(data)
     papers = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "conf", "year"]).set_index("paper_id")
     main_reviews = main_sample_review_ids(data)
-    n_dropped = 0
+    n_dropped = n_stale = 0
     rows = []
     for tag in ["", *SOURCE_FILES]:
         clusters_path = data / f"clusters_{model}{tag}.jsonl"
@@ -272,8 +333,12 @@ def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(set
         claims = load_claims(data / f"claims_{model}{tag}.jsonl")
         if tag:
             meta = pd.read_parquet(data / SOURCE_FILES[tag], columns=["review_id", "conf", "year"]).set_index("review_id")
+            current = current_source_panels(data, tag, set(meta.index))
         for panel_id, panel in tqdm(load_jsonl(clusters_path, "panel_id").items(), desc=f"pairs{tag}"):
             if tag and panel_id.startswith(("icml_", "other_")):
+                if current.get(panel_id) != panel["review_ids"]:
+                    n_stale += 1
+                    continue
                 conf, year = meta.loc[panel["review_ids"][0], ["conf", "year"]]
             elif not tag and panel_id in papers.index:
                 if not main_reviews.issuperset(panel["review_ids"]):
@@ -291,6 +356,7 @@ def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(set
     table = pd.DataFrame(rows)
     table.to_parquet(Path(out) / f"pairs_{model}.parquet")
     print(n_dropped, "panels dropped:", DROP_REASON)
+    print(n_stale, "panels dropped:", STALE_REASON)
     print(table.groupby(["conf", "year"]).agg(pairs=("hit", "size"), hit=("hit", "mean")).to_string())
 
 
@@ -316,10 +382,7 @@ def pair_design(model, data, all_years=False):
     log_a = np.log(chars.reindex(design.a).to_numpy())
     log_b = np.log(chars.reindex(design.b).to_numpy())
     design["log_short"], design["log_long"] = np.minimum(log_a, log_b), np.maximum(log_a, log_b)
-    sizes = {}
-    for name in PANEL_FILES:
-        with open(data / name) as f:
-            sizes.update((panel["panel_id"], len(panel["review_ids"])) for panel in map(json.loads, f))
+    sizes = {panel_id: len(review_ids) for panel_id, review_ids in panel_review_ids(data, PANEL_FILES).items()}
     design["size"] = design.panel_id.map(sizes)
     design["size"] = design["size"].clip(upper=design.groupby("conf")["size"].transform("min") + 2)
     return design
@@ -371,7 +434,8 @@ def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DAT
         year=("year", "first"), rating=("rating", "mean"), withdrawn=("withdrawn", "first"), decision=("decision", "first")
     )
     papers["pct"] = papers.groupby("year").rating.rank(pct=True)
-    papers["sample_pct"] = papers.rating.where(in_main_sample(papers)).groupby(papers.year).rank(pct=True)
+    main_sample_rating = papers.rating.where(in_main_sample(papers))
+    papers["main_sample_pct"] = main_sample_rating.groupby(papers.year).rank(pct=True)
     decile = np.minimum((papers.pct * 10).astype(int), 9)
     in_observed_year = papers.year == WITHDRAWALS_OBSERVED_YEAR
     withdrawn_by_decile = papers[in_observed_year].groupby(decile[in_observed_year]).withdrawn.mean()
@@ -387,7 +451,7 @@ def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DAT
     design = design[design.conf == "ICLR"].copy()
     pair_paper = reviews.set_index("review_id").paper_id.reindex(design.a).to_numpy()
     design["pct"] = papers.pct.reindex(pair_paper).to_numpy()
-    design["sample_pct"] = papers.sample_pct.reindex(pair_paper).to_numpy()
+    design["main_sample_pct"] = papers.main_sample_pct.reindex(pair_paper).to_numpy()
     design["weight"] = papers.weight.reindex(pair_paper).to_numpy()
     design["keep"] = design.pct > papers.drop_share.reindex(pair_paper).to_numpy()
     rates_by_variant = {
@@ -403,8 +467,10 @@ def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DAT
 
     rated = reviews[in_main_sample(reviews) & reviews.rating.notna()]
     table["rating_icc"] = rated.groupby("year")[["paper_id", "rating"]].apply(rating_icc)
-    panel_hits = design.groupby(["year", "panel_id"]).agg(hit=("hit", "mean"), pct=("sample_pct", "first")).reset_index()
-    quintile = pd.cut(panel_hits.pct, QUINTILE_EDGES, labels=[f"q{i}" for i in range(1, 6)])
+    panel_hits = (
+        design.groupby(["year", "panel_id"]).agg(hit=("hit", "mean"), main_sample_pct=("main_sample_pct", "first")).reset_index()
+    )
+    quintile = pd.cut(panel_hits.main_sample_pct, QUINTILE_EDGES, labels=[f"q{i}" for i in range(1, 6)])
     hits_by_quintile = panel_hits.groupby(["year", quintile], observed=True).hit.mean().unstack().mul(100)
     table = table.join(hits_by_quintile.add_prefix("raw_rating_"))
     table.index.name = "year"

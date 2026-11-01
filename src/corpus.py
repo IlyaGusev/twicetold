@@ -175,8 +175,9 @@ def from_iclr26():
         decision[raw_row.paper_id] = raw_row.decision
         try:
             submission = json.loads(raw_row.api_raw_submission)
-            area[raw_row.paper_id] = unwrap(submission.get("content", {}).get("primary_area"))
-            final_venue[raw_row.paper_id] = unwrap(submission.get("content", {}).get("venue"))
+            content = submission.get("content", {})
+            area[raw_row.paper_id] = unwrap(content.get("primary_area"))
+            final_venue[raw_row.paper_id] = unwrap(content.get("venue"))
         except TypeError, json.JSONDecodeError, AttributeError:
             pass
         try:
@@ -209,8 +210,8 @@ def from_iclr26():
         )
     )
     paper_rows = snapshot_reviews.drop_duplicates("paper_id")
-    final_venues = paper_rows.paper_id.map(final_venue).astype("str")
-    left_conference = final_venues.str.contains("Withdrawn|Desk Rejected", na=False)
+    paper_final_venue = paper_rows.paper_id.map(final_venue).astype("str")
+    left_conference = paper_final_venue.str.contains("Withdrawn|Desk Rejected", na=False)
     withdrawn_in_snapshot = paper_rows.venue.str.contains("Withdrawn")
     snapshot_decision = paper_rows.venue.where(withdrawn_in_snapshot, paper_rows.paper_id.map(decision))
     papers = pd.DataFrame(
@@ -220,21 +221,22 @@ def from_iclr26():
             paper_id=paper_rows.paper_id,
             title=paper_rows.title,
             abstract=paper_rows.abstract,
-            decision_raw=final_venues.where(left_conference, snapshot_decision),
+            decision_raw=paper_final_venue.where(left_conference, snapshot_decision),
             primary_area=paper_rows.paper_id.map(area),
-            final_venue=final_venues,
+            final_venue=paper_final_venue,
         )
     )
     return reviews, papers
 
 
-def older_versions(reviews):
+def is_older_version(reviews):
     repeated = reviews[reviews.reviewer.notna() & reviews.duplicated(["paper_id", "reviewer"], keep=False)]
     older = set()
     for _, versions in repeated.sort_values("review_time", kind="stable").groupby(["paper_id", "reviewer"]):
-        heads = versions.text.str.slice(0, NEAR_COPY_CHARS).str.split().tolist()
+        opening_words = versions.text.str.slice(0, NEAR_COPY_CHARS).str.split().tolist()
         for i, review_id in enumerate(versions.review_id):
-            if any(SequenceMatcher(None, heads[i], later).ratio() >= NEAR_COPY_RATIO for later in heads[i + 1 :]):
+            later_versions = opening_words[i + 1 :]
+            if any(SequenceMatcher(None, opening_words[i], later).ratio() >= NEAR_COPY_RATIO for later in later_versions):
                 older.add(review_id)
     return reviews.review_id.isin(older)
 
@@ -243,7 +245,7 @@ def merge_ml(parts):
     reviews = pd.concat([r for r, _ in parts], ignore_index=True)
     reviews = reviews[reviews.text.str.len() > MIN_REVIEW_CHARS].drop_duplicates("review_id")
     reviews = reviews.drop_duplicates(["paper_id", "text"])
-    older = older_versions(reviews)
+    older = is_older_version(reviews)
     print("older versions of a reviewer's own review dropped:", reviews[older].groupby(["conf", "year"]).size().to_dict())
     reviews = reviews[~older]
     papers = pd.concat([p for _, p in parts], ignore_index=True).drop_duplicates("paper_id")
