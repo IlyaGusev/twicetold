@@ -4,9 +4,17 @@ How WRITING_GUIDE.md and FIGURE_GUIDE.md apply to this paper.
 
 ## Core claims
 
-1. Within a paper, two AI-flagged reviews share more critique claims than two unflagged reviews of the same paper.
-2. Same-paper overlap was flat 2020–2025 and rose in 2026; cross-paper overlap did not rise.
-3. The mix of critiques shifted from clarity and typos toward requests for more experiments.
+1. Within a paper, two AI-flagged reviews share more critique claims than two unflagged reviews of the same paper
+   (+3.6 points, SE 0.3, ICLR 2024-26; gpt-6-luna-high run of 2026-11-01).
+2. Same-paper overlap was flat 2020–2025 and rose in 2026 (ICLR +1.4 over 2023, SE 0.2); cross-paper overlap did not
+   rise (0.5% to 0.3%).
+3. The mix of critiques shifted from clarity (23% to 14%) and typos toward requests for more experiments.
+
+Every number in main.tex comes from the gpt-6-luna-high run (reports/, tables/, claim embeddings through OpenRouter,
+and the ad-hoc checks in the session scratch script adhoc.py: third reviewer, CoCoDet splits, controls, audit papers,
+panel-size and length effects, second-model fine print). The two blind sets disagree on the sign of the main model's
+drift (+3.3, SE 1.5, on the 2023/2026 set; -2.9, SE 2.1, on the first set). The word-use length-quarter check was not
+rerun and its sentence was dropped.
 
 Confidence: claim 1 is systematic (all instruments, detectors, blind references). Claim 2 is hedged: the ICLR rise is instrument-sensitive and drift cannot be excluded. Journal results (RQ5) are exploratory.
 
@@ -34,33 +42,21 @@ gpt-6-luna; blocked by the OpenAI spend limit on 2026-10-30):
 Then compare (main 2026 − main 2025) with (position 2026 − position 2025). The position-track sample is small
 (73 papers in 2025), so expect a standard error near 2 points.
 
-## Extraction models compared (`validate.py instruments`, reports/instruments_gpt-6-luna.csv)
+## Extraction models compared (`validate.py instruments`, reports/instruments_<model>.csv)
 
-`validate.py instruments --model M` writes `reports/instruments_M.csv` with M as the reference model. The committed
-`reports/instruments.csv` is the gpt-6-luna run made before that rename; the next `scripts/post.sh gpt-6-luna` writes
-`reports/instruments_gpt-6-luna.csv` and does not change `reports/instruments.csv`.
+`validate.py instruments --model M` writes `reports/instruments_M.csv` with M as the reference model; `scripts/post.sh`
+runs it for the main model.
 
 Same prompts, schema and reasoning effort on the second-model set (1,797 ICLR panels) and the 40 blind papers.
-OpenRouter models run through `extract.py` under short names (`glm-5.3-flash`, `deepseek-v4.1-flash`).
+The table is `reports/instruments_<model>.csv` after `scripts/post.sh`; the reference model is the main model.
 
-| | gpt-6-luna | gpt-6.1-sol | glm-5.3-flash | deepseek-v4.1-flash |
-|---|---|---|---|---|
-| Groups per panel | 21.4 | 22.6 | 13.9 | 20.6 |
-| Std. change 2023-2026 | +2.1 (0.6) | +0.5 (0.5) | +0.7 (0.8) | +1.4 (0.6) |
-| Std. change 2025-2026 | +3.7 (0.9) | +2.6 (0.8) | +4.7 (1.2) | +3.2 (0.9) |
-| Gap two flagged vs none, 2024-26 | +3.7 (1.0) | +4.7 (0.9) | +4.1 (1.4) | +3.1 (1.0) |
-| Blind bias vs Opus (pts) | -4.9 (1.3) | - | +3.3 (1.4) | -4.1 (1.1) |
-| Blind Spearman vs Opus | 0.68 | - | 0.75 | 0.70 |
-| Cost for this set (USD) | - | - | 3.8 | 27.2 |
+### GLM dropped (2026-11-01)
 
-The within-paper gap and the 2025-2026 rise hold under every model; the 2023-2026 rise is largest under the main
-model. GLM merges about twice as often (levels about 2x) but ranks papers like the reference.
-
-### Provider mix (GLM full run, 2026-10-31)
-
-Unpinned `z-ai/glm-5.3-flash` on OpenRouter is served by about 40 endpoints at fp4/nvfp4/fp8 whose groupings differ.
-The GLM full run is a provider mix and cannot be reproduced; replicas on one provider agree with each other. Pinned
-first-party endpoint = short name `glm-zai`. Category agreement with the council gold: 0.52 mixed, 0.77 pinned.
+GLM-5.3-flash was tried as the second model family (full run 2026-10-31). Dropped: unpinned `z-ai/glm-5.3-flash` on
+OpenRouter is served by about 40 endpoints at fp4/nvfp4/fp8 whose groupings differ, so the run was a provider mix
+that cannot be reproduced; pinned to one provider and tuned it reached luna's agreement with the council gold at a
+higher price. Its routes, reports and data files are removed; the remaining second-model checks are gpt-6.1-sol and
+deepseek-v4.1-flash.
 
 ### LLM-council gold (data/tune/) and prompt tuning
 
@@ -69,10 +65,10 @@ Kimi K3.1 Pro extract claims; 12 Opus 5.5 agents adjudicate gold claims with a s
 models group the gold claims; 6 Opus agents adjudicate the gold grouping. This is an LLM-council reference, never
 "human" in the paper. The council models fed the gold, so their own scores are upper bounds.
 
-Against gold (dev / test): luna stage-1 recall 0.94 / 0.95, category 0.79 / 0.79; GLM pinned 0.92 / 0.91, 0.76 /
-0.78. Stage-2 pairwise F1 on gold claims: council 0.82-0.88; luna base prompt low 0.78 / 0.64, medium 0.80-0.81,
-high 0.84-0.86 / 0.73; GLM tuned strict rule high 0.80-0.83 / 0.70. End to end, same-paper hit-rate bias vs gold:
-luna main run -1.2 (SE 0.9) / -6.0 (2.4); luna high-effort grouping -0.6 (0.6) / -4.8 (1.4); GLM tuned -1.2 / -3.4.
+Against gold (dev / test): luna stage-1 recall 0.94 / 0.95, category 0.79 / 0.79. Stage-2 pairwise F1 on gold
+claims: council 0.82-0.88; luna base prompt low 0.78 / 0.64, medium 0.80-0.81, high 0.84-0.86 / 0.73. End to end,
+same-paper hit-rate bias vs gold: luna main run -1.2 (SE 0.9) / -6.0 (2.4); luna high-effort grouping -0.6 (0.6) /
+-4.8 (1.4).
 All cross-paper leakage of every model came from one "typos throughout" bucket per panel; luna at high effort has
 none. Prompt rules beyond the base prompt gave no measurable gain for luna (a strict merge rule cut recall to 0.42),
 and the 28 dev panels cannot resolve F1 changes under 0.04 or bias under 1 point. Decision: base prompts, luna through

@@ -193,7 +193,7 @@ def ml_panels(model, tag, data, out, reports):
         if kind == "panel" and paper not in pmeta.index:
             continue
         if kind == "placebo":
-            review_ids = [review_id for review_id in panel["review_ids"] if review_id not in excluded]
+            review_ids = [r for r in panel["review_ids"] if r in corpus_reviews and r not in excluded]
             keep = len(review_ids) >= MIN_PLACEBO_REVIEWS
         else:
             review_ids = panel["review_ids"]

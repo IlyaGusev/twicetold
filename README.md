@@ -18,7 +18,7 @@ Raw review dumps (ResearchArcade, davidheineman/iclr-2026, JerMa88/ICLR_Peer_Rev
 
 Run each line as `uv run python -I src/<line>`, in this order. `# API` marks paid model calls; every command has `--help`.
 The model defaults to `gpt-6-luna-high` (gpt-6-luna through OpenRouter). Each model short name has fixed reasoning
-efforts in `REASONING_EFFORTS` in `src/settings.py`: gpt-6-luna, gpt-6.1-sol, glm-5.3-flash and deepseek-v4.1-flash use
+efforts in `REASONING_EFFORTS` in `src/settings.py`: gpt-6-luna, gpt-6.1-sol and deepseek-v4.1-flash use
 low in pass 1 and medium in pass 2, and gpt-6-luna-high uses high in both passes. A new effort needs a new short name.
 Every claims and clusters row records its effort, and a resume into a file made at another effort stops.
 

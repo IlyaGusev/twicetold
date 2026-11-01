@@ -1,0 +1,301 @@
+ctype,label,f2023,f2026,delta
+192,"The paper does not indicate whether code will be shared, limiting reproducibility.",0.019209892370839837,0.0047562425683709865,-0.01445364980246885
+139,The proposed method has limited novelty.,0.00892257110658492,0.002740351678465403,-0.006182219428119517
+35,The method’s novelty is limited because it relies mainly on techniques from the authors’ NIPS 2015 paper.,0.007764601275834617,0.0033781921553495916,-0.004386409120485026
+63,"Theorem 1 lacks assumptions controlling the accuracy of \tilde{T} as an approximation to T, which may be needed for its conclusions.",0.008695112746973254,0.005023978077186572,-0.0036711346697866814
+87,The paper’s overall presentation is difficult to follow.,0.006472224232586512,0.0028269719901410336,-0.0036452522424454785
+213,"The paper does not clearly position its indistinguishability and training–inference mismatch issues against prior work [1,2], limiting novelty.",0.006741038657582118,0.0032600735485191863,-0.0034809651090629314
+232,Section 3.1’s definition and its redefinition in Equation 2 are confusing; use distinct notation.,0.00529357636914424,0.0020710129064264397,-0.0032225634627178
+97,Equation (6) is not sufficiently explained or derived.,0.005789849153751512,0.002614358497846304,-0.003175490655905208
+241,The paper needs more high-level intuition for how the approach works.,0.00495238882972674,0.0018190265451882416,-0.0031333622845384984
+15,The experimental results are not explained sufficiently.,0.00465255735569318,0.0016064130528935122,-0.0030461443027996675
+155,The notation in Equation 2 is not clearly defined.,0.005283237352798255,0.0023229992676646375,-0.002960238085133617
+118,The proof of Theorem A.2 lacks sufficient detail.,0.005396966532604088,0.002441117874495043,-0.002955848658109045
+62,The title of Section 3.3 contains a typo.,0.004187301620123861,0.001283555527557071,-0.00290374609256679
+103,The paper does not clearly articulate its specific contribution.,0.004807642600882952,0.001984392594750809,-0.0028232500061321428
+37,Page 7 has a typo: “change” should read “changes.”,0.00360831670474871,0.0008110811002354498,-0.0027972356045132605
+32,Equation (4) appears incorrect.,0.004714591453769088,0.0019528942995960343,-0.0027616971541730537
+111,Notation throughout the paper is confusing and inconsistent.,0.00589323931721136,0.0032128261057870243,-0.002680413211424336
+127,"Page 2, equation (2), uses the wrong subscript: it should be p rather than ℙ.",0.004797303584536967,0.002181256939468151,-0.0026160466450688155
+287,The second paragraph of Section 3.1 is unclear and strangely worded.,0.004228657685507801,0.0016772842169917553,-0.0025513734685160454
+41,The condition used in Theorem 2 needs an explanation in natural language.,0.003887470146090301,0.0014174232819648637,-0.002470046864125437
+261,"The paper does not explain why GCN, GraphSAGE, and GAT cannot capture the claimed node dependencies and local/global graph-structure similarities.",0.00691680193546386,0.004496381633344095,-0.0024204203021197654
+94,Section 2.2 does not clearly explain how the approach is motivated by auxiliary training.,0.0047869645681909824,0.0024489924482837366,-0.002337972119907246
+14,Section 3.3 is difficult to follow and should be revised more concisely.,0.0049110327643428,0.002582860202691529,-0.002328172561651271
+195,The paper does not clearly specify which loss the proposed procedure minimizes.,0.004869676698958861,0.002567111055114142,-0.002302565643844719
+145,The paper lacks enough implementation detail for readers to re-implement the method.,0.006679004559506208,0.004401886747879771,-0.0022771178116264374
+49,The experimental results are not especially strong.,0.0044044209633895435,0.0021497586443133764,-0.002254662319076167
+115,Section 3.2.1 does not explain the theoretical results clearly enough.,0.003835775064360377,0.0016142876266822058,-0.002221487437678171
+151,"The paper does not establish how its method compares with standard data augmentation such as noise, dropout, and transformations.",0.003029331789373559,0.0008268302478128372,-0.0022025015415607216
+57,The paper contains typos and grammatical errors.,0.0028122124461078773,0.0007717082312919813,-0.0020405042148158963
+158,Algorithm 1 is unclear and omits quantities such as L.,0.004135606538393937,0.002165507791890764,-0.001970098746503173
+264,The last paragraph on page 1 contains a grammatical error in how its phrases are formulated.,0.0025950931028421954,0.0006693387720389634,-0.001925754330803232
+212,The paper should explain its method more didactically for a machine-learning audience.,0.003618655721094695,0.0016930333645691427,-0.0019256223565255522
+163,The related-work discussion omits Cai et al. (ICLR 2017).,0.007164938327767496,0.005268089864636076,-0.00189684846313142
+244,Page 2 has a grammatical error in “learning a discriminative representations.”,0.003360180312445074,0.0014646707246970259,-0.0018955095877480482
+190,"The paper should relate its results to CV work, including Ivanov et al. and Ledig et al., and explain why partially conditioned models avoid degeneracy.",0.0026881442499560593,0.0008032065264467561,-0.0018849377235093032
+265,"The contribution appears limited to applying existing algorithms to this task, with little methodological novelty.",0.004869676698958861,0.002992338039703601,-0.0018773386592552603
+66,The paper's writing needs improvement.,0.002750178348031968,0.000905575985699774,-0.001844602362332194
+276,"Equation (9)'s “L2” term is undefined, and its equivalence to maximizing Equation (8)'s first term is unexplained.",0.0035876386720567403,0.0017481553810899985,-0.0018394832909667418
+29,Section 3.2 does not explain the approach sufficiently.,0.005221203254722345,0.0033860667291382854,-0.00183513652558406
+164,The paper does not justify its integer-programming formulation or explain its benefits over standard gradient-based approaches.,0.005086796042224543,0.003252198974730493,-0.0018345970674940497
+77,Algorithm 2 is mentioned without enough discussion to make it clear.,0.0035359435903268162,0.0017481553810899985,-0.0017877882092368178
+24,The evaluation should include datasets beyond CIFAR-10.,0.0031533999855253773,0.001385924986810089,-0.0017674749987152884
+211,The paper contains typos.,0.0034532314595589375,0.0017009079383578363,-0.0017523235212011012
+112,The phrase “a interpretable” should read “an interpretable.”,0.003029331789373559,0.0012914301013457646,-0.0017379016880277943
+278,"Equation (2) is unclear or potentially incorrect because it uses ∇π without defining whether it means ∇a Q(sᵢ₊₁,aᵢ₊₁) · ∇s π(sᵢ₊₁).",0.0028535685114918167,0.0011260640517831973,-0.0017275044597086194
+119,The paper lacks theoretical justification for why its pseudo-labeling approach works.,0.0037323849009005283,0.002015890889905584,-0.0017164940109949444
+188,"On CIFAR-10, proposed methods improve test accuracy but baselines achieve lower training loss, leaving relative performance unclear; the paper does not explain this discrepancy.",0.0032050950672553014,0.0015119181674291878,-0.0016931768998261136
+43,"The derivation around Equation (6) uses ambiguous p notation for discrete labels, empirical samples, and true distributions; these should be distinguished.",0.0028535685114918167,0.001204809789670134,-0.0016487587218216827
+267,"Theorem 1 and Corollaries 1–2 may largely apply a known result to this setting, making their theoretical originality unclear.",0.0038254360480143917,0.002204880660834232,-0.0016205553871801595
+88,The experiments do not compare the approach with existing methods.,0.006193070791244921,0.004583001945019725,-0.001610068846225196
+162,The paper does not explain why its approach is practically superior to batch normalization for addressing deep-network training difficulties.,0.004456116045119468,0.0028742194328731955,-0.001581896612246272
+191,"Equation 2 does not clarify whether X and A_t use pointwise or matrix-vector multiplication, despite their stated dimensions.",0.003815097031668407,0.0022442535297777007,-0.0015708435018907062
+33,The notation beneath the sigma in Eq. 2 is incorrect; it should begin with \(\tilde{X}\in\{...\}\).,0.00360831670474871,0.0020552637588490525,-0.0015530529458996577
+177,Calling the approach “contrastive” on page 2 is inaccurate because the paper has no contrastive objective.,0.0033808583451370436,0.0018505248403430164,-0.0015303335047940271
+230,The paper does not explain the motivation for the proposed algorithm or its formulation.,0.004890354731650831,0.0033860667291382854,-0.0015042880025125452
+78,Section 3 does not clearly explain how its description relates to the proposed framework.,0.004383742930697573,0.002897843154239277,-0.0014858997764582963
+71,"The assumptions in Theorems 2 and 7—orthogonal data columns, sparsity only in the first layer, and one hidden connection per input—are strong and unlikely in practice, with insufficient justification.",0.0032671291653312102,0.0018741485617090976,-0.0013929806036221126
+80,The paper does not address whether its methods extend beyond regression to classification.,0.0032567901489852255,0.0018820231354977912,-0.0013747670134874343
+93,The experiments lack comparisons with GNN models such as Xu et al. [2].,0.003360180312445074,0.001992267168539503,-0.0013679131439055712
+292,"Sections 3–4 do not clearly define state s_t or provide an example, making the formulation difficult to follow.",0.0027295003153399986,0.0014016741343874763,-0.0013278261809525223
+75,The paper does not provide sufficient intuition for its theoretical results.,0.004621540306655225,0.003299446417462655,-0.0013220938891925701
+124,Figure 2 does not explain what its different colors depict.,0.0036496727701326496,0.0023702467103968,-0.0012794260597358497
+183,The paper does not clearly explain how its method differs from Spithourakis and Riedel (2018) and related approaches.,0.004683574404731134,0.0034096904505043664,-0.0012738839542267679
+108,"The paper does not explain or empirically justify the feature-integration sequence of 3×3 spatial convolution, flattening L and C*F, and 1×1×1 spatio-temporal convolution.",0.003225773099947271,0.001968643447173422,-0.001257129652773849
+208,The paper does not define the set of probability densities explicitly or establish that the setting satisfies the Hilbert-space assumptions used for Proposition 1.,0.004394081947043558,0.0031892023844209434,-0.001204879562622615
+74,The experiments need comparisons with more baselines.,0.003091365887449468,0.0019056468568638722,-0.001185719030585596
+242,The results do not substantially improve state-of-the-art performance.,0.0044044209633895435,0.003220700679575718,-0.0011837202838138254
+67,"The related-work discussion should cite Bayesian-approximation work, such as Gal and Ghahramani (2016).",0.002553737037458256,0.001385924986810089,-0.0011678120506481671
+152,"The paper does not establish theoretically or experimentally that its simple-model analysis extends to deep nonlinear activations such as ReLU, including numerical stability.",0.002047125236504999,0.0008819522643336929,-0.001165172972171306
+247,The line containing “for improved generalization: For Unsupervised Representation Learning” needs correction or clarification.,0.0021505153999648472,0.0010236945925301793,-0.001126820807434668
+147,The paper does not properly define its terminology.,0.003939165227820225,0.0028348465639297274,-0.0011043186638904977
+99,Reference [2] should cite its NeurIPS version rather than its arXiv version.,0.002243566547078711,0.0011496877731492783,-0.0010938787739294329
+107,"The paper’s quadratic-loss approximation is only reasonable near training’s end, so it cannot characterize the full training procedure or its practical methods.",0.003215434083601286,0.0021261349229472954,-0.0010892991606539907
+117,"The paper lacks experiments on larger state-of-the-art networks, so it is unclear whether Table 6’s trends hold for models such as WideResNet-28x10.",0.0017886498278553778,0.0007008370671937381,-0.0010878127606616396
+196,"Section 2's notation is unclear, including the undefined symbol k.",0.0022745835961166653,0.0011890606420927466,-0.0010855229540239187
+173,"Assumption 3.1 is not guaranteed to hold, and the paper does not justify it.",0.005066118009532573,0.003984534337079006,-0.0010815836724535673
+106,"Section 2.4 does not clearly motivate the independent-marginals setting, given that the approach seems more useful with dependent information.",0.002750178348031968,0.0016772842169917553,-0.0010728941310402128
+50,The paper does not clarify how its work relates to established methods such as DANN and CDANN.,0.0040115383422421194,0.002945090596971439,-0.0010664477452706806
+249,"The Introduction does not sufficiently highlight or explain sparse residuals, the work’s core deviation from prior techniques.",0.004735269486461058,0.003669551385531258,-0.0010657181009298003
+126,Section 3.2 does not specify the sampling distributions for I_k and J_k or clarify whether Assumptions 4.14–4.16 supply those conditions.,0.0025330590047662866,0.0014961690198518004,-0.0010368899849144862
+255,The paper does not explain how the approach’s hyperparameters were chosen or tuned.,0.005169508172992421,0.004134151239064186,-0.0010353569339282354
+76,"Figure 4 omits exact valid NLL values for each panel, making performance—especially between panels 2 and 3—difficult to distinguish.",0.00394950424416621,0.002937216023182745,-0.0010122882209834651
+6,Figure 2 is unclear and needs more explanation.,0.005004083911456664,0.004000283484656393,-0.0010038004268002713
+236,"The paper lacks a novel, generally applicable machine-learning contribution, making its suitability for ICLR questionable.",0.0021194983509268926,0.0011260640517831973,-0.0009934342991436953
+10,Equations (1)–(2) do not clarify that Equation (2) is only one possible way to learn the model parameters.,0.0037013678518625736,0.0027088533833106282,-0.0009925144685519454
+36,The phrase “more complicated convergence” at line 203 is unclear.,0.004094250473009998,0.003102582072745313,-0.0009916684002646853
+171,The gradient expression in the unnumbered equation after (5) appears inconsistent with the gradient implied by the supplementary algorithm.,0.0022642445797706806,0.0012756809537683774,-0.0009885636260023032
+233,Section 5.2 provides too little analysis of how the inequality regularizers alter representations or why some work better than others.,0.0026364491682261348,0.0016536604956256743,-0.0009827886726004604
+275,The manuscript’s writing is confusing and difficult to follow.,0.0019437350730451505,0.000984321723586711,-0.0009594133494584395
+252,"Figure 4 is crowded and difficult to parse; the plots should be widened, their content reduced, and a legend added.",0.0019127180240071959,0.0009606980022206298,-0.0009520200217865661
+167,The experiments show only marginal improvements over competing methods.,0.003815097031668407,0.002866344859084502,-0.0009487521725839048
+216,Figure 4’s caption contains typos.,0.003442892443212953,0.0024962398910158986,-0.0009466525521970542
+222,"Claims that approaches are better lack evidence, including that small networks suit the data and pretraining increases training efficiency.",0.004549167192233331,0.0036065547952217085,-0.0009426123970116222
+202,Excessive reliance on the appendix leaves the paper insufficiently self-contained; key results should be moved into the main body.,0.0047869645681909824,0.0038664157302486,-0.0009205488379423823
+270,The paper does not explain why gradient step-size choices play no larger role in the stated results.,0.003360180312445074,0.0024647415958611242,-0.0008954387165839499
+231,"The SDE-based analysis may not capture SGD when its noise is non-Gaussian, making the theoretical argument weaker than Blanc et al.’s rigorous result.",0.0017369547461254537,0.0008425793953902245,-0.0008943753507352293
+8,Figures 3 and 4 do not clearly show that the learned filters reflect the predominant data structure.,0.0035772996557107556,0.0026852296619445473,-0.0008920699937662083
+34,"The novelty is limited because prior depth-based adaptive-computation methods, including McGill et al., Bolukbasi et al., and Figurnov et al., readily extend to sequence models.",0.005448661614334012,0.004598751092597113,-0.0008499105217368991
+193,"The paper uses inconsistent hyphenation, including “downsizing” versus “down-sizing” and “up-sampling” versus “upsampling.”",0.0023883127759224986,0.0015512910363726564,-0.0008370217395498422
+154,"The paper does not empirically evaluate search or final-architecture robustness, for example through architecture-distribution analysis on NASBench-201.",0.0011579698307503023,0.00033073209912513484,-0.0008272377316251675
+16,Section 4.1’s second paragraph is missing the articles “the” in its first sentence.,0.001116613765366363,0.0002913592301816664,-0.0008252545351846966
+156,The paper does not provide enough detail about the network architectures to support reproducibility.,0.00262611015188015,0.001811151971399548,-0.000814958180480602
+73,The experiments do not evaluate larger datasets such as ImageNet.,0.0029052635932217408,0.0020946366277925206,-0.0008106269654292201
+82,"It is unclear whether training changes, what loss and training procedure are used, and how samples are generated during training.",0.003980521293204165,0.0031734532368435557,-0.0008070680563606091
+205,"Section 4’s analysis appears to assume a deterministic underlying MDP; the assumption is unclear, and the required policy may not exist in stochastic environments.",0.0028845855605297713,0.0020946366277925206,-0.0007899489327372507
+23,The paper does not clearly state its motivation.,0.003742723917246513,0.0029529651707601327,-0.0007897587464863803
+38,Section 5.2's claim that in-distribution performance is unchanged is not established because the evaluation cannot identify all truly in-distribution images.,0.00264678818457212,0.0018583994141317102,-0.0007883887704404097
+289,"The MNIST-only experiments do not show whether the findings generalize to other, more realistic datasets.",0.0014061062230539387,0.000653589624461576,-0.0007525165985923627
+27,The paper does not adequately discuss or justify its substantial departure from standard worst-case differential privacy to an average-case notion.,0.0032774681816771954,0.0025513619075367548,-0.0007261062741404406
+291,"Theorem 2 leaves ε unconstrained, making its finite-iteration neighborhood guarantee potentially vacuous; Eq. 21 should establish a bound for arbitrarily small ε.",0.0022125494980407565,0.0014882944460631068,-0.0007242550519776497
+5,The paper is poorly written and organized.,0.0011062747490203782,0.00040160326322337804,-0.0007046714857970002
+182,Page 2 contains typos.,0.0035359435903268162,0.002842721137718421,-0.0006932224526083951
+86,"Experiments use a simplified network and do not assess convolutional, recurrent, or residual layers, leaving behavior across architectures uncertain.",0.0031223829364874227,0.002441117874495043,-0.0006812650619923799
+187,"The paper uses abbreviations before defining them and leaves mathematical variables undefined, including on page 5.",0.0026778052336100745,0.0020001417423281963,-0.0006776634912818782
+284,"The paper does not clarify how Lemma 2 and Theorem 2’s convergence analysis differs from Deshpande et al. [1], particularly for the non-convex setting.",0.0034532314595589375,0.002795473694986259,-0.0006577577645726787
+146,"The experiments lack comparisons with existing methods, such as Barceló et al. (ICLR 2020).",0.003339502279753104,0.002693104235733241,-0.0006463980440198631
+18,The notation reuses h with multiple meanings in Equations (6) and (11).,0.00132339409228606,0.0006850879196163508,-0.0006383061726697092
+288,The experimental section contains minor implementation details that should be moved to the appendix.,0.0016128865499736354,0.0009764471497980172,-0.0006364394001756183
+84,Figure 3 lacks x-axis labels.,0.0020884813018889384,0.0014646707246970259,-0.0006238105771919126
+153,"Section 4.2's update equation may have its tilded and untilded terms reversed, and its relation to the verbal description is unclear.",0.00296729769129765,0.0023544975628194123,-0.0006128001284782377
+221,The Introduction’s claim that prior models show “strong generalization” is subjective and unsupported relative to human generalization.,0.0025950931028421954,0.0020001417423281963,-0.0005949513605139991
+293,"The paper does not clarify whether it uses the standard miniImageNet split, important for comparison with CAVIA's original-paper results.",0.0027915344134159074,0.002197006087045539,-0.0005945283263703686
+25,The paper does not clarify whether differential quantization applies to both weights and activations or how gradients propagate through quantized activations.,0.0025123809720743167,0.0019292705782299534,-0.0005831103938443633
+58,The main paper relegates too much methodological detail and experimental results to the appendix; some should be moved into the main text.,0.002770856380723938,0.002189131513256845,-0.000581724867467093
+133,"Figure 5 suggests the experiments were not run to convergence, so the reported performance differences may change with full training.",0.0024606858903443926,0.0018820231354977912,-0.0005786627548466014
+299,"The paper does not explain Equation (6) as gradient descent on a modified loss with a quadratic Δ² term or analyze the resulting Hessian effects, finite-ρ₁ shifts, and ρ₁/ρ₂ decay.",0.003163739001871362,0.002590734776480223,-0.0005730042253911391
+129,The experiments lack comparisons with more baselines.,0.004921371780688785,0.004370388452724997,-0.0005509833279637886
+134,The paper does not discuss how its analysis might extend to deep nonlinear networks.,0.003215434083601286,0.0027009788095219344,-0.0005144552740793517
+61,Section 4.1 does not clearly specify its training data relative to Section 4.2’s 10k-sample setup or whether its final paragraph describes a different training regime.,0.0032464511326392408,0.0027324771046767092,-0.0005139740279625315
+26,The full-dimensional data assumption leaves the results’ applicability to low-intrinsic-dimension data unclear.,0.0019230570403531808,0.0014095487081761699,-0.0005135083321770109
+246,The paper gives no results for applying the method to a trained VAE with a StyleGAN decoder and does not justify its GAN-only focus.,0.002160854416310832,0.0016536604956256743,-0.0005071939206851576
+184,"The experiments omit details needed for reproduction, including the learning algorithm, neural-network layout if applicable, and cross-validation used for tuning.",0.003163739001871362,0.0026616059405784663,-0.0005021330612928958
+45,The rightmost Figure 4 plots are difficult to interpret because they are overcrowded and use similar colors.,0.0023986517922684834,0.0019056468568638722,-0.0004930049354046112
+229,"The evaluation lacks large-scale datasets such as CIFAR-10, CIFAR-100, and ImageNet.",0.004145945554739922,0.0036853005331086456,-0.0004606450216312766
+149,"The paper does not discuss how tight Theorem 1’s bound is, weakening support for using one approach as a computationally feasible substitute for the other.",0.005334932434528179,0.004882235748990086,-0.00045269668553809313
+259,"The paper uses DQN rather than DDQN without discussing why, despite DDQN’s reduced overestimation bias and BDQN’s DDQN foundation.",0.0011993258961342417,0.0007480845099259002,-0.00045124138620834147
+185,Figure 3 does not explain how its results were generated.,0.003546282606672801,0.003102582072745313,-0.00044370053392748816
+135,Table 2 is not adequately explained.,0.0046422183393471945,0.0042680189934719785,-0.00037419934587521603
+281,The paper does not explain why its approach outperforms competing methods.,0.0046939134210771186,0.004323141009992834,-0.0003707724110842848
+9,The paper does not adequately explain how its approach differs from other model-based and adaptive policy-learning methods.,0.00328780719802318,0.002945090596971439,-0.0003427166010517412
+178,"Section 4’s motivation appears to assume independently controllable state features and rescaled offset actions, making its unstructured random-walk model weakly relevant to realistic RL.",0.0038771311297443162,0.0035356836311234655,-0.0003414474986208507
+269,The paper lacks a clear related-work section.,0.0029569586749516653,0.0026301076454236915,-0.0003268510295279738
+159,The method’s novelty is limited because it mainly combines maximum-entropy RL with value expansion and stochastic value gradients rather than introducing a new model-based modeling approach.,0.003680689819170604,0.0033545684339835106,-0.00032612138518709356
+101,"The related-work discussion omits relevant approaches, including Fader Networks and Deep Feature Interpolation.",0.0021194983509268926,0.0017954028238221606,-0.000324095527104732
+113,Several citations are badly formatted; the paper should use citation commands such as \citet and \citep appropriately.,0.0018300058932393171,0.0015197927412178816,-0.0003102131520214355
+235,Fig. 1b and the other training curves do not help explain the approach.,0.0024813639230363625,0.002173382365679458,-0.0003079815573569047
+100,"Section 3.1 does not clearly specify whether r_i,j denotes one image or a concatenated row, or how input images are arranged as channels or concatenated.",0.0024089908086144685,0.0021103857753699082,-0.0002986050332445603
+148,"The paper lacks comparisons of effective sparsity across architectures such as convolutional networks and MLPs, which may allocate and prune parameters differently.",0.002047125236504999,0.0017560299548786923,-0.0002910952816263068
+102,"The paper does not show whether the proposed method performs well with small batch sizes such as 2, 4, or 8, or explain batch-size effects.",0.0022125494980407565,0.0019292705782299534,-0.00028327891981080313
+46,The paper does not rigorously show that the disparity matrix remains full rank throughout training; full rank at initialization would not establish this.,0.003029331789373559,0.0027561008260427906,-0.0002732309633307682
+137,The paper does not clarify its pretraining process.,0.004559506208579316,0.004291642714838059,-0.00026786349374125634
+105,The paper does not justify its choice of distance metric or compare it with the simpler L2 distance.,0.002036786220159014,0.0017717791024560797,-0.00026500711770293425
+136,The results lack error bars.,0.0013027160595940903,0.0010473183138962603,-0.00025539774569782996
+271,The paper does not report how results vary across initialization schemes.,0.001519835402859772,0.0012756809537683774,-0.0002441544490913946
+128,The paper provides no theoretical analysis or guarantee of convergence for the optimization algorithm.,0.003163739001871362,0.002921466875605358,-0.00024227212626600414
+256,The paper does not explain or substantiate why its model is more generalizable than baseline models.,0.004528489159541361,0.004307391862415447,-0.0002210972971259141
+13,The references are formatted inconsistently.,0.0010752576999824236,0.0008583285429676118,-0.00021692915701481178
+122,"The constraint may overrestrict low-dimensional linear function approximation, potentially explaining why Baird's counterexample does not converge to zero.",0.0026881442499560593,0.0024726161696498176,-0.00021552808030624168
+83,"Table 2 shows only marginal gains, and the method fails to surpass SOTA in several settings.",0.00493171079703477,0.0047404934207936,-0.00019121737624117063
+98,Section 2.2 refers to a figure that is not cited.,0.0023469567105385593,0.00215763321810207,-0.00018932349243648908
+200,The method’s contribution is incremental compared with earlier work.,0.001437123272091893,0.00125993180619099,-0.00017719146590090308
+268,"The paper does not justify choosing KL divergence over simpler MSE or explain why MSE is incompatible, despite the added complexity in Eqs. 9–11.",0.0015611914682437114,0.0014174232819648637,-0.00014376818627884766
+166,The random baseline is inadequate; the paper should compare the model-based approach against its model-free approach.,0.0025330590047662866,0.002393870431762881,-0.00013918857300340573
+125,The paper does not explain how the method behaves on high-dimensional problems.,0.001716276713433484,0.001582789331527431,-0.00013348738190605306
+263,Figures 1 and 2 are difficult to read because their fonts are too small.,0.002429668841306438,0.0022993755462985565,-0.00013029329500788148
+174,"The related-work discussion omits relevant approaches, including LfND, RL with GAN shaping, and Cycle-of-Learning.",0.0024917029393823472,0.002362372136608106,-0.00012933080277424116
+170,Table 1’s bolding is non-intuitive because bold usually indicates the best-performing methods; italics may be clearer.,0.0011579698307503023,0.0010551928876849541,-0.0001027769430653482
+243,The experiments do not establish whether the proposed method scales well.,0.004797303584536967,0.0047089951256388245,-8.830845889814219e-05
+22,The paper does not clearly position its approach relative to MPO and DistRL.,0.0027811953970699227,0.002716727957099322,-6.446743997060066e-05
+53,The experiments lack comparisons with TRPO or DDPG.,0.003070687854757498,0.0030080871872809885,-6.260066747650972e-05
+110,Section 2.1 is missing citations.,0.0019437350730451505,0.0018977722830751786,-4.59627899699719e-05
+31,The experiments do not establish whether gains over related methods come from the proposed approach or stronger neural-network architectures.,0.0031947560509093167,0.0031498295154774748,-4.492653543184191e-05
+253,"The paper has little representation-learning content, making it a poor fit for ICLR.",8.271213076787875e-05,4.724744273216212e-05,-3.546468803571663e-05
+141,"Section 4's method exposition is too complicated and unclear to understand, even after repeated reading of the main text and appendix.",3.101704903795453e-05,0.0,-3.101704903795453e-05
+17,Section 2.2's weighting strategy and the first equation on page 8 are ad hoc and lack theoretical justification.,0.001974752122083105,0.001960768873384728,-1.398324869837696e-05
+21,Related work omits the closely related study arXiv:1609.04836.,1.0339016345984843e-05,0.0,-1.0339016345984843e-05
+55,The derivation from the first to the second line of relation (4) is not explained.,1.0339016345984843e-05,0.0,-1.0339016345984843e-05
+239,Table 2 lacks state-of-the-art methods evaluated under the same setting for demonstrating the model’s effectiveness.,0.005510695712409921,0.005504327078296887,-6.368634113034302e-06
+11,Section 4.1 does not formally define the proposed method for detecting critical substructures.,0.0,0.0,0.0
+0,The Introduction’s second paragraph introduces TPR without explaining why or when it is useful.,0.0,0.0,0.0
+20,Theorem 4.7 is missing an expectation on g(x_a).,0.0,0.0,0.0
+70,"Table 1 omits relevant datasets, including Moving MNIST and Robot Pushing.",0.0,0.0,0.0
+109,Section 4.1’s early results rely on the unrealistic assumption that ensemble-member regions and ensemble regions are identical; Proposition 1’s assumptions are too strong.,0.0,0.0,0.0
+206,Figure 3 evaluates planner loss between inferred and true rewards but does not establish whether the algorithm recovers demonstrators’ actual biases.,0.0,0.0,0.0
+197,The value of 2-FGNN is not novel because Maron et al. [1] already demonstrated it.,0.0,0.0,0.0
+39,"The notation for OU noise, ${\cal OU}(\mu';\sigma')$, is not introduced.",0.0,0.0,0.0
+225,The experiments do not explain how they empirically justify the paper’s lower bound.,0.0,0.0,0.0
+172,Section 4.4 refers to Table 1 where the reviewer says it should refer to Table 2.,0.00010339016345984842,0.00011024403304171162,6.853869581863192e-06
+54,The paper does not provide a complexity analysis of its method.,0.00230560064515462,0.002315124693875944,9.524048721324188e-06
+298,The paper lacks comparisons against baselines.,6.203409807590906e-05,7.874573788693687e-05,1.6711639811027817e-05
+165,The experiments do not report how many random seeds were run.,0.0018196668768933324,0.0018505248403430164,3.0857963449683985e-05
+282,The paper does not compare its approach with state-of-the-art MTL methods.,0.004021877358588104,0.00407902922254333,5.7151863955226014e-05
+245,"The contribution is fairly incremental, extending an existing adaptive-softmax approach to input representations.",0.0029879757239896195,0.0030553346300131504,6.735890602353094e-05
+240,Section 2.1 does not explain the proposed architecture clearly enough for non-experts.,0.0017266157297794688,0.0018190265451882416,9.241081540877286e-05
+224,The novelty is limited because the paper combines previously proposed combinatorial search and acyclicity-constraint ideas for structure learning.,0.0038978091624362857,0.004000283484656393,0.0001024743222201069
+248,The paper does not describe how training data are sampled.,0.0037944189989764375,0.0039057885991920687,0.00011136960021563115
+142,"Fig. 3 shows substantial performance variation, so it does not establish that either method has converged.",0.0027088222826480287,0.002842721137718421,0.00013389885507039245
+209,Definition 1 and Section 3.3 leave N undefined.,0.001705937697087499,0.0018505248403430164,0.00014458714325551732
+12,Section 4.1 does not clearly explain how action and environment information are disentangled and exploited.,0.002915602609567726,0.003071083777590538,0.0001554811680228121
+40,"The α=2 weight-decay ablation does not establish whether its supposedly stronger, more distinguishable features improve downstream performance.",0.0018506839259312868,0.002039514611271665,0.00018883068534037806
+204,Some citations are incorrectly formatted in the text.,0.0017886498278553778,0.001984392594750809,0.00019574276689543132
+179,"The attack comparison omits white-box baselines such as PGD and C&W, so it does not establish superiority over standard attacks.",0.003691028835516589,0.003897914025403375,0.00020688518988678595
+194,The acknowledgments section violates the double-blind submission policy.,0.0004755947519153028,0.0006929624934050445,0.00021736774148974167
+283,Section 4.3 is missing a space before a comma in its first paragraph.,0.0023159396615006047,0.002535612759959367,0.0002196730984587625
+286,Tables 1 and 2 are crowded and should be rearranged for readability.,0.002233227530732726,0.0024568670220724304,0.00022363949133970447
+42,"The paper does not explain why retraining improves performance even without pruning, despite the expectation that samples converge to the same minimum.",0.002181532449002802,0.002417494153128962,0.00023596170412615997
+218,"Page 6 shows accuracy dropping after 20 epochs for both proposed and baseline perturbation methods across three datasets, casting doubt on effectiveness versus random search.",0.002367634743230529,0.002614358497846304,0.0002467237546157747
+175,The paper lacks a discussion of limitations of its approach.,0.005562390794139845,0.005827184603633328,0.0002647938094934828
+138,"The experiments compare only simple models and omit relevant methods such as MXGNet, LEN, Rel-AIR, and SCL.",0.0030500098220655287,0.0033545684339835106,0.0003045586119179819
+3,"The paper insufficiently explains how its non-spiking Hodgkin–Huxley model differs from existing spiking SNN models, focusing instead on datasets and accuracy.",0.0026571272009181046,0.0029844634659149075,0.00032733626499680283
+220,"Computational cost is not adequately analyzed, including the SVD in Equation (7), per-iteration cost, and the possibility of O(nd) rank-one SVD updates.",0.003163739001871362,0.0035120599097573845,0.0003483209078860225
+65,The paper omits its tokenization scheme and does not explain how subword tokens are combined into concept representations.,0.002450346873998408,0.0028505957115071145,0.00040024883750870667
+160,"Figure 4 is difficult to assess because of poor rendering and layout, with low- and high-resolution ground-truth images too small for comparison.",0.002450346873998408,0.0028505957115071145,0.00040024883750870667
+144,The paper does not evaluate the proposed method’s robustness under adversarial attacks.,0.003163739001871362,0.0035671819262782403,0.00040344292440687825
+64,Experiments are limited to toy problems and do not establish whether the approach improves on prior methods; more complex experiments are needed.,0.0035772996557107556,0.00401603263223378,0.0004387329765230246
+60,The paper does not report how performance changes with different K values.,0.0004755947519153028,0.0009449488546432424,0.0004693541027279396
+272,"The paper’s transductive training setup is a limitation, with no inductive setting addressed.",0.004621540306655225,0.005118472962650896,0.0004969326559956713
+116,The claim that the method is highly data efficient compared with existing approaches lacks strong experimental evidence.,0.003980521293204165,0.004504256207132789,0.0005237349139286243
+47,The paper does not explain how its method advances the longer-term goal of interpretable representations.,0.004569845224925301,0.005094849241284815,0.0005250040163595144
+104,Figure 5 lacks results for longer training episodes on the 5-step tasks.,0.0012200039288262116,0.0017481553810899985,0.0005281514522637869
+1,"Table 2 shows limited improvement for the fine-tuned model, which the authors should explain.",0.002574415070150226,0.003110456646534006,0.0005360415763837802
+169,The paper does not explain how α is chosen.,0.0016542426153575748,0.0022521281035663946,0.0005978854882088198
+131,The reported improvements are marginal.,0.002057464252850984,0.00266948051436716,0.0006120162615161763
+81,The paper does not explain how hyperparameter p should be chosen.,0.0035772996557107556,0.004275893567260672,0.0006985939115499162
+28,Comparisons may be unfair because prior methods may not be trained under the paper's experimental setting.,0.004890354731650831,0.005606696537549905,0.0007163418058990746
+260,The method's applicability is unclear because the model appears restricted to lower-dimensional settings.,0.003990860309550149,0.004716869699427519,0.0007260093898773697
+215,The paper does not clearly specify which tasks are considered or how they are generated.,0.003432553426866968,0.004181398681796348,0.0007488452549293798
+251,"The comparison omits relevant word-embedding post-processing methods, including retrofitting, counter-fitting, and semantic specialization using automatically constructed constraints.",0.002109159334580908,0.0028742194328731955,0.0007650600982922876
+59,The paper lacks original-image-space visualizations showing whether the learned representations capture visually meaningful concepts.,0.0029362806422596954,0.0037404225496295014,0.000804141907369806
+44,The paper's 2× learning-rate choice is unexplained and lacks evidence that square-root or linear scaling fails at the full-batch limit.,0.0028639075278378014,0.003701049680686033,0.0008371421528482314
+19,"Table 2 does not identify the best-performing method, making its results confusing.",0.005531373745101891,0.006409903063996661,0.0008785293188947703
+72,Figure 3’s results at R=2 differ from Figure 5 without an explanation.,0.003215434083601286,0.004094778370120717,0.0008793442865194312
+189,The method’s advantage over expansion-based methods may narrow when using lightweight network architectures.,0.0030810268711034833,0.004008158058445087,0.0009271311873416035
+250,The practical implementation of the paper’s multi-agent formulation is unclear.,0.0019954301547750746,0.0029293414493940517,0.0009339112946189772
+114,The paper does not clearly explain why its attention blocks produce better results than previous methods; the explanation of residual non-local attention learning in Section 3.3 is vague.,0.004352725881659619,0.005331086454945626,0.0009783605732860074
+52,"The analysis relies on restrictive, unrealistic assumptions from Mandt et al.; in particular, the Gaussian gradient-noise assumption is not justified by the CLT in the paper’s high-dimensional setting.",0.0050351009604946186,0.0060319235221393645,0.000996822561644746
+228,Table 2’s baseline results appear insufficiently tuned.,0.003618655721094695,0.0046853714042727436,0.0010667156831780486
+297,The paper does not explain whether policy-gradient methods offer an advantage over value iteration or policy iteration in its setting.,0.0041045894893559825,0.0051735949791717525,0.00106900548981577
+207,The paper does not compare its method with other methods.,0.005169508172992421,0.006244537014434093,0.001075028841441672
+226,"The Related Works claim that training a model-free policy avoids the usual problem is not explained, since long simulated rollouts from a learned model may still diverge.",0.0035049265412888616,0.00459087651880842,0.001085949977519558
+123,The paper does not report the ensemble size used in the experiments.,0.0024813639230363625,0.0035750565000669337,0.0010936925770305712
+294,"The paper lacks comparisons with prior approaches, including A3C, DDPG, and TRPO.",0.0023469567105385593,0.003519934483546078,0.0011729777730075186
+92,The paper lacks side-by-side comparisons with other approaches.,0.0055210347287559065,0.006709136867967021,0.0011881021392111148
+203,"Section 2 assumes correctly labeled training data greatly outnumbers test data without justification, limiting applicability where unlabeled test data is more abundant.",0.004507811126849392,0.005716940570591617,0.001209129443742225
+56,The paper lacks qualitative or ablation analysis of what the teacher actually learns.,0.0021194983509268926,0.0033388192864061235,0.0012193209354792308
+68,"Clustering methods usable with the learned representation appear limited to discrete distance measures, but the implications of this limitation are not discussed.",0.002574415070150226,0.0038585411564599067,0.0012841260863096808
+181,"The process for generating the 100,000 training instances and their distribution or patterns is not described, leaving potential dataset limitations unclear.",0.004342386865313634,0.005685442275436842,0.001343055410123208
+186,The paper’s implicit contradiction of Theis et al.’s argument against monolithic generative-model metrics is not sufficiently supported.,0.003442892443212953,0.004795615437314455,0.0013527229941015023
+274,"The paper does not report the number of test splits or initializations, or standard deviations, so the significance of the accuracy differences is unclear.",0.003225773099947271,0.004583001945019725,0.0013572288450724545
+223,"The decoder’s 1-D deconvolutions and dimension-wise Bi-LSTMs may overlap in function, and the paper does not justify using both.",0.003566960639364771,0.005008228929609185,0.001441268290244414
+285,The results do not clearly show a benefit over the already strong methods (a) and (b) in Table 1.,0.003370519328791059,0.004819239158680536,0.0014487198298894772
+95,The method's better results than the single model are counterintuitive and lack justification against independently trained tasks.,0.0035772996557107556,0.005110598388862203,0.0015332987331514473
+296,The paper does not clarify which variables are observed and which are latent.,0.0032671291653312102,0.004850737453835311,0.001583608288504101
+238,"The paper lacks experiments explaining its findings, such as monitoring model parameters or gradients during training.",0.0038978091624362857,0.005512201652085581,0.0016143924896492956
+91,The paper does not evaluate the approach on different tasks.,0.00232627867784659,0.003984534337079006,0.001658255659232416
+176,"Reported results are far below cited state-of-the-art figures, including 5% error and 95.75% accuracy, without explaining the discrepancy.",0.0022642445797706806,0.003976659763290312,0.001712415183519631
+120,"The evaluation lacks comparisons on additional environments, such as Atari and partially observable DM-Lab or Habitat.",0.0038564530970523463,0.005590947389972518,0.0017344942929201712
+48,"Section 5.1.2 lacks evaluation under subtler, gradual distribution shifts, such as those in Ovadia et al. (2019).",0.004973066862418709,0.006756384310699183,0.001783317448280474
+290,The paper does not theoretically establish that its proposed training method is better than standard SGD.,0.0040632334239720435,0.005898055767731571,0.0018348223437595276
+132,The results lack error bars or confidence intervals and do not report the number of independent runs.,0.002874246544183786,0.0047562425683709865,0.0018819960241872003
+295,"Several baselines cited in the paper are missing from the experiments, making the roughly 10% gain difficult to compare with the state of the art.",0.004973066862418709,0.006858753769952201,0.001885686907533492
+30,"The title suggests general manifold applicability, but the discussion focuses on spherical structures and does not clarify whether the method works for arbitrary topologies.",0.0025950931028421954,0.0045121307809214825,0.001917037678079287
+199,The experiments are limited to rather small datasets.,0.00328780719802318,0.005315337307368238,0.0020275301093450582
+279,Equation (5)'s reward form is insufficiently justified; using average reward for unsafe state-action pairs is not shown to penalize them.,0.0029879757239896195,0.005094849241284815,0.002106873517295196
+2,The paper lacks a detailed ablation study.,0.003980521293204165,0.006118543833814995,0.0021380225406108302
+180,The choices of T=10 for synthetic data and T=3 for real-world data appear ad hoc and are not justified or validated.,0.0023986517922684834,0.004622374813963194,0.0022237230216947106
+198,"The paper does not explain under what conditions its reward augmentation improves or worsens outcomes, and provides no formal theory.",0.002233227530732726,0.004472757911978014,0.002239530381245288
+214,"Generating the training data appears to require exponential computation, making the proposed approach difficult to use in practice.",0.00360831670474871,0.005905930341520265,0.002297613636771555
+266,The claimed sample-complexity improvement over prior work overlooks [3]’s dependence on the minimum of task and state counts and [4]’s dependence on transition templates.,0.002750178348031968,0.005055476372341347,0.0023052980243093786
+254,The paper does not examine the geometry of the learned representations.,0.004332047848967649,0.006677638572812247,0.002345590723844598
+219,The paper does not explain the motivation for combining the techniques or why their combination should work.,0.00461120129030924,0.007189485869077336,0.002578284578768096
+161,"The paper does not clearly state the assumptions or conditions under which its attacks are valid, making the threat setting difficult to assess.",0.003680689819170604,0.006283909883377562,0.0026032200642069577
+280,"The image tasks’ 2D layout may supply an architectural inductive bias, making the value of their regular long-range correspondences as benchmark targets unclear.",0.004001199325896134,0.006630391130080084,0.00262919180418395
+201,The evaluation metric is not explained sufficiently.,0.003442892443212953,0.00659889283492531,0.003156000391712357
+150,The paper does not evaluate whether the method scales to more classes or more complex datasets.,0.005138491123954467,0.008402170232536164,0.0032636791085816977
+234,The paper does not compare language-modeling performance against standard LSTMs.,0.005014422927802649,0.008520288839366568,0.0035058659115639193
+96,"The overall algorithm combines heuristics without a principled derivation, leaving its design rationale insufficiently grounded.",0.002719161298994014,0.0062760353095888686,0.0035568740105948547
+237,The paper does not explain why enumeration-based approaches would fail to synthesize these programs.,0.0015405134355517417,0.005110598388862203,0.0035700849533104612
+157,"Section 4.2.2 claims compositionality despite low refdis without a rigorous qualitative explanation, weakening the metric’s usefulness.",0.0032774681816771954,0.006866628343740895,0.0035891601620636994
+210,The paper does not explain its 3D point-cloud focus despite the method’s applicability to 2D and a small 2D experiment.,0.003990860309550149,0.008047814412044949,0.0040569541024948
+273,The reported scores do not establish conditional language-generation quality; the paper lacks BLEU or another suitable metric.,0.0020678032691969685,0.006142167555181076,0.0040743642859841075
+7,The evaluation lacks additional datasets for a more rigorous benchmark.,0.0044044209633895435,0.008504539691789182,0.004100118728399638
+140,"The tables omit training and inference times, so the method’s speed relative to its baselines is unclear.",0.003815097031668407,0.007953319526580623,0.004138222494912216
+89,"The experiments do not convincingly show an advantage over Uncertainty or SGBS, which perform well in some cases.",0.004776625551844997,0.009299871644447245,0.004523246092602248
+90,"The experiments do not demonstrate scalability beyond the largest tested graph of about 5K nodes, despite the complexity discussion in Table 1 and Section A.5.",0.0024193298249604533,0.0069611232292052195,0.004541793404244767
+258,"The paper insufficiently motivates robustness to large L∞ perturbations, which may cause perceptual changes above 16/255 and where CW-L2 may be more appropriate.",0.0029776367076436347,0.007630462001244183,0.004652825293600548
+262,The paper does not report how the approach affects training time.,0.004352725881659619,0.009134505594884677,0.004781779713225059
+168,"Experiments omit comparisons with the learning-curve method [1] and [Wilson et al., 2016].",0.004569845224925301,0.009417990251277649,0.004848145026352348
+79,"The experiments do not test whether reordering also improves the 2-way prototypical model, making it difficult to isolate the one-way proposal’s gain.",0.0030086537566815894,0.007906072083848461,0.004897418327166872
+121,The paper does not discuss the statistical significance of its results.,0.004859337682612876,0.009764471497980171,0.004905133815367295
+130,The paper does not evaluate its claimed computational-time benefits.,0.003753062933592498,0.00875652605302738,0.005003463119434882
+277,"The experiments use word-based systems rather than state-of-the-art subword models, leaving it unclear whether the conclusions generalize.",0.003370519328791059,0.008685654888929136,0.005315135560138077
+51,"The paper does not use a standard evaluation methodology, making its results difficult to interpret.",0.004145945554739922,0.009496735989164586,0.005350790434424664
+227,The paper does not report how sensitive results are to hyperparameter values.,0.003070687854757498,0.008654156593774363,0.0055834687390168645
+4,The paper provides no ablation study.,0.005996629480671209,0.011827609830617918,0.005830980349946708
+257,"The approach requires a large number of CPUs, raising concerns about its computational cost and scalability.",0.0032050950672553014,0.00914238016867337,0.005937285101418069
+143,The evaluation covers too few application areas to establish that the enhancements generalize across a wide variety of tasks or can broadly replace traditional baselines.,0.003236112116293256,0.010158200187414855,0.0069220880711216
+69,The evaluation lacks standard image-quality metrics such as FID or a related measure.,0.00362899473744068,0.010709420352623414,0.007080425615182734
+85,"Section A.2 shows the method is incompatible with federated averaging, limiting its practical use under communication bottlenecks.",0.004135606538393937,0.011331511681930216,0.007195905143536279
+217,"The evaluation lacks clear baseline comparisons, including comparisons with naive alternatives.",0.005676119973945679,0.01928483120851084,0.013608711234565161

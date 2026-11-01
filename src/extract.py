@@ -270,12 +270,14 @@ def run(items, worker, out_path, key, model, effort, threads, budget, local_mode
         return None if cost() > budget else worker(item)
 
     pool = ThreadPoolExecutor(threads)
+    failed = 0
     try:
         with open(out_path, "a") as f:
             bar = tqdm(as_completed([pool.submit(capped, item) for item in todo]), total=len(todo), desc=out_path.stem)
             for future in bar:
                 row = future.result()
                 if row is not None:
+                    failed += "error" in row
                     f.write(json.dumps(row) + "\n")
                     f.flush()
                 bar.set_postfix(cost=f"${cost():.2f}")
@@ -283,6 +285,8 @@ def run(items, worker, out_path, key, model, effort, threads, budget, local_mode
         pool.shutdown(cancel_futures=True)
     if cost() > budget:
         print("budget cap reached", flush=True)
+    if failed:
+        print(f"{failed} items failed", flush=True)
     usage = usage_by_model.get(model, empty_usage())
     print(
         f"finished: {usage['calls']} calls, {usage['in'] / 1e6:.2f}M in, {usage['out'] / 1e6:.2f}M out, ${cost():.2f}", flush=True

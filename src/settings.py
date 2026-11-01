@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     BLIND_SET_MODEL: str = "gpt-6-luna"
     SECOND_MODEL: str = "gpt-6.1-sol"
     AI_REFERENCE_MODEL: str = "gpt-6-luna"
-    INSTRUMENT_MODELS: str = "gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash"
+    INSTRUMENT_MODELS: str = "gpt-6-luna,gpt-6.1-sol,deepseek-v4.1-flash"
     REVIEW_TEXT_MAX_CHARS: int = 14000
 
     EMBED_MODEL: str = "text-embedding-3-small"
@@ -55,8 +55,6 @@ class Settings(BaseSettings):
         "gpt-6.1-terra": (1.00, 5.00),
         "gpt-6-luna": (0.10, 0.50),
         "gpt-6-luna-high": (0.10, 0.50),
-        "glm-5.3-flash": (0.15, 0.50),
-        "glm-zai": (0.15, 0.50),
         "deepseek-v4.1-flash": (0.15, 0.60),
         "sol-or": (2.00, 10.00),
         "opus-5.5": (4.00, 20.00),
@@ -65,14 +63,15 @@ class Settings(BaseSettings):
     REASONING_EFFORTS: dict[str, PassEfforts] = {
         "gpt-6-luna": PassEfforts(pass1="low", pass2="medium"),
         "gpt-6.1-sol": PassEfforts(pass1="low", pass2="medium"),
-        "glm-5.3-flash": PassEfforts(pass1="low", pass2="medium"),
         "deepseek-v4.1-flash": PassEfforts(pass1="low", pass2="medium"),
         "gpt-6-luna-high": PassEfforts(pass1="high", pass2="high"),
+        "gpt-6.1-terra": PassEfforts(pass1="low", pass2="medium"),
+        "sol-or": PassEfforts(pass1="medium", pass2="medium"),
+        "opus-5.5": PassEfforts(pass1="medium", pass2="medium"),
+        "kimi-k3.1-pro": PassEfforts(pass1="medium", pass2="medium"),
     }
     OPENROUTER_ROUTES: dict[str, OpenRouterRoute] = {
         "gpt-6-luna-high": OpenRouterRoute(id="openai/gpt-6-luna"),
-        "glm-5.3-flash": OpenRouterRoute(id="z-ai/glm-5.3-flash"),
-        "glm-zai": OpenRouterRoute(id="z-ai/glm-5.3-flash", provider={"order": ["Z.AI"], "allow_fallbacks": False}, strict=False),
         "deepseek-v4.1-flash": OpenRouterRoute(id="deepseek/deepseek-v4.1-flash-1017"),
         "sol-or": OpenRouterRoute(id="openai/gpt-6.1-sol"),
         "opus-5.5": OpenRouterRoute(id="anthropic/claude-opus-5.5"),

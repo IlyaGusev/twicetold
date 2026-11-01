@@ -1,0 +1,12 @@
+check,base_year,base,y2026,change,se
+Raw match rate,2023,10.196,11.516,1.32,0.185
+Standardized,2023,10.092,11.531,1.439,0.181
+Specific claims only,2023,8.069,10.656,2.588,0.185
+Same part of paper (lenient),2023,23.877,25.841,1.964,0.278
+"3-review subsets, grouped again",2023,10.447,12.036,1.589,0.254
+Questions field removed,2024,8.787,11.038,2.251,0.209
+Withdrawn 2026 papers added,2023,10.196,11.883,1.687,0.179
+"Main model, second model's papers",2023,10.361,11.417,1.056,0.567
+Second model (gpt-6.1-sol),2023,10.518,10.564,0.046,0.556
+"Main model, claims in shared groups",2023,19.66,23.893,4.233,0.908
+"Second model, claims in shared groups",2023,18.906,21.571,2.664,0.85

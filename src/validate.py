@@ -809,13 +809,15 @@ def drift(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
         model_outcomes = pd.read_parquet(data / f"panel_outcomes_{model}.parquet", columns=["paper_id", "conf", *cols])
         model_outcomes = model_outcomes[model_outcomes.conf == "ICLR"].set_index("paper_id")
         blind_rows = model_outcomes.reindex([v["paper_id"] for v in key.values()])[cols].set_axis(list(key), axis=0)
-        per_model.append(blind_rows.add_suffix(f"_{model.split('-')[-1]}"))
+        per_model.append(blind_rows.add_suffix(f"_{model}"))
     table = pd.concat([ref, *per_model], axis=1).dropna()
     table["year"] = [key[c]["year"] for c in table.index]
     table.to_csv(Path(reports) / "drift_blind2.csv")
+    models = [settings.BLIND_SET_MODEL, settings.SECOND_MODEL]
+    print("papers by year", table.year.value_counts().sort_index().to_dict())
     for col in cols:
         print(f"== {col} (x100), by year: mean (SE)")
-        for src in ["opus", "luna", "sol"]:
+        for src in ["opus", *models]:
             by_year = table.groupby("year")[f"{col}_{src}"]
             mean, sem = by_year.mean() * 100, by_year.sem() * 100
             print(
@@ -823,7 +825,7 @@ def drift(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
                 {y: f"{mean[y]:.2f} ({sem[y]:.2f})" for y in mean.index},
                 f"change {mean.iloc[-1] - mean.iloc[0]:+.2f} (SE {np.hypot(*sem):.2f})",
             )
-        for src in ["luna", "sol"]:
+        for src in models:
             gap = (table[f"{col}_{src}"] - table[f"{col}_opus"]) * 100
             gap_by_year = gap.groupby(table.year)
             mean = gap_by_year.mean()

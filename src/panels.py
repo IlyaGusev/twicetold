@@ -200,15 +200,15 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
     rng = np.random.default_rng(seed)
     iclr = pd.read_parquet(data / "sample_reviews.parquet")
     iclr = iclr[iclr.conf == "ICLR"]
-    areas = pd.read_parquet(data / "paper_areas.parquet")[["paper_id", "area_final"]]
+    areas = pd.read_parquet(data / "paper_areas.parquet")[["paper_id", "area_pred"]]
     with_area = iclr.merge(areas, on="paper_id", how="left")
-    with_area["area_final"] = with_area.area_final.fillna("other")
+    with_area["area_pred"] = with_area.area_pred.fillna("other")
     main_panel_reviews = {r for p in read_panels(data / "panels.jsonl") for r in p["review_ids"]}
 
     def placebo_area():
         for year, g in with_area.groupby("year"):
             by_paper = review_ids_by_paper(g)
-            area_of = g.drop_duplicates("paper_id").set_index("paper_id").area_final
+            area_of = g.drop_duplicates("paper_id").set_index("paper_id").area_pred
             for k in range(AREA_PLACEBOS_PER_YEAR):
                 area = area_of.sample(1, random_state=int(rng.integers(1 << 31))).iloc[0]
                 area_papers = area_of.index[area_of == area]

@@ -185,27 +185,43 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     evidence = pd.read_csv(settings.REPORTS_DIR / f"rq1_evidence_{model}.csv")
 
     fig = plt.figure(figsize=(PAGE_WIDTH - 0.15, 2.15))
-    axes = [fig.add_axes(rect) for rect in ([0.06, 0.14, 0.3, 0.74], [0.66, 0.14, 0.33, 0.74])]
+    axes = [fig.add_axes(rect) for rect in ([0.06, 0.14, 0.36, 0.74], [0.66, 0.14, 0.33, 0.74])]
     ax = axes[0]
     iclr = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)]
     styles = {
-        "HH": ("neither", COLORS["grey"], "o"),
-        "HL": ("one", COLORS["flag_light"], "s"),
-        "LL": ("both", COLORS["flag"], "D"),
+        "HH": ("neither flagged", COLORS["grey"], "o"),
+        "HL": ("one flagged", COLORS["flag_light"], "s"),
+        "LL": ("both flagged", COLORS["flag"], "D"),
     }
     last_rate = {}
     for k, (pair_type, (_, color, marker)) in enumerate(styles.items()):
         per_year = iclr[iclr.pair_type == pair_type].groupby(["year", "panel_id"]).hit.mean().groupby("year")
         mean = per_year.mean() * 100
         ci = 100 * Z95 * per_year.std() / np.sqrt(per_year.count())
-        ax.errorbar(mean.index + (k - 1) * 0.16, mean, yerr=ci, fmt=marker, ms=3.5, color=color, elinewidth=1.0)
+        ax.errorbar(
+            mean.index + (k - 1) * 0.16,
+            mean,
+            yerr=ci,
+            fmt=marker,
+            ms=3.5,
+            color=color,
+            elinewidth=1.0,
+            label=styles[pair_type][0],
+        )
         last_rate[pair_type] = mean.iloc[-1]
-    lower, upper = sorted(["HH", "HL"], key=last_rate.get)
-    for pair_type, dy in {lower: -0.5, upper: 0.5, "LL": 0}.items():
-        ax.text(2026.5, last_rate[pair_type] + dy, styles[pair_type][0], fontsize=7, va="center", color=COLORS["ink"])
-    ax.text(2026.5, 16.3, "flagged:", fontsize=7, va="center", color=COLORS["grey"])
+    handles, labels = ax.get_legend_handles_labels()
+    ax.legend(
+        handles[::-1],
+        labels[::-1],
+        loc="lower right",
+        frameon=False,
+        fontsize=7,
+        handletextpad=0.4,
+        borderaxespad=0.3,
+        labelspacing=0.3,
+    )
     few_ticks(ax)
-    ax.set_xlim(2023.6, 2027.6)
+    ax.set_xlim(2023.6, 2026.5)
     ax.set_ylim(0, 17)
     year_ticks(ax, (2024, 2025, 2026))
     ax.set_title("(a) Match rate by pair, ICLR (%)")
@@ -385,7 +401,7 @@ def journals_cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     def draw(ax, conf):
         mean_line(ax, other[(other.conf == conf) & other.placebo], "hit_rate_strict", COLORS["ink"])
 
-    journal_grid(figs, "figA_journals_cross.pdf", "Match rate (%)", (-0.2, 3.4), draw)
+    journal_grid(figs, "figA_journals_cross.pdf", "Match rate (%)", (-0.4, 3.4), draw)
 
 
 def area(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
