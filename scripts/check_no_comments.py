@@ -6,17 +6,21 @@ import tokenize
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SKIP_DIRS = {".venv", ".git", "data", "logs", "reports", "paper", "__pycache__"}
+SKIP_DIRS = {".venv", ".git", ".claude", "data", "logs", "reports", "paper", "__pycache__"}
 HASH_COMMENT_SUFFIXES = {".sh", ".yml", ".yaml", ".toml", ".cfg", ".ini"}
 DOCSTRING_OWNERS = (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-FULL_LINE_HASH_COMMENT = re.compile(r"\s*#")
-TRAILING_HASH_COMMENT = re.compile(r"\s#\s")
+QUOTED_TEXT = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+HASH_COMMENT = re.compile(r"(^|\s)#")
+
+
+def is_shebang(token):
+    return token.start == (1, 0) and token.string.startswith("#!")
 
 
 def python_findings(path):
     source = path.read_text()
     tokens = tokenize.generate_tokens(io.StringIO(source).readline)
-    findings = [(token.start[0], "comment") for token in tokens if token.type == tokenize.COMMENT]
+    findings = [(token.start[0], "comment") for token in tokens if token.type == tokenize.COMMENT and not is_shebang(token)]
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, DOCSTRING_OWNERS) and ast.get_docstring(node, clean=False) is not None:
             findings.append((node.body[0].lineno, "docstring"))
@@ -28,7 +32,7 @@ def hash_findings(path):
     for line_number, line in enumerate(path.read_text().splitlines(), 1):
         if line_number == 1 and line.startswith("#!"):
             continue
-        if FULL_LINE_HASH_COMMENT.match(line) or TRAILING_HASH_COMMENT.search(line):
+        if HASH_COMMENT.search(QUOTED_TEXT.sub("''", line)):
             findings.append((line_number, "comment"))
     return findings
 

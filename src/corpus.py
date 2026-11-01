@@ -3,6 +3,7 @@ import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
+from difflib import SequenceMatcher
 from pathlib import Path
 
 import duckdb
@@ -19,6 +20,13 @@ ARCADE_PAPERS = settings.RAW_ML_REVIEWS_DIR / "arcade/papers.parquet"
 ICLR26 = settings.RAW_ML_REVIEWS_DIR / "iclr2026/heineman.parquet"
 ICLR26_RAW = settings.RAW_ML_REVIEWS_DIR / "iclr2026/jerma_2026.parquet"
 REPORT = settings.REPORTS_DIR / "other_inventory.txt"
+OPENREVIEW_V1_API = "https://api.openreview.net"
+OPENREVIEW_V2_API = "https://api2.openreview.net"
+ICLR_AREA_NOTES = [
+    (2023, "v1", "ICLR.cc/2023/Conference/-/Blind_Submission", "Please_choose_the_closest_area_that_your_submission_falls_into"),
+    (2024, "v2", "ICLR.cc/2024/Conference/-/Submission", "primary_area"),
+    (2025, "v2", "ICLR.cc/2025/Conference/-/Submission", "primary_area"),
+]
 
 SECTION_KEYS = [
     ("summary", ("summary", "summary of the paper")),
@@ -32,6 +40,8 @@ SECTION_KEYS = [
 WEAK_KEYS = {"weaknesses", "strength and weaknesses", "strengths_and_weaknesses"}
 TEXT_KEYS = set().union(*(keys for _, keys in SECTION_KEYS))
 MIN_REVIEW_CHARS = 200
+NEAR_COPY_CHARS = 3000
+NEAR_COPY_RATIO = 0.8
 
 SOURCES = ["scipost", "f1000", "bmc", "plos", "copernicus"]
 REVIEW_COLS = [
@@ -63,7 +73,7 @@ def unwrap(v):
 
 
 def squash(s):
-    return re.sub(r"\s+", " ", s or "").strip()
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def leading_int(value):
@@ -83,13 +93,15 @@ def join_fields(fields):
 
 
 def decision_class(decision):
-    decision = (decision or "").lower()
+    decision = decision.lower()
     if "desk" in decision:
         return "desk_reject"
     if "reject" in decision or decision in ("", "unknown"):
         return "reject"
     if "withdraw" in decision:
         return "withdrawn"
+    if "workshop" in decision:
+        return "reject"
     return "accept"
 
 
@@ -155,6 +167,7 @@ def from_iclr26():
     raw_notes = con.sql(f"select paper_id, decision, api_raw_review, api_raw_submission from '{ICLR26_RAW}'").df()
     decision = {}
     area = {}
+    final_venue = {}
     questions = {}
     created = {}
     modified = {}
@@ -163,6 +176,7 @@ def from_iclr26():
         try:
             submission = json.loads(raw_row.api_raw_submission)
             area[raw_row.paper_id] = unwrap(submission.get("content", {}).get("primary_area"))
+            final_venue[raw_row.paper_id] = unwrap(submission.get("content", {}).get("venue"))
         except TypeError, json.JSONDecodeError, AttributeError:
             pass
         try:
@@ -174,8 +188,10 @@ def from_iclr26():
         questions[note["id"]] = unwrap(note.get("content", {}).get("questions")) or ""
         created[note["id"]] = note.get("cdate")
         modified[note["id"]] = note.get("mdate")
-    snapshot_reviews["questions"] = snapshot_reviews.review_id.map(questions).fillna("")
-    text = snapshot_reviews[["summary", "strengths", "weaknesses", "questions", "review"]].apply(join_fields, axis=1)
+    snapshot_reviews["questions"] = snapshot_reviews.review_id.map(questions)
+    text_fields = ["summary", "strengths", "weaknesses", "questions", "review"]
+    snapshot_reviews[text_fields] = snapshot_reviews[text_fields].fillna("")
+    text = snapshot_reviews[text_fields].apply(join_fields, axis=1)
     reviews = pd.DataFrame(
         dict(
             conf="ICLR",
@@ -193,7 +209,10 @@ def from_iclr26():
         )
     )
     paper_rows = snapshot_reviews.drop_duplicates("paper_id")
-    withdrawn = paper_rows.venue.str.contains("Withdrawn")
+    final_venues = paper_rows.paper_id.map(final_venue).astype("str")
+    left_conference = final_venues.str.contains("Withdrawn|Desk Rejected", na=False)
+    withdrawn_in_snapshot = paper_rows.venue.str.contains("Withdrawn")
+    snapshot_decision = paper_rows.venue.where(withdrawn_in_snapshot, paper_rows.paper_id.map(decision))
     papers = pd.DataFrame(
         dict(
             conf="ICLR",
@@ -201,19 +220,34 @@ def from_iclr26():
             paper_id=paper_rows.paper_id,
             title=paper_rows.title,
             abstract=paper_rows.abstract,
-            decision_raw=paper_rows.venue.where(withdrawn, paper_rows.paper_id.map(decision)),
+            decision_raw=final_venues.where(left_conference, snapshot_decision),
             primary_area=paper_rows.paper_id.map(area),
+            final_venue=final_venues,
         )
     )
     return reviews, papers
+
+
+def older_versions(reviews):
+    repeated = reviews[reviews.reviewer.notna() & reviews.duplicated(["paper_id", "reviewer"], keep=False)]
+    older = set()
+    for _, versions in repeated.sort_values("review_time", kind="stable").groupby(["paper_id", "reviewer"]):
+        heads = versions.text.str.slice(0, NEAR_COPY_CHARS).str.split().tolist()
+        for i, review_id in enumerate(versions.review_id):
+            if any(SequenceMatcher(None, heads[i], later).ratio() >= NEAR_COPY_RATIO for later in heads[i + 1 :]):
+                older.add(review_id)
+    return reviews.review_id.isin(older)
 
 
 def merge_ml(parts):
     reviews = pd.concat([r for r, _ in parts], ignore_index=True)
     reviews = reviews[reviews.text.str.len() > MIN_REVIEW_CHARS].drop_duplicates("review_id")
     reviews = reviews.drop_duplicates(["paper_id", "text"])
+    older = older_versions(reviews)
+    print("older versions of a reviewer's own review dropped:", reviews[older].groupby(["conf", "year"]).size().to_dict())
+    reviews = reviews[~older]
     papers = pd.concat([p for _, p in parts], ignore_index=True).drop_duplicates("paper_id")
-    papers["decision"] = papers.decision_raw.map(decision_class)
+    papers["decision"] = papers.decision_raw.fillna("").map(decision_class)
     papers["withdrawn"] = papers.decision.eq("withdrawn")
     counts = reviews.groupby("paper_id").size().rename("n_reviews")
     papers = papers.merge(counts, left_on="paper_id", right_index=True, how="left")
@@ -332,12 +366,32 @@ def embed(docs, chunk_size=256):
         return np.array([vector for vectors in chunk_vectors for vector in vectors], dtype=np.float32)
 
 
+def openreview_areas(out=settings.DATA_DIR):
+    import openreview
+
+    login = dict(username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD)
+    clients = dict(
+        v1=openreview.Client(baseurl=OPENREVIEW_V1_API, **login),
+        v2=openreview.api.OpenReviewClient(baseurl=OPENREVIEW_V2_API, **login),
+    )
+    found = pd.DataFrame(
+        [
+            dict(year=year, paper_id=note.id, primary_area=unwrap(note.content.get(field)))
+            for year, api, invitation, field in ICLR_AREA_NOTES
+            for note in clients[api].get_all_notes(invitation=invitation)
+        ]
+    )
+    found.to_parquet(Path(out) / "openreview_areas.parquet")
+    print(found.groupby("year").primary_area.agg(["size", "count"]).to_string())
+
+
 def areas(out=settings.DATA_DIR):
     from sklearn.linear_model import LogisticRegression
     from sklearn.model_selection import cross_val_score
 
     out = Path(out)
     papers = pd.read_parquet(settings.DATA_DIR / "papers.parquet")
+    openreview_area = pd.read_parquet(settings.DATA_DIR / "openreview_areas.parquet").set_index("paper_id").primary_area
     panel_lines = (settings.DATA_DIR / "panels.jsonl").read_text().splitlines()
     panel_paper_ids = {json.loads(line)["panel_id"] for line in panel_lines}
     in_panels = papers.paper_id.isin(panel_paper_ids)
@@ -357,6 +411,8 @@ def areas(out=settings.DATA_DIR):
     clf.fit(embeddings[labelled], y)
     proba = clf.predict_proba(embeddings)
     pred = clf.classes_[proba.argmax(1)]
+    area_true = need.primary_area.fillna(need.paper_id.map(openreview_area))
+    has_true = area_true.notna().to_numpy()
     paper_areas = pd.DataFrame(
         dict(
             paper_id=need.paper_id,
@@ -364,6 +420,9 @@ def areas(out=settings.DATA_DIR):
             area_prob=proba.max(1),
             area_pred=pred,
             row=np.arange(len(need)),
+            area_true=area_true,
+            area_final=np.where(has_true, area_true, pred),
+            area_source=np.where(has_true, "openreview", "predicted"),
         )
     )
     paper_areas.to_parquet(out / "paper_areas.parquet")
@@ -373,4 +432,4 @@ def areas(out=settings.DATA_DIR):
 
 
 if __name__ == "__main__":
-    fire.Fire(dict(ml=ml, other=other, areas=areas))
+    fire.Fire(dict(ml=ml, other=other, openreview_areas=openreview_areas, areas=areas))

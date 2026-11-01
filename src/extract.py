@@ -211,9 +211,7 @@ def error_row(e):
     return {"error": repr(e)[:ERROR_REPR_CHARS]}
 
 
-def call(
-    instructions, text, schema, name, model=settings.DEFAULT_MODEL, effort=settings.PASS1_REASONING_EFFORT, local_model_path=None
-):
+def call(instructions, text, schema, name, model, effort, local_model_path=None):
     if local_model_path:
         try:
             max_tokens = LOCAL_CLAIMS_MAX_TOKENS if name == "claims" else LOCAL_DEFAULT_MAX_TOKENS
@@ -241,18 +239,29 @@ def load_claims(path):
     return {row["review_id"]: row["claims"] for row in read_jsonl(path) if "claims" in row}
 
 
-def done_ids(path, key):
+def reasoning_efforts(model):
+    if model not in settings.REASONING_EFFORTS:
+        raise SystemExit(f"{model} has no entry in settings.REASONING_EFFORTS; each effort setting needs its own short name")
+    return settings.REASONING_EFFORTS[model]
+
+
+def done_ids(path, key, effort):
     if not path.exists():
         return set()
+    done = set()
     with open(path) as f:
-        rows = (json.loads(line) for line in f if line.strip())
-        return {row[key] for row in rows if "error" not in row}
+        for row in (json.loads(line) for line in f if line.strip()):
+            if row.get("effort", effort) != effort:
+                raise SystemExit(f"{path} has rows made at effort {row['effort']}, not {effort}; use a new short name")
+            if "error" not in row:
+                done.add(row[key])
+    return done
 
 
-def run(items, worker, out_path, key, model, threads, budget, local_model_path):
+def run(items, worker, out_path, key, model, effort, threads, budget, local_model_path):
     if not local_model_path and model not in settings.PRICES_USD_PER_MTOK:
         raise SystemExit(f"{model} has no entry in settings.PRICES_USD_PER_MTOK, so the budget cap would not count its calls")
-    done = done_ids(out_path, key)
+    done = done_ids(out_path, key, effort)
     todo = [item for item in items if item[key] not in done]
     print(f"{model}: {len(done)} done, {len(todo)} to do -> {out_path}", flush=True)
 
@@ -282,7 +291,7 @@ def run(items, worker, out_path, key, model, threads, budget, local_model_path):
 def pass1_worker(item, model, instructions, local_model_path, effort):
     review_text = item["text"][: settings.REVIEW_TEXT_MAX_CHARS]
     out = call(instructions, review_text, PASS1_SCHEMA, "claims", model=model, effort=effort, local_model_path=local_model_path)
-    return dict(review_id=item["review_id"], model=model, **out)
+    return dict(review_id=item["review_id"], model=model, effort=effort, **out)
 
 
 def pass2_worker(item, model, instructions, local_model_path, effort):
@@ -298,7 +307,7 @@ def pass2_worker(item, model, instructions, local_model_path, effort):
         )
     else:
         out = {"clusters": []}
-    return dict(panel_id=item["panel_id"], model=model, review_ids=item["review_ids"], **out)
+    return dict(panel_id=item["panel_id"], model=model, effort=effort, review_ids=item["review_ids"], **out)
 
 
 def pass1(
@@ -310,15 +319,16 @@ def pass1(
     paper_kind="ml",
     local_model_path=None,
     data=str(settings.DATA_DIR),
-    effort=settings.PASS1_REASONING_EFFORT,
 ):
     import pandas as pd
 
+    effort = None if local_model_path else reasoning_efforts(model).pass1
     items = pd.read_parquet(reviews, columns=["review_id", "text"]).to_dict("records")
     worker = partial(
         pass1_worker, model=model, instructions=pass1_instructions(paper_kind), local_model_path=local_model_path, effort=effort
     )
-    run(items, worker, Path(data) / f"claims_{model}{tag}.jsonl", "review_id", model, threads, budget, local_model_path)
+    out_path = Path(data) / f"claims_{model}{tag}.jsonl"
+    run(items, worker, out_path, "review_id", model, effort, threads, budget, local_model_path)
 
 
 def pass2(
@@ -330,10 +340,10 @@ def pass2(
     paper_kind="ml",
     local_model_path=None,
     claims_files=None,
-    effort=settings.PASS2_REASONING_EFFORT,
     data=str(settings.DATA_DIR),
     different=False,
 ):
+    effort = None if local_model_path else reasoning_efforts(model).pass2
     if claims_files is None:
         claims_files = f"claims_{model}{tag}.jsonl"
     if isinstance(claims_files, str):
@@ -360,7 +370,8 @@ def pass2(
         local_model_path=local_model_path,
         effort=effort,
     )
-    run(items, worker, Path(data) / f"clusters_{model}{tag}.jsonl", "panel_id", model, threads, budget, local_model_path)
+    out_path = Path(data) / f"clusters_{model}{tag}.jsonl"
+    run(items, worker, out_path, "panel_id", model, effort, threads, budget, local_model_path)
 
 
 if __name__ == "__main__":

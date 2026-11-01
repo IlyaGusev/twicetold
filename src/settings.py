@@ -12,6 +12,11 @@ class OpenRouterRoute(BaseModel):
     strict: bool = True
 
 
+class PassEfforts(BaseModel):
+    pass1: str
+    pass2: str
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
@@ -35,9 +40,8 @@ class Settings(BaseSettings):
     DEFAULT_MODEL: str = "gpt-6-luna-high"
     BLIND_SET_MODEL: str = "gpt-6-luna"
     SECOND_MODEL: str = "gpt-6.1-sol"
+    AI_REFERENCE_MODEL: str = "gpt-6-luna"
     INSTRUMENT_MODELS: str = "gpt-6-luna,gpt-6.1-sol,glm-5.3-flash,deepseek-v4.1-flash"
-    PASS1_REASONING_EFFORT: str = "high"
-    PASS2_REASONING_EFFORT: str = "high"
     REVIEW_TEXT_MAX_CHARS: int = 14000
 
     EMBED_MODEL: str = "text-embedding-3-small"
@@ -57,6 +61,13 @@ class Settings(BaseSettings):
         "sol-or": (2.00, 10.00),
         "opus-5.5": (4.00, 20.00),
         "kimi-k3.1-pro": (2.00, 10.00),
+    }
+    REASONING_EFFORTS: dict[str, PassEfforts] = {
+        "gpt-6-luna": PassEfforts(pass1="low", pass2="medium"),
+        "gpt-6.1-sol": PassEfforts(pass1="low", pass2="medium"),
+        "glm-5.3-flash": PassEfforts(pass1="low", pass2="medium"),
+        "deepseek-v4.1-flash": PassEfforts(pass1="low", pass2="medium"),
+        "gpt-6-luna-high": PassEfforts(pass1="high", pass2="high"),
     }
     OPENROUTER_ROUTES: dict[str, OpenRouterRoute] = {
         "gpt-6-luna-high": OpenRouterRoute(id="openai/gpt-6-luna"),

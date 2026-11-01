@@ -34,7 +34,11 @@ gpt-6-luna; blocked by the OpenAI spend limit on 2026-10-30):
 Then compare (main 2026 − main 2025) with (position 2026 − position 2025). The position-track sample is small
 (73 papers in 2025), so expect a standard error near 2 points.
 
-## Extraction models compared (`validate.py instruments`, reports/instruments.csv)
+## Extraction models compared (`validate.py instruments`, reports/instruments_gpt-6-luna.csv)
+
+`validate.py instruments --model M` writes `reports/instruments_M.csv` with M as the reference model. The committed
+`reports/instruments.csv` is the gpt-6-luna run made before that rename; the next `scripts/post.sh gpt-6-luna` writes
+`reports/instruments_gpt-6-luna.csv` and does not change `reports/instruments.csv`.
 
 Same prompts, schema and reasoning effort on the second-model set (1,797 ICLR panels) and the 40 blind papers.
 OpenRouter models run through `extract.py` under short names (`glm-5.3-flash`, `deepseek-v4.1-flash`).
@@ -109,6 +113,12 @@ dev): Haiku 5.5 0.72, DeepSeek 4.1 flash 0.70, MiMo 0.79 with failures, MiniMax 
 ## Data window
 
 - ICLR starts in 2020: before 2020 the public data lack almost all withdrawn papers (later 13–26% of submissions), and reviews of withdrawn (weak) papers match more. Evidence: `src/outcomes.py withdrawals`, Appendix A.
+- ICLR 2026 papers that were withdrawn or desk-rejected after the early heineman snapshot: `corpus.py ml` takes their status from the final venue of the submission note (decision `withdrawn` or `desk_reject`). The analysis drops every panel that holds a review of a withdrawn or desk-rejected paper (`outcomes.excluded_review_ids`), so the existing extraction gives the corrected sample; `outcomes.py panels` and `pairs` print the number of dropped panels. They also drop a same-paper panel that holds a review no longer in `reviews.parquet` (for example an older version of a reviewer's own review, which `corpus.py ml` now removes); without that drop its pairs have no length and the standardized fit fails. The same rule applies to the per-review tables (`ai.py wordshare` and `wordshare_fields`, the `ai.py style` cell table, `between.py`, the flag columns of `figures.py table`, Fig. 3, Fig. A likeness, `validate.py instruments` and `drift`, and the 2026 rating ICC in `outcomes.py withdrawals`). Same-venue placebo panels mix reviews of four papers, so the 2026 placebo cells lose more panels than the same-paper cell. `outcomes.py withdrawals` ranks 2026 papers for the rating quintiles among the main sample only, as in every other year.
+
+## Counting rules
+
+- A review with no critique claim counts as a review with an empty claim set in Reviews, Claims/rev. and the rarefied S_k, D_k, U_k (also in the `_spec` and `_m8` subsets); it still enters no pair. `n_reviews` in the outcome tables is the panel size; `paper_n_reviews` is the paper's review count in `papers.parquet`.
+- The summary+strengths style columns (`p_llm_ss`, `llm_flag_ss`) score only reviews whose form has separate strengths and weaknesses fields, stop at section tags only, are missing (not False) when a review has no such text over 200 characters, and use their own pre-period (ICLR 2017–2022) 99th percentile.
 
 ## Figure messages
 

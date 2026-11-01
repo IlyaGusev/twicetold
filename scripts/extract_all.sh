@@ -1,30 +1,39 @@
 #!/bin/bash
 set -u
 cd "$(dirname "$0")/.." || exit 1
+PASS_BUDGET_USD=${2:-300}
+if [ $# -lt 1 ] || [ $# -gt 2 ] || ! [[ $PASS_BUDGET_USD =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  echo "usage: $0 MODEL [PASS_BUDGET_USD=300]" >&2
+  exit 1
+fi
 MODEL=$1
-PASS1_EFFORT=${2:-high}
-PASS2_EFFORT=${3:-high}
-BUDGET_USD=${4:-300}
 LOG_DIR=logs/extract_$MODEL
 mkdir -p "$LOG_DIR"
 
 run_pass() {
-  local pass=$1 effort=$2 threads=$3
-  shift 3
+  local pass=$1 threads=$2
+  shift 2
   uv run python -I src/extract.py "$pass" "$@" \
-    --model "$MODEL" --threads "$threads" --budget "$BUDGET_USD" --effort "$effort" 2>&1 |
-    grep -v "it/s\]"
+    --model "$MODEL" --threads "$threads" --budget "$PASS_BUDGET_USD" 2>&1 |
+    grep --line-buffered -v "it/s\]"
+  local exit_code=${PIPESTATUS[0]}
+  if [ "$exit_code" -ne 0 ]; then
+    echo "PASS FAILED (exit $exit_code): $pass $*"
+  fi
 }
-p1() { run_pass pass1 "$PASS1_EFFORT" "$@"; }
-p2() { run_pass pass2 "$PASS2_EFFORT" "$@"; }
+p1() { run_pass pass1 "$@"; }
+p2() { run_pass pass2 "$@"; }
 
-( p1 256 data/sample_reviews.parquet
+( p1 256 data/sample_reviews.parquet &
+  p1 48 data/llm_reviews.parquet --tag _llm &
+  wait
   p2 160 data/panels.jsonl &
   p2 32 data/panels_placebo.jsonl &
   p2 32 data/panels_placebo_area.jsonl &
   p2 32 data/panels_sub3.jsonl &
   p2 32 data/panels_sub3_full.jsonl &
   p2 8 data/panels_blind.jsonl &
+  p2 48 data/panels_llm.jsonl --tag _llm --claims_files "claims_${MODEL}_llm.jsonl,claims_${MODEL}.jsonl" &
   wait
   echo "CHAIN main DONE $(date)" ) > "$LOG_DIR/main.log" 2>&1 &
 
@@ -47,14 +56,12 @@ p2() { run_pass pass2 "$PASS2_EFFORT" "$@"; }
 
 ( p1 48 data/wd_reviews.parquet --tag _wd
   p2 48 data/panels_wd.jsonl --tag _wd
-  p1 48 data/llm_reviews.parquet --tag _llm
-  p2 48 data/panels_llm.jsonl --tag _llm --claims_files "claims_${MODEL}_llm.jsonl,claims_${MODEL}.jsonl"
   p1 32 data/ampere_reviews.parquet --tag _ampere
   echo "CHAIN small DONE $(date)" ) > "$LOG_DIR/small.log" 2>&1 &
 
 wait
 echo "ALL DONE $(date)"
-if grep -l "Traceback\|budget cap" "$LOG_DIR"/*.log; then
+if grep -l "Traceback\|budget cap\|PASS FAILED\|panels skipped" "$LOG_DIR"/*.log; then
   echo "SOME CHAIN FAILED"
+  exit 1
 fi
-exit 0

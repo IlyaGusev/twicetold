@@ -7,9 +7,11 @@ from pathlib import Path
 import fire
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from outcomes import main_sample_review_ids
 from settings import settings
 
 K_TYPES = 300
@@ -80,13 +82,16 @@ def claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
 
 
 def write_claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
-    claims_table(model, data).to_parquet(Path(data) / f"claims_table_{model}.parquet", index=False)
+    path = Path(data) / f"claims_table_{model}.parquet"
+    table = claims_table(model, data)
+    if path.exists() and "emb_row" in pq.read_schema(path).names:
+        emb_rows = pd.read_parquet(path, columns=["review_id", "k", "claim", "emb_row"])
+        table = table.merge(emb_rows, on=["review_id", "k", "claim"], how="left")
+    table.to_parquet(path, index=False)
 
 
 def embed_claims(model, data):
     T = claims_table(model, data)
-    T["emb_row"] = np.arange(len(T))
-    T.to_parquet(data / f"claims_table_{model}.parquet")
     E = openai_embed(
         T.claim.str.slice(0, CLAIM_EMBED_CHARS).tolist(),
         settings.CLAIM_EMBED_MODEL,
@@ -96,6 +101,8 @@ def embed_claims(model, data):
         dimensions=CLAIM_EMBED_DIMS,
     )
     np.save(data / f"claim_emb_{model}.npy", E)
+    T["emb_row"] = np.arange(len(T))
+    T.to_parquet(data / f"claims_table_{model}.parquet")
 
 
 def normalize_rows(X):
@@ -105,9 +112,8 @@ def normalize_rows(X):
 
 def load_claims(model, data):
     T = pd.read_parquet(data / f"claims_table_{model}.parquet")
-    review_ids = set(pd.read_parquet(data / "reviews.parquet", columns=["review_id"]).review_id)
-    T = T[T.review_id.isin(review_ids)].reset_index(drop=True)
-    E = np.load(data / f"claim_emb_{model}.npy", mmap_mode="r")[T.emb_row.to_numpy()].astype(np.float32)
+    T = T[T.review_id.isin(main_sample_review_ids(data))].reset_index(drop=True)
+    E = np.load(data / f"claim_emb_{model}.npy", mmap_mode="r")[T.emb_row.astype(np.int64).to_numpy()].astype(np.float32)
     return T, normalize_rows(E)
 
 
@@ -219,8 +225,8 @@ def embed_reviews(data, threads):
 def load_reviews(data):
     R = pd.read_parquet(data / "sample_reviews.parquet", columns=["conf", "year", "paper_id", "review_id"])
     R["row"] = np.arange(len(R))
-    areas = pd.read_parquet(data / "reviews.parquet", columns=["review_id", "primary_area"]).drop_duplicates("review_id")
-    R = R.merge(areas, on="review_id")
+    areas = pd.read_parquet(data / "paper_areas.parquet", columns=["paper_id", "area_final"])
+    R = R[R.review_id.isin(main_sample_review_ids(data))].merge(areas, on="paper_id", how="left")
     E = normalize_rows(np.load(data / "review_emb.npy"))
     return R, E
 
@@ -254,7 +260,7 @@ def cell_similarity(R, E, intra, rng):
     rows = []
     for (conf, year), cell in tqdm(R.groupby(["conf", "year"]), desc="inter-paper"):
         area_sims = []
-        for _, area in cell.groupby(cell.primary_area.fillna("none")):
+        for _, area in cell.groupby(cell.area_final.fillna("none")):
             if area.paper_id.nunique() >= 2:
                 area_sims += cross_paper_sims(area, E, rng, AREA_PAIRS)
         any_sims = cross_paper_sims(cell, E, rng, CELL_PAIRS)

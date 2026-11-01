@@ -13,7 +13,7 @@ import pandas as pd
 from matplotlib.ticker import MaxNLocator
 from matplotlib.transforms import Bbox
 
-from outcomes import ICLR_FROM, in_window
+from outcomes import ICLR_FROM, excluded_review_ids, in_main_sample, in_window, main_sample_review_ids
 from settings import settings
 
 COLUMN_WIDTH = 3.03
@@ -115,7 +115,7 @@ def mean_line(ax, df, col, color, ls="-", **kw):
     mean = per_year.mean() * 100
     ci = Z95 * per_year.std(ddof=1) / np.sqrt(per_year.count()) * 100
     ax.errorbar(mean.index, mean, yerr=ci, fmt="o", ms=3, color=color, elinewidth=1.0, ls=ls, **kw)
-    return mean
+    return pd.DataFrame({"mean": mean, "bar_top": mean + ci})
 
 
 def std_line(ax, match_std, conf, color, dx=0.0):
@@ -154,8 +154,10 @@ def save(fig, figs, name, width):
 def likeness(figs=settings.FIGURES_DIR):
     share = pd.read_csv(settings.REPORTS_DIR / "llm_share.csv").query("conf == 'ICLR' and year >= @ICLR_FROM")
     flags = pd.read_parquet(settings.DATA_DIR / "detector_scores.parquet", columns=["review_id", "llm_flag"])
-    reviews = pd.read_parquet(settings.DATA_DIR / "reviews.parquet", columns=["review_id", "conf", "year"])
-    reviews = reviews.merge(flags, on="review_id")
+    reviews = pd.read_parquet(
+        settings.DATA_DIR / "reviews.parquet", columns=["review_id", "conf", "year", "withdrawn", "decision"]
+    )
+    reviews = reviews[in_main_sample(reviews)].merge(flags, on="review_id")
     flagged = reviews.query("conf == 'ICLR' and year >= @ICLR_FROM").groupby("year").llm_flag.mean() * 100
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.8))
     fig.subplots_adjust(left=0.12, right=0.84, top=0.97, bottom=0.14)
@@ -270,8 +272,9 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     for conf in ["ICLR", "NeurIPS"]:
         rows = placebo[(placebo.conf == conf) & (placebo.placebo_kind == SAME_VENUE_PLACEBO)]
         rate_by_conf[conf] = mean_line(ax, rows, "hit_rate_strict", COLORS[conf])
-    end_label(ax, 2025, rate_by_conf["NeurIPS"].loc[2025], "NeurIPS", COLORS["NeurIPS"], dx=0, dy=-8, ha="center", va="top")
-    end_label(ax, ICLR_FROM, rate_by_conf["ICLR"].loc[ICLR_FROM], "ICLR", COLORS["ICLR"], dx=-2, dy=8, ha="left", va="bottom")
+    iclr, neurips = rate_by_conf["ICLR"], rate_by_conf["NeurIPS"]
+    end_label(ax, 2025, neurips.loc[2025, "mean"], "NeurIPS", COLORS["NeurIPS"], dx=0, dy=-8, ha="center", va="top")
+    end_label(ax, ICLR_FROM, iclr.loc[ICLR_FROM, "bar_top"], "ICLR", COLORS["ICLR"], dx=-2, dy=2, ha="left", va="bottom")
     ax.set_ylim(-0.3, 1.8)
     ax.set_xlim(2019.6, 2026.5)
     few_ticks(ax)
@@ -284,8 +287,8 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     claims = pd.read_parquet(
         settings.DATA_DIR / f"claims_table_{model}.parquet", columns=["review_id", "conf", "year", "category"]
     )
-    kept_reviews = set(pd.read_parquet(settings.DATA_DIR / "reviews.parquet", columns=["review_id"]).review_id)
-    claims = claims[(claims.conf == "ICLR") & claims.review_id.isin(kept_reviews) & (claims.category != "other")]
+    main_sample_reviews = main_sample_review_ids(settings.DATA_DIR)
+    claims = claims[(claims.conf == "ICLR") & claims.review_id.isin(main_sample_reviews) & (claims.category != "other")]
     share = pd.crosstab(claims.category, claims.year, normalize="columns") * 100
     shift = pd.DataFrame({"pre": share[list(range(ICLR_FROM, 2023))].mean(axis=1), "post": share[2026]})
     shift["change"] = shift.post - shift.pre
@@ -393,8 +396,8 @@ def area(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     shade_chatgpt_period(ax)
     same_venue = mean_line(ax, iclr[iclr.placebo_kind == SAME_VENUE_PLACEBO], "hit_rate_strict", COLORS["ink"])
     same_area = mean_line(ax, iclr[iclr.placebo_kind == "same_area3"], "hit_rate_strict", COLORS["ink"], ls="--", mfc="white")
-    end_label(ax, 2023, same_area.loc[2023], "same research area", dx=0, dy=10, ha="center", va="bottom")
-    end_label(ax, 2022, same_venue.loc[2022], "same venue and year", dx=0, dy=-9, ha="center", va="top")
+    end_label(ax, 2023, same_area.loc[2023, "bar_top"], "same research area", dx=0, dy=2, ha="center", va="bottom")
+    end_label(ax, 2022, same_venue.loc[2022, "mean"], "same venue and year", dx=0, dy=-9, ha="center", va="top")
     ax.set_xlim(2019.6, 2026.4)
     ax.set_ylim(-0.3, 3.4)
     few_ticks(ax)
@@ -463,6 +466,7 @@ def by_year(model=settings.DEFAULT_MODEL):
 
     review_meta = pd.concat([pd.read_parquet(settings.DATA_DIR / f, columns=["review_id", "conf", "year"]) for f in REVIEW_FILES])
     review_meta = review_meta.drop_duplicates("review_id")
+    review_meta = review_meta[~review_meta.review_id.isin(excluded_review_ids(settings.DATA_DIR))]
     cocodet = pd.concat([pd.read_json(settings.DATA_DIR / f, lines=True) for f in COCODET]).drop_duplicates("review_id")
     cocodet = cocodet.merge(review_meta, on="review_id")
     cocodet["flag"] = cocodet[["human", "mix", "ai"]].idxmax(axis=1) != "human"

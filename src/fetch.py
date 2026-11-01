@@ -10,7 +10,7 @@ from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import fire
 import pandas as pd
@@ -19,6 +19,7 @@ from bs4 import BeautifulSoup
 from pypdf import PdfReader
 from requests.adapters import HTTPAdapter
 from tqdm import tqdm
+from urllib3.exceptions import ResponseError
 from urllib3.util.retry import Retry
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -33,6 +34,7 @@ MIN_REVIEWS = 2
 WORKERS = 4
 TIMEOUT = 120
 EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
+EPMC_BROKEN_RECORD = ResponseError.SPECIFIC_ERROR.format(status_code=500)
 OPENREVIEW_API = "https://api2.openreview.net"
 
 _local = threading.local()
@@ -162,7 +164,10 @@ def epmc_xml(pmcid, folder):
     try:
         raw = fetch(f"{EPMC}/{pmcid}/fullTextXML", path)
     except requests.RequestException as e:
+        if not isinstance(e, requests.HTTPError) and EPMC_BROKEN_RECORD not in str(e):
+            raise
         print("skip", pmcid, type(e).__name__)
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"")
         return None
     if not raw:
@@ -242,7 +247,10 @@ def scipost_page(offset):
 def scipost(out=settings.OTHER_REVIEWS_DIR):
     count = json.loads(fetch(f"{SCIPOST_API}?format=json&limit=1", SCIPOST_RAW_DIR / "count.json"))["count"]
     pages = pmap(scipost_page, range(0, count, SCIPOST_PAGE), "scipost pages")
-    submissions = [sub for page in pages for sub in page]
+    submissions = list({sub["identifier"]: sub for page in pages for sub in page}.values())
+    missing = max(count - len(submissions), 0)
+    if missing:
+        print(f"scipost: offset pages miss {missing} of {count} submissions; the API order is not stable")
     reviews, papers = [], []
     for sub in submissions:
         if sub["is_resubmission_of"]:
@@ -252,7 +260,10 @@ def scipost(out=settings.OTHER_REVIEWS_DIR):
         for report in sub["reports"]:
             if report["status"] != "vetted" or report["report_type"] != "report_normal":
                 continue
-            text = "\n\n".join(f"[{tag}] {clean(report[key])}" for key, tag in SCIPOST_FIELDS if clean(report.get(key)))
+            fields = {tag: clean(report.get(key)) for key, tag in SCIPOST_FIELDS}
+            fields = {tag: value for tag, value in fields.items() if value}
+            is_stub = len(" ".join(fields.values())) < MIN_CHARS
+            text = "" if is_stub else "\n\n".join(f"[{tag}] {value}" for tag, value in fields.items())
             scores = [SCIPOST_SCALE[report[c]] for c in SCIPOST_RATED if report.get(c) in SCIPOST_SCALE]
             rating = round(sum(scores) / len(scores)) if scores else None
             rating_raw = ";".join(f"{c}={report[c]}" for c in SCIPOST_CRITERIA if report.get(c) not in (None, "", "-")) or None
@@ -270,7 +281,7 @@ def scipost(out=settings.OTHER_REVIEWS_DIR):
                 )
             )
         papers.append(dict(venue, paper_id=pid, title=sub["title"], licence="CC BY 4.0"))
-    finalize("scipost", reviews, papers, out)
+    finalize("scipost", reviews, papers, out, stats=dict(api_missing=missing))
 
 
 F1000_JOURNALS = ["F1000Research", "Wellcome Open Research", "Open Research Europe"]
@@ -515,6 +526,8 @@ PLOS_MAX_ANSWER_CHARS = 20
 PLOS_QUESTION_NO = re.compile(r"(?:^|\n)(\d+)\.\s")
 PLOS_CONSENT_QUESTION = re.compile(r"identity to be public|option to publish", re.I)
 PLOS_SCORE = {"yes": 3, "partly": 2, "no": 1}
+PLOS_EARLIER_REVIEWS = re.compile(r"Responses? to Reviewer Comments|Reviewer\s*#?\s*\d", re.I)
+PLOS_RESPONSE_FILE = re.compile(r"Response to Reviewers\.\w+", re.I)
 PLOS_SKIPPED = Counter()
 MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split()
 
@@ -526,6 +539,17 @@ def plos_letters(root):
         if m:
             letters.append((int(m.group(1)), sa))
     return sorted(letters, key=lambda t: t[0])
+
+
+def plos_responses_between(root, first_letter, letter):
+    responses, started = [], False
+    for sa in root.iter("sub-article"):
+        if sa is letter:
+            break
+        started = started or sa is first_letter
+        if started and text_of(sa.find(".//article-title")).startswith("Author response"):
+            responses.append(PLOS_RESPONSE_FILE.sub("", text_of(sa.find("body"))))
+    return " ".join(responses)
 
 
 def plos_split_letter(text):
@@ -561,8 +585,12 @@ def plos_parse(pmcid):
     if any(text_of(sa.find(".//article-title")) == "Author response to previous submission" for sa in root.iter("sub-article")):
         PLOS_SKIPPED["resubmission"] += 1
         return None
-    letter = next((sa for _, sa in plos_letters(root) if PLOS_REV.search(text_of(sa.find("body")))), None)
+    letters = [sa for _, sa in plos_letters(root)]
+    letter = next((sa for sa in letters if PLOS_REV.search(text_of(sa.find("body")))), None)
     if letter is None:
+        return None
+    if PLOS_EARLIER_REVIEWS.search(plos_responses_between(root, letters[0], letter)):
+        PLOS_SKIPPED["earlier_reviews"] += 1
         return None
     meta = root.find("front/article-meta")
     doi = meta.findtext("article-id[@pub-id-type='doi']") or pmcid
@@ -628,6 +656,13 @@ COP_PDF_JUNK = re.compile(
 COP_OVERSAMPLE = 1.2
 COP_MIN_HTML_CHARS = 300
 COP_NAMED_REFEREE_FIRST = 101
+COP_MANUSCRIPT_FOOTER = "Discussion started:"
+COP_MIN_MANUSCRIPT_PAGES = 3
+COP_SUPPLEMENT_NOTE = re.compile(
+    r"(?:The comment was uploaded in the form of a supplement|Please also note the supplement to this comment)[.:]?(?:\s*https?://\S+)?"
+)
+COP_PREPRINT_SERVER = "egusphere"
+COP_JOURNAL_NAMES = {"esurf": "ESurf", "gchron": "GChron", "sand": "SaND"}
 
 
 def copernicus_cap(year):
@@ -688,16 +723,31 @@ def copernicus_pdf_text(url, name):
     if not raw:
         return ""
     try:
-        text = "\n".join(p.extract_text() or "" for p in PdfReader(io.BytesIO(raw)).pages)
+        pages = [p.extract_text() or "" for p in PdfReader(io.BytesIO(raw)).pages]
     except Exception as e:
         print("pdf error", name, e)
         return ""
+    review_pages = [page for page in pages if COP_MANUSCRIPT_FOOTER not in page]
+    if len(pages) - len(review_pages) >= COP_MIN_MANUSCRIPT_PAGES:
+        COP_SKIPPED["pdf with manuscript pages"] += 1
+        pages = review_pages
+    text = "\n".join(pages)
     m = re.search(r"Received and published:.*\n", text)
     text = text[m.end() :] if m else text
     end = text.rfind("Interactive comment on ")
     text = text[:end] if end > 0 else text
     text = "\n".join(line for line in text.splitlines() if not COP_PDF_JUNK.match(line.strip()))
     return unicodedata.normalize("NFKC", re.sub(r"-\n(\w)", r"\1", text))
+
+
+def copernicus_journal(ms, soup):
+    prefix = ms.split("-")[0]
+    if prefix == COP_PREPRINT_SERVER:
+        final_paper = soup.find("a", string="Final revised paper", href=True)
+        if final_paper is None:
+            return "EGUsphere"
+        prefix = urlparse(final_paper["href"]).hostname.split(".")[0]
+    return COP_JOURNAL_NAMES.get(prefix, prefix.upper())
 
 
 def copernicus_parse(item):
@@ -718,9 +768,9 @@ def copernicus_parse(item):
     soup = BeautifulSoup(html, "html.parser")
     page_title = soup.title.get_text(" ", strip=True) if soup.title else ""
     sep = " - Peer review - " if " - Peer review - " in page_title else " - "
-    journal, _, title = page_title.partition(sep)
+    title = page_title.partition(sep)[2]
     pid = f"10.5194/{ms}"
-    venue = dict(conf="Copernicus", field="geoscience", journal=journal.strip())
+    venue = dict(conf="Copernicus", field="geoscience", journal=copernicus_journal(ms, soup))
     by_rc = {r["doi"].rsplit("-", 1)[1].upper(): r for r in recs}
     reviews = []
     seen = set()
@@ -749,6 +799,8 @@ def copernicus_parse(item):
         if len(clean(text)) < COP_MIN_HTML_CHARS and pdfs:
             pdf_texts = [copernicus_pdf_text(pdf, pdf.rsplit("/", 1)[1]) for pdf in pdfs]
             text = (text + "\n\n" + "\n\n".join(pdf_texts)).strip()
+        if len(clean(COP_SUPPLEMENT_NOTE.sub("", text))) < MIN_CHARS:
+            text = ""
         seen.add(label)
         rec = by_rc.get(rc, {})
         reviews.append(
@@ -826,8 +878,10 @@ def icml_download(year, raw):
         baseurl=OPENREVIEW_API, username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD
     )
     notes = client.get_all_notes(content={"venueid": f"ICML.cc/{year}/Conference"}, details="replies")
-    with open(raw, "w") as f:
+    tmp = raw.with_suffix(raw.suffix + ".part")
+    with open(tmp, "w") as f:
         f.writelines(json.dumps(dict(id=n.id, content=n.content, replies=n.details.get("replies", []))) + "\n" for n in notes)
+    tmp.rename(raw)
     print("submissions", len(notes))
 
 

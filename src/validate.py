@@ -101,14 +101,16 @@ def write_split(items, path_fmt, k=SHARDS):
 
 
 def se(x):
-    return x.std(ddof=1) / np.sqrt(len(x))
+    return x.std(ddof=1) / np.sqrt(x.count())
 
 
-def blind_set(data=settings.DATA_DIR):
-    data = Path(data)
-    out = data / "blind"
+def refuse_overwrite(key_path):
+    if key_path.exists():
+        raise SystemExit(f"{key_path} exists and its annotations are keyed to it; delete it by hand to draw a new set")
+
+
+def draw_blind_set(reviews, out):
     rng = np.random.default_rng(42)
-    reviews = pd.read_parquet(data / "sample_reviews.parquet", columns=["review_id", "paper_id", "conf", "year", "text"])
     reviews = reviews[(reviews.conf == "ICLR") & reviews.year.isin(BLIND_YEARS)]
     four_review = reviews.groupby("paper_id").filter(lambda g: len(g) == 4)
     papers = []
@@ -129,13 +131,30 @@ def blind_set(data=settings.DATA_DIR):
         }
         items.append({"paper": code, "reviews": [{"review": f"R{j}", "text": t} for j, t in enumerate(paper_reviews.text)]})
     write_blind(out, key, items, SHARDS)
-    write_jsonl(data / "panels_blind.jsonl", [{"panel_id": code, "review_ids": v["review_ids"]} for code, v in key.items()])
     print(len(items), "papers;", sum(len(r["text"]) for it in items for r in it["reviews"]), "chars")
+
+
+def blind_set(data=settings.DATA_DIR):
+    data = Path(data)
+    out = data / "blind"
+    reviews = pd.read_parquet(data / "sample_reviews.parquet", columns=["review_id", "paper_id", "conf", "year", "text"])
+    if (out / "blind_key.json").exists():
+        print(f"keeping {out / 'blind_key.json'}: the Opus annotations are keyed to it")
+    else:
+        draw_blind_set(reviews, out)
+    key = blind_key(out)
+    review_ids = {r for v in key.values() for r in v["review_ids"]}
+    blind_reviews = reviews[reviews.review_id.isin(review_ids)][["review_id", "text"]]
+    if len(blind_reviews) != len(review_ids):
+        raise SystemExit(f"sample_reviews.parquet lacks {len(review_ids) - len(blind_reviews)} reviews of the blind key")
+    write_jsonl(data / "panels_blind.jsonl", [{"panel_id": code, "review_ids": v["review_ids"]} for code, v in key.items()])
+    blind_reviews.to_parquet(data / "blind_reviews.parquet")
 
 
 def pairs_set(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
     data = Path(data)
     out = data / "pairs"
+    refuse_overwrite(out / "pairs_key.parquet")
     rng = np.random.default_rng(3)
     claims = model_claims(data / f"claims_{model}.jsonl")
     panels = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
@@ -216,6 +235,7 @@ def pairs_set(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
 def spec_set(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
     data = Path(data)
     out = data / "spec"
+    refuse_overwrite(out / "spec_key.parquet")
     claims = pd.read_parquet(
         data / f"claims_table_{model}.parquet", columns=["review_id", "k", "conf", "year", "claim", "specific"]
     )
@@ -232,8 +252,8 @@ def spec_set(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
 
 def opus_metrics(blind_dir, ks=range(SHARDS)):
     claims, panels = load_opus(blind_dir, [k for k in ks if (blind_dir / f"opus_claims_{k}.jsonl").exists()])
-    rows = [dict(panel_id=pid, **panel_metrics(assign(p, claims))) for pid, p in panels.items()]
-    return pd.DataFrame(rows).set_index("panel_id")
+    rows = [panel_metrics(assign(p, claims), len(p["review_ids"])) for p in panels.values()]
+    return pd.DataFrame(rows, index=pd.Index(list(panels), name="panel_id"))
 
 
 def model_metrics(blind_dir, data, model, tag):
@@ -242,7 +262,7 @@ def model_metrics(blind_dir, data, model, tag):
     panels = load_jsonl(data / f"clusters_{model}{tag}.jsonl", "panel_id")
     return pd.DataFrame(
         [
-            dict(panel_id=code, year=v["year"], **panel_metrics(assign(panels[code], claims)))
+            dict(panel_id=code, year=v["year"], **panel_metrics(assign(panels[code], claims), len(panels[code]["review_ids"])))
             for code, v in key.items()
             if code in panels
         ]
@@ -286,7 +306,7 @@ def blind(model=settings.DEFAULT_MODEL, tag="", data=settings.DATA_DIR):
         bias = both[f"{k}_model"] - both[f"{k}_opus"]
         late, early = bias[both.year == 2026], bias[both.year.isin([2018, 2022])]
         diff = late.mean() - early.mean()
-        diff_se = np.sqrt(late.var(ddof=1) / len(late) + early.var(ddof=1) / len(early))
+        diff_se = np.hypot(se(late), se(early))
         p = max(1 - norm.cdf((diff + bound) / diff_se), 1 - norm.cdf((bound - diff) / diff_se))
         print(f"  {k:22s} diff {diff:+.3f} (SE {diff_se:.3f}), bound {bound}, TOST p={p:.3f}")
     print("\nMeans by year (opus | model) for S3 and share_shared_claims:")
@@ -423,6 +443,7 @@ def ampere(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
         review_claims = claims[rid]
         if not review_claims:
             covered_req += [False] * row.n_req
+            covered_eval += [False] * row.n_eval
             continue
         sents = list(row.sents)
         emb = openai_embed(sents + review_claims, settings.EMBED_MODEL, batch=512, threads=1)
@@ -453,6 +474,7 @@ def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setti
     out = {}
     sub3 = nonempty_outcomes(data / f"sub3_outcomes_{model}.parquet").set_index("paper_id")
     sub3_joined = sub3.join(full[["S3", "D3", "share_shared_claims", "hit_rate_strict"]], suffixes=("", "_full"))
+    sub3_joined = sub3_joined.dropna(subset=["S3", "S3_full"])
     out["sub3"] = pd.DataFrame(
         [
             {
@@ -470,7 +492,7 @@ def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=setti
         ]
     ).set_index("year")
     noq = nonempty_outcomes(data / f"panel_outcomes_{model}_noq.parquet").set_index("paper_id")
-    noq_joined = noq.join(full[VARIANT_COLS], suffixes=("", "_full"))
+    noq_joined = noq.join(full[VARIANT_COLS], suffixes=("", "_full")).dropna(subset=["S3", "S3_full"])
     noq_cols = ["S3", "share_shared_claims", "claims_per_review", "D3"]
     out["noq"] = pd.DataFrame(
         [
@@ -512,9 +534,12 @@ def write_blind(out, key, items, k):
 def drift_set(data=settings.DATA_DIR, years=(2023, 2026), per_year=25, seed=7, k=5):
     data = Path(data)
     out = data / "blind2"
+    refuse_overwrite(out / "blind_key.json")
     rng = np.random.default_rng(seed)
-    second = pd.read_parquet(data / f"panel_outcomes_{settings.SECOND_MODEL}.parquet", columns=["paper_id", "year", "n_reviews"])
-    pool = second[second.year.isin(years) & (second.n_reviews == 4)]
+    second = pd.read_parquet(
+        data / f"panel_outcomes_{settings.SECOND_MODEL}.parquet", columns=["paper_id", "year", "paper_n_reviews"]
+    )
+    pool = second[second.year.isin(years) & (second.paper_n_reviews == 4)]
     papers = []
     for year in years:
         papers.extend(rng.choice(pool[pool.year == year].paper_id, per_year, replace=False))
@@ -535,9 +560,9 @@ def drift_set(data=settings.DATA_DIR, years=(2023, 2026), per_year=25, seed=7, k
 
 def iclr_four_review_panels(data, year):
     meta = pd.read_parquet(
-        data / f"panel_outcomes_{settings.BLIND_SET_MODEL}.parquet", columns=["panel_id", "conf", "year", "n_reviews"]
+        data / f"panel_outcomes_{settings.BLIND_SET_MODEL}.parquet", columns=["panel_id", "conf", "year", "paper_n_reviews"]
     )
-    return set(meta[(meta.conf == "ICLR") & (meta.year == year) & (meta.n_reviews == 4)].panel_id)
+    return set(meta[(meta.conf == "ICLR") & (meta.year == year) & (meta.paper_n_reviews == 4)].panel_id)
 
 
 def two_flagged_panels(data, flag, panel_ids):
@@ -551,6 +576,7 @@ def two_flagged_panels(data, flag, panel_ids):
 def pair_audit_set(data=settings.DATA_DIR, year=2026, n=60, seed=9, k=5):
     data = Path(data)
     out = data / "blind5"
+    refuse_overwrite(out / "pair_key.json")
     rng = np.random.default_rng(seed)
     flag = load_flags(data)
     candidates = iclr_four_review_panels(data, year)
@@ -620,6 +646,7 @@ def pair_audit(data=settings.DATA_DIR, annotators=("x", "y"), reports=settings.R
 def flag_set(data=settings.DATA_DIR, year=2026, n=50, seed=8, k=5):
     data = Path(data)
     out = data / "blind3"
+    refuse_overwrite(out / "blind_key.json")
     rng = np.random.default_rng(seed)
     flag = load_flags(data)
     panels = two_flagged_panels(data, flag, iclr_four_review_panels(data, year))
@@ -781,7 +808,7 @@ def drift(data=settings.DATA_DIR, k=5, reports=settings.REPORTS_DIR):
     for model in [settings.BLIND_SET_MODEL, settings.SECOND_MODEL]:
         model_outcomes = pd.read_parquet(data / f"panel_outcomes_{model}.parquet", columns=["paper_id", "conf", *cols])
         model_outcomes = model_outcomes[model_outcomes.conf == "ICLR"].set_index("paper_id")
-        blind_rows = model_outcomes.loc[[v["paper_id"] for v in key.values()], cols].set_axis(list(key), axis=0)
+        blind_rows = model_outcomes.reindex([v["paper_id"] for v in key.values()])[cols].set_axis(list(key), axis=0)
         per_model.append(blind_rows.add_suffix(f"_{model.split('-')[-1]}"))
     table = pd.concat([ref, *per_model], axis=1).dropna()
     table["year"] = [key[c]["year"] for c in table.index]
@@ -967,7 +994,7 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
     opus_swap = pd.read_csv(reports / "swap_blind4.csv").query("version == 'swapped'")
     add(ref, "After style swap, 48 papers", opus_swap["diff"].mean(), opus_swap["diff"].sem(), len(opus_swap))
     audit_by_paper = pd.read_csv(reports / "pair_audit_blind5.csv").pivot_table(index="paper", columns="flagged", values="rate")
-    audit_gap = audit_by_paper[True] - audit_by_paper[False]
+    audit_gap = (audit_by_paper[True] - audit_by_paper[False]).dropna()
     add(ref, "Pair audit, 60 papers", audit_gap.mean(), audit_gap.sem(), len(audit_gap))
     placebo = pd.read_csv(reports / f"detector_placebo_{model}.csv").query("subset == 'all' and not period.str.contains('real')")
     for r in placebo.itertuples():
@@ -1002,10 +1029,8 @@ def f1000_reviewer_names(xml_dir):
 def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
     import statsmodels.formula.api as smf
 
-    from fetch import RAW
-
     data, reports = Path(data), Path(reports)
-    reviewer_name = f1000_reviewer_names(RAW / "f1000")
+    reviewer_name = f1000_reviewer_names(settings.RAW_JOURNAL_REVIEWS_DIR / "f1000")
     f1000 = pd.read_parquet(data / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     f1000 = f1000[(f1000.conf == "F1000") & (f1000.year >= 2019) & (f1000.year != 2024)]
     chars = pd.read_parquet(data / "other_reviews.parquet", columns=["review_id", "n_chars"]).set_index("review_id").n_chars
@@ -1043,7 +1068,7 @@ def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=se
             fit("Reviewers seen in both periods, reviewer fixed effects", "hit ~ post + C(name)" + ctrl, seen_both),
         ]
     )
-    out.to_csv(reports / "reviewer_fe_f1000.csv", index=False)
+    out.to_csv(reports / f"reviewer_fe_f1000_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
 
 
@@ -1066,9 +1091,10 @@ def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=set
     design["nflag"] = flag.reindex(design.a).to_numpy().astype(float) + flag.reindex(design.b).to_numpy().astype(float)
     papers = design.groupby("year").panel_id.nunique()
     print(f"{design.panel_id.nunique()} ICLR papers with an abstract score; by year {papers.to_dict()}")
+    abstracts = design.drop_duplicates("panel_id")
     print(
         "share of abstracts CoCoDet labels AI or mixed:",
-        design.groupby("year").score.apply(lambda s: (s > 0.5).mean()).round(3).to_dict(),
+        abstracts.groupby("year").score.apply(lambda s: (s > 0.5).mean()).round(3).to_dict(),
     )
     neither_flagged = design[design.nflag == 0]
     both_flagged = design[design.nflag == 2]
@@ -1105,7 +1131,7 @@ def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=set
                     )
                 )
     out = pd.DataFrame(rows)
-    out.to_csv(reports / "paper_side.csv", index=False)
+    out.to_csv(reports / f"paper_side_{model}.csv", index=False)
     print(out[out.kind.str.startswith("slope")].round(2).to_string(index=False))
     print(
         out[~out.kind.str.startswith("slope")]
@@ -1121,13 +1147,15 @@ def estimate_cell(row):
     return f"{row.est:.1f} ({row.se:.1f})"
 
 
-def instruments(models=settings.INSTRUMENT_MODELS, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
+def instruments(
+    model=settings.DEFAULT_MODEL, models=settings.INSTRUMENT_MODELS, data=settings.DATA_DIR, reports=settings.REPORTS_DIR
+):
     from scipy.stats import spearmanr
 
-    from outcomes import ICLR_FROM, panel_pairs, review_chars, year_rates
+    from outcomes import ICLR_FROM, main_sample_review_ids, panel_pairs, review_chars, year_rates
 
     data, reports = Path(data), Path(reports)
-    models = as_list(models)
+    models = list(dict.fromkeys([model, *as_list(models)]))
     years = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "year"]).set_index("paper_id").year
     panel_size = {
         p["panel_id"]: len(p["review_ids"]) for f in ["panels_sol.jsonl", "panels_sol2.jsonl"] for p in read_jsonl(data / f)
@@ -1136,7 +1164,12 @@ def instruments(models=settings.INSTRUMENT_MODELS, data=settings.DATA_DIR, repor
     opus = opus_metrics(data / "blind")
     runs = {m: (model_claims(data / f"claims_{m}.jsonl"), load_jsonl(data / f"clusters_{m}.jsonl", "panel_id")) for m in models}
     grouped = set.intersection(*(set(panels) for _, panels in runs.values()))
-    common = sorted(grouped & set(panel_size))
+    main_reviews = main_sample_review_ids(data)
+    common = sorted(
+        pid
+        for pid in grouped & set(panel_size)
+        if all(main_reviews.issuperset(panels[pid]["review_ids"]) for _, panels in runs.values())
+    )
     print(f"{len(common)} common ICLR panels")
     first_panels = runs[models[0]][1]
     chars = review_chars(data, {r for pid in common for r in first_panels[pid]["review_ids"]})
@@ -1184,7 +1217,12 @@ def instruments(models=settings.INSTRUMENT_MODELS, data=settings.DATA_DIR, repor
         blind_ids = [pid for pid in opus.index if pid in panels]
         if not blind_ids:
             continue
-        blind_metrics = pd.DataFrame([dict(panel_id=pid, **panel_metrics(assign(panels[pid], claims))) for pid in blind_ids])
+        blind_metrics = pd.DataFrame(
+            [
+                dict(panel_id=pid, **panel_metrics(assign(panels[pid], claims), len(panels[pid]["review_ids"])))
+                for pid in blind_ids
+            ]
+        )
         both = opus.join(blind_metrics.set_index("panel_id"), how="inner", suffixes=("_opus", "_model"))
         bias = both.hit_rate_strict_model - both.hit_rate_strict_opus
         add(model, "blind: bias vs Opus", bias.mean() * 100, se(bias) * 100, len(bias))
@@ -1194,7 +1232,7 @@ def instruments(models=settings.INSTRUMENT_MODELS, data=settings.DATA_DIR, repor
         a, b = panel_rate[models[0]].align(panel_rate[model], join="inner")
         add(model, f"rank agreement with {models[0]}", spearmanr(a, b).statistic, np.nan, len(a))
     out = pd.DataFrame(rows)
-    out.round(3).to_csv(reports / "instruments.csv", index=False)
+    out.round(3).to_csv(reports / f"instruments_{models[0]}.csv", index=False)
     out["cell"] = out.apply(estimate_cell, axis=1)
     print(out.pivot(index="stat", columns="model", values="cell").reindex(out.stat.unique()).reindex(columns=models).to_string())
 

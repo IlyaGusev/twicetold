@@ -19,7 +19,8 @@ NOQ_YEARS = (2024, 2025, 2026)
 SUB3_FULL_YEARS = (2023, 2026)
 ROBUST_PAPERS_PER_YEAR = 400
 AREA_PLACEBOS_PER_YEAR = 300
-QUESTIONS_RX = r"\[QUESTIONS\].*?(?=\[[A-Z]+\]|\Z)"
+QUESTIONS_RX = r"\[QUESTIONS\].*?(?=\[(?:LIMITATIONS|OTHER)\]|\Z)"
+COPERNICUS_PREPRINT_JOURNAL = "EGUsphere"
 
 
 def read_panels(path):
@@ -67,7 +68,9 @@ def sol(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), years=(2023, 20
     data, out = Path(data), Path(out)
     done = {p["panel_id"] for p in read_panels(data / "panels_sol.jsonl")}
     panels = {p["panel_id"]: p for p in read_panels(data / "panels.jsonl")}
-    outcomes = pd.read_parquet(data / "panel_outcomes_gpt-6-luna.parquet", columns=["panel_id", "conf", "year", "n_claims"])
+    outcomes = pd.read_parquet(
+        data / f"panel_outcomes_{settings.BLIND_SET_MODEL}.parquet", columns=["panel_id", "conf", "year", "n_claims"]
+    )
     eligible = outcomes[(outcomes.conf == "ICLR") & outcomes.year.isin(np.atleast_1d(years)) & (outcomes.n_claims > 0)]
     pool = eligible[~eligible.panel_id.isin(done)]
     picked_ids = pool.groupby("year", group_keys=False).sample(n=per_year, random_state=seed).panel_id
@@ -98,7 +101,9 @@ def ml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), placebo_per_cell
     sample = sample.sort_values(["conf", "year", "paper_id", "review_id"])
     sample["text"] = texts_by_id(data / "reviews.parquet", set(sample.review_id)).reindex(sample.review_id).to_numpy()
     sample.to_parquet(out / "sample_reviews.parquet")
-    write_panels(out / "panels.jsonl", by_paper_panels(sample))
+    corpus_ids = pd.read_parquet(settings.DATA_DIR / "reviews.parquet", columns=["review_id"]).review_id
+    in_corpus = sample[sample.review_id.isin(corpus_ids)]
+    write_panels(out / "panels.jsonl", (p for p in by_paper_panels(in_corpus) if len(p["review_ids"]) >= MIN_REVIEWS))
 
     def placebo():
         for (conf, year), g in sample.groupby(["conf", "year"]):
@@ -150,7 +155,7 @@ def other(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), placebo_per_c
     def placebo():
         for (conf, year), g in reviews.groupby(["conf", "year"]):
             by_paper = g.groupby("paper_id").agg(journal=("journal", "first"), rids=("review_id", list))
-            papers_per_journal = by_paper.journal.value_counts()
+            papers_per_journal = by_paper.journal[by_paper.journal != COPERNICUS_PREPRINT_JOURNAL].value_counts()
             papers_per_journal = papers_per_journal[papers_per_journal >= 3]
             if papers_per_journal.empty:
                 continue
@@ -178,6 +183,7 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
     areas = pd.read_parquet(data / "paper_areas.parquet")[["paper_id", "area_final"]]
     with_area = iclr.merge(areas, on="paper_id", how="left")
     with_area["area_final"] = with_area.area_final.fillna("other")
+    main_panel_reviews = {r for p in read_panels(data / "panels.jsonl") for r in p["review_ids"]}
 
     def placebo_area():
         for year, g in with_area.groupby("year"):
@@ -197,7 +203,9 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
             by_paper = review_ids_by_paper(g)
             big = by_paper[by_paper.str.len() >= 4]
             for pid in rng.choice(big.index, min(ROBUST_PAPERS_PER_YEAR, len(big)), replace=False):
-                yield sub3_panel(rng, pid, by_paper[pid])
+                panel = sub3_panel(rng, pid, by_paper[pid])
+                if main_panel_reviews.issuperset(panel["review_ids"]):
+                    yield panel
 
     write_panels(out / "panels_placebo_area.jsonl", placebo_area())
     write_panels(out / "panels_sub3.jsonl", sub3())
@@ -212,17 +220,19 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
     noq[["conf", "year", "paper_id", "review_id", "text"]].to_parquet(out / "noq_reviews.parquet")
     original_chars = with_area[with_area.review_id.isin(noq.review_id)].text.str.len().sum()
     print("noq reviews", len(noq), "chars dropped share", 1 - noq.text.str.len().sum() / original_chars)
-    robust_full(iclr, out, np.random.default_rng(full_seed))
+    robust_full(iclr, out, np.random.default_rng(full_seed), main_panel_reviews)
 
 
-def robust_full(iclr, out, rng):
+def robust_full(iclr, out, rng, main_panel_reviews):
     done_sub3 = {p["panel_id"] for p in read_panels(out / "panels_sub3.jsonl")}
     new_sub3 = []
     for year in SUB3_FULL_YEARS:
         by_paper = review_ids_by_paper(iclr[iclr.year == year])
         for pid, rids in by_paper[by_paper.str.len() >= 4].items():
             if f"sub3_{pid}" not in done_sub3:
-                new_sub3.append(sub3_panel(rng, pid, rids))
+                panel = sub3_panel(rng, pid, rids)
+                if main_panel_reviews.issuperset(panel["review_ids"]):
+                    new_sub3.append(panel)
     write_panels(out / "panels_sub3_full.jsonl", new_sub3)
     print("new sub3 panels", len(new_sub3))
 

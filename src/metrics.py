@@ -43,21 +43,24 @@ def assign(panel, claims_by_review):
     return df
 
 
-def rarefy(df, col, ks):
-    groups_of = df.groupby("review")[col].agg(set).to_dict()
-    reviews = sorted(groups_of)
+def rarefy(df, col, ks, n_reviews):
+    groups_of = {review: set() for review in range(n_reviews)}
+    if not df.empty:
+        groups_of |= df.groupby("review")[col].agg(set).to_dict()
     out = {}
     for k in ks:
-        if k > len(reviews):
+        if k > n_reviews:
             out[k] = (np.nan, np.nan, np.nan)
             continue
-        n_groups, n_shared, unique_share = [], [], []
-        for subset in combinations(reviews, k):
+        n_groups, n_shared, unique_shares = [], [], []
+        for subset in combinations(range(n_reviews), k):
             reviews_per_group = Counter(group for review in subset for group in groups_of[review])
             n_groups.append(len(reviews_per_group))
             n_shared.append(sum(n >= 2 for n in reviews_per_group.values()))
-            unique_share.append(np.mean([n == 1 for n in reviews_per_group.values()]) if reviews_per_group else np.nan)
-        out[k] = (float(np.mean(n_groups)), float(np.mean(n_shared)), float(np.nanmean(unique_share)))
+            if reviews_per_group:
+                unique_shares.append(np.mean([n == 1 for n in reviews_per_group.values()]))
+        unique_share = float(np.mean(unique_shares)) if unique_shares else np.nan
+        out[k] = (float(np.mean(n_groups)), float(np.mean(n_shared)), unique_share)
     return out
 
 
@@ -83,19 +86,36 @@ def share_shared_claims(df, col):
     return float(df[col].map(reviewers).ge(2).mean())
 
 
-def _subset_metrics(df, suffix):
-    if df.empty:
-        d3 = s3 = shared = np.nan
-    else:
-        shared = share_shared_claims(df, "cluster")
-        d3, s3, _ = rarefy(df, "cluster", (3,))[3]
+def _subset_metrics(df, suffix, n_reviews):
+    shared = np.nan if df.empty else share_shared_claims(df, "cluster")
+    d3, s3, _ = rarefy(df, "cluster", (3,), n_reviews)[3]
     return {f"S3_{suffix}": s3, f"D3_{suffix}": d3, f"share_shared_claims_{suffix}": shared}
 
 
-def panel_metrics(df, ks=(1, 2, 3, 4)):
+def _rarefied_metrics(df, n_reviews, ks):
+    metrics = {}
+    for k, (n_groups, n_shared, unique_share) in rarefy(df, "cluster", ks, n_reviews).items():
+        metrics.update({f"D{k}": n_groups, f"S{k}": n_shared, f"U{k}": unique_share})
+    for k, (n_groups, n_shared, unique_share) in rarefy(df, "target", ks, n_reviews).items():
+        metrics.update({f"T{k}": n_groups, f"TS{k}": n_shared, f"TU{k}": unique_share})
+    return metrics
+
+
+def panel_metrics(df, n_reviews, ks=(1, 2, 3, 4)):
+    matched_suffix = f"m{MATCHED_CLAIMS_PER_REVIEW}"
     if df.empty:
-        return dict(n_reviews=0, n_claims=0)
-    n_reviews = df.review.nunique()
+        return dict(
+            n_reviews=n_reviews,
+            n_claims=0,
+            n_clusters=0,
+            n_targets=0,
+            n_shared_clusters=0,
+            n_shared_targets=0,
+            claims_per_review=0.0,
+            **_rarefied_metrics(df, n_reviews, ks),
+            **_subset_metrics(df, "spec", n_reviews),
+            **_subset_metrics(df, matched_suffix, n_reviews),
+        )
     cluster_reviewers = df.groupby("cluster").review.nunique()
     target_reviewers = df.groupby("target").review.nunique()
     cluster_weights = cluster_reviewers / cluster_reviewers.sum()
@@ -115,14 +135,11 @@ def panel_metrics(df, ks=(1, 2, 3, 4)):
     )
     metrics["pair_rate_strict"], metrics["hit_rate_strict"] = pair_rates(df, "cluster")
     metrics["pair_rate_lenient"], metrics["hit_rate_lenient"] = pair_rates(df, "target")
-    for k, (n_groups, n_shared, unique_share) in rarefy(df, "cluster", ks).items():
-        metrics.update({f"D{k}": n_groups, f"S{k}": n_shared, f"U{k}": unique_share})
-    for k, (n_groups, n_shared, unique_share) in rarefy(df, "target", ks).items():
-        metrics.update({f"T{k}": n_groups, f"TS{k}": n_shared, f"TU{k}": unique_share})
+    metrics.update(_rarefied_metrics(df, n_reviews, ks))
     for category in CATEGORIES:
         metrics[f"cat_{category}"] = float((df.category == category).mean())
     specific_claims = df[df.specific.astype(bool)]
-    metrics.update(_subset_metrics(specific_claims, "spec"))
+    metrics.update(_subset_metrics(specific_claims, "spec", n_reviews))
     matched = df.sample(frac=1, random_state=0).groupby("review").head(MATCHED_CLAIMS_PER_REVIEW)
-    metrics.update(_subset_metrics(matched, f"m{MATCHED_CLAIMS_PER_REVIEW}"))
+    metrics.update(_subset_metrics(matched, matched_suffix, n_reviews))
     return metrics

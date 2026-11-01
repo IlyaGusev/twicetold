@@ -18,10 +18,30 @@ from sklearn.metrics import roc_auc_score
 from tqdm import tqdm
 
 import extract
+from outcomes import excluded_review_ids, in_main_sample
 from prompts import render
 from settings import settings
 
-TAGS = r"\[(SUMMARY|MAIN|STRENGTHS|WEAKNESSES|QUESTIONS|LIMITATIONS|OTHER)\]"
+SECTION_TAGS = [
+    "SUMMARY",
+    "MAIN",
+    "STRENGTHS",
+    "WEAKNESSES",
+    "QUESTIONS",
+    "LIMITATIONS",
+    "OTHER",
+    "STRENGTHS AND WEAKNESSES",
+    "CLAIMS AND EVIDENCE",
+    "METHODS AND EVALUATION",
+    "THEORY",
+    "EXPERIMENTS",
+    "SUPPLEMENT",
+    "RELATED WORK",
+    "MISSING REFERENCES",
+    "REPORT",
+    "REQUESTED CHANGES",
+]
+TAGS = r"\[(?:" + "|".join(SECTION_TAGS) + r")\]"
 
 OUTLINE_SCHEMA = {
     "type": "object",
@@ -62,7 +82,7 @@ CHAR_HASH = HashingVectorizer(
 SCORE_CHUNK = 5000
 DETECTOR_TRAIN_YEARS = [2021, 2022, 2023]
 GRADE3_CUTOFF = 0.95
-SUMMARY_STRENGTHS_SECTIONS = r"\[(SUMMARY|STRENGTHS)\](.*?)(?=\[[A-Z]+\]|\Z)"
+SUMMARY_STRENGTHS_SECTIONS = r"\[(SUMMARY|STRENGTHS)\](.*?)(?=" + TAGS + r"|\Z)"
 SUMMARY_STRENGTHS_MIN_CHARS = 200
 
 
@@ -80,7 +100,10 @@ def done_ids(path):
 
 
 def load_ml_reviews(columns):
-    return pd.read_parquet(settings.DATA_DIR / "reviews.parquet", columns=columns, filters=[("withdrawn", "==", False)])
+    reviews = pd.read_parquet(
+        settings.DATA_DIR / "reviews.parquet", columns=[*columns, "withdrawn", "decision"], filters=[("withdrawn", "==", False)]
+    )
+    return reviews[in_main_sample(reviews)][columns]
 
 
 def reference_sample(per_source):
@@ -92,17 +115,17 @@ def reference_sample(per_source):
     return pd.concat([ml, other]).sample(frac=1, random_state=0).groupby("conf").head(per_source)
 
 
-def rewrite(row, model):
+def rewrite(row, model, effort):
     outline_prompt = render("ai_outline")
     outline_reply = extract.call(
-        outline_prompt, row.text[: settings.REVIEW_TEXT_MAX_CHARS], OUTLINE_SCHEMA, "outline", model=model
+        outline_prompt, row.text[: settings.REVIEW_TEXT_MAX_CHARS], OUTLINE_SCHEMA, "outline", model=model, effort=effort
     )
     if "error" in outline_reply:
         return None
     outline = "\n".join(f"- {point}" for point in outline_reply["points"])
     words = round(len(row.text.split()), -1)
     write_prompt = render("ai_write", venue=VENUE[row.conf], words=words)
-    review_reply = extract.call(write_prompt, outline, REVIEW_SCHEMA, "review", model=model)
+    review_reply = extract.call(write_prompt, outline, REVIEW_SCHEMA, "review", model=model, effort=effort)
     if "error" in review_reply:
         return None
     return {
@@ -114,13 +137,14 @@ def rewrite(row, model):
     }
 
 
-def reference(model=settings.DEFAULT_MODEL, threads=32, per_source=3000, out=settings.DATA_DIR / "ai_reference.jsonl"):
-    out = Path(out)
+def reference(model=settings.AI_REFERENCE_MODEL, threads=32, per_source=3000, out=None):
+    effort = extract.reasoning_efforts(model).pass1
+    out = Path(out) if out else settings.DATA_DIR / f"ai_reference_{model}.jsonl"
     done = done_ids(out)
     todo = [r for r in reference_sample(per_source).itertuples() if r.review_id not in done]
     print(f"{len(done)} done, {len(todo)} to write -> {out}")
     with open(out, "a") as f, ThreadPoolExecutor(threads) as pool:
-        bar = tqdm(pool.map(partial(rewrite, model=model), todo), total=len(todo), desc="reference")
+        bar = tqdm(pool.map(partial(rewrite, model=model, effort=effort), todo), total=len(todo), desc="reference")
         for res in bar:
             if res:
                 f.write(json.dumps(res) + "\n")
@@ -129,7 +153,7 @@ def reference(model=settings.DEFAULT_MODEL, threads=32, per_source=3000, out=set
 
 
 def half_of_papers(paper_ids, rng):
-    papers = paper_ids.unique()
+    papers = paper_ids.dropna().unique()
     return set(rng.choice(papers, len(papers) // 2, replace=False))
 
 
@@ -191,11 +215,11 @@ def wordshare(out=settings.REPORTS_DIR / "llm_share.csv"):
     first_year, last_year = WORDSHARE_HUMAN_YEARS
     pre = reviews[reviews.year.between(first_year, last_year)]
     train_papers = half_of_papers(pre.paper_id, rng)
+    held_out_papers = set(pre.paper_id) - train_papers
     human_train = pre[pre.paper_id.isin(train_papers)]
     human_test = pre[~pre.paper_id.isin(train_papers)]
-    llm_train_papers = half_of_papers(llm.paper_id, rng)
-    llm_train = llm[llm.paper_id.isin(llm_train_papers)]
-    llm_test = llm[~llm.paper_id.isin(llm_train_papers)]
+    llm_train = llm[llm.paper_id.isin(train_papers)]
+    llm_test = llm[llm.paper_id.isin(held_out_papers)]
     rates = fit_rates(human_train.text, llm_train.text, 20000)
     vec, _, _ = rates
     print(f"vocabulary {len(vec.vocabulary_)} words; human train {len(human_train)}, LLM train {len(llm_train)}")
@@ -216,7 +240,10 @@ def wordshare(out=settings.REPORTS_DIR / "llm_share.csv"):
     out_df.to_csv(out, index=False)
 
 
-def wordshare_fields(reference=settings.DATA_DIR / "ai_reference.jsonl", out=settings.REPORTS_DIR / "llm_share_all.csv"):
+def wordshare_fields(
+    reference=settings.DATA_DIR / f"ai_reference_{settings.AI_REFERENCE_MODEL}.jsonl",
+    out=settings.REPORTS_DIR / "llm_share_all.csv",
+):
     rng = np.random.default_rng(1)
     boot_rng = np.random.default_rng(0)
     cols = ["conf", "year", "paper_id", "review_id", "text"]
@@ -348,23 +375,35 @@ def style(out=settings.DATA_DIR / "detector_scores.parquet", by_cell=settings.RE
 
     scored = pd.read_parquet(settings.DATA_DIR / "sample_reviews.parquet", columns=["review_id", "conf", "year", "text"])
     scored["p_llm"] = p_llm(clf, tfidf, scored.text, "score reviews")
-    pre_period_p = scored[(scored.conf == "ICLR") & scored.year.between(2017, 2022)].p_llm
+    pre_period = (scored.conf == "ICLR") & scored.year.between(2017, 2022)
+    pre_period_p = scored[pre_period].p_llm
     q90, q99 = np.quantile(pre_period_p, 0.90), np.quantile(pre_period_p, 0.99)
     scored["llm_flag"] = scored.p_llm >= q99
     scored["llm_grade"] = np.select([scored.p_llm < q90, scored.p_llm < q99, scored.p_llm <= GRADE3_CUTOFF], [0, 1, 2], 3)
     print(f"pre-period thresholds: q90={q90:.3f}, q99={q99:.3f}")
     print("share flagged (>= pre-period 99th pct) by venue-year:")
     cell_stats = dict(flag=("llm_flag", "mean"), p_mean=("p_llm", "mean"), g2plus=("llm_grade", lambda g: (g >= 2).mean()))
-    by_venue_year = scored.groupby(["conf", "year"]).agg(**cell_stats, g3=("llm_grade", lambda g: (g == 3).mean()))
+    in_sample = ~scored.review_id.isin(excluded_review_ids(settings.DATA_DIR))
+    by_venue_year = scored[in_sample].groupby(["conf", "year"]).agg(**cell_stats, g3=("llm_grade", lambda g: (g == 3).mean()))
     print(by_venue_year.round(3).to_string())
 
-    summary_strengths = scored.text.str.extractall(SUMMARY_STRENGTHS_SECTIONS)[1].groupby(level=0).apply(" ".join)
+    has_strengths = scored.text.str.contains("[STRENGTHS]", regex=False)
+    has_weaknesses = scored.text.str.contains("[WEAKNESSES]", regex=False)
+    combined_strengths_field = has_strengths & ~has_weaknesses
+    summary_strengths = (
+        scored.text[~combined_strengths_field].str.extractall(SUMMARY_STRENGTHS_SECTIONS)[1].groupby(level=0).apply(" ".join)
+    )
     scored["p_llm_ss"] = np.nan
     ss_ids = summary_strengths.index[summary_strengths.str.len() > SUMMARY_STRENGTHS_MIN_CHARS]
     scored.loc[ss_ids, "p_llm_ss"] = p_llm(clf, tfidf, summary_strengths.loc[ss_ids], "score summary+strengths")
-    scored["llm_flag_ss"] = scored.p_llm_ss >= q99
-    print(f"summary+strengths exposure available for {len(ss_ids)} reviews; flagged share by year (ICLR 2024+):")
-    print(scored[(scored.conf == "ICLR") & (scored.year >= 2024)].groupby("year").llm_flag_ss.mean().round(3).to_dict())
+    q99_ss = np.quantile(scored[pre_period].p_llm_ss.dropna(), 0.99)
+    scored["llm_flag_ss"] = (scored.p_llm_ss >= q99_ss).astype("boolean").where(scored.p_llm_ss.notna())
+    print(
+        f"summary+strengths exposure available for {len(ss_ids)} reviews, pre-period q99={q99_ss:.3f}; "
+        "flagged share by year (ICLR 2024+):"
+    )
+    iclr_2024_on = in_sample & (scored.conf == "ICLR") & (scored.year >= 2024)
+    print(scored[iclr_2024_on].groupby("year").llm_flag_ss.mean().round(3).to_dict())
     scored[["review_id", "p_llm", "llm_flag", "llm_grade", "p_llm_ss", "llm_flag_ss"]].to_parquet(out)
 
     gptzero = pd.read_parquet(settings.DATA_DIR / "gptzero.parquet", columns=["review_id", "gz_ai", "gz_isAI"])
@@ -377,7 +416,7 @@ def style(out=settings.DATA_DIR / "detector_scores.parquet", by_cell=settings.RE
             f"corr(p_llm, gz_ai) {np.corrcoef(g.p_llm, g.gz_ai)[0, 1]:.3f}; "
             f"P(flag|isAI) {g[g.gz_isAI].llm_flag.mean():.3f}, P(isAI|flag) {g[g.llm_flag].gz_isAI.mean():.3f}"
         )
-    scored.groupby(["conf", "year"]).agg(**cell_stats).round(4).to_csv(by_cell)
+    scored[in_sample].groupby(["conf", "year"]).agg(**cell_stats).round(4).to_csv(by_cell)
 
 
 if __name__ == "__main__":
