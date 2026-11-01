@@ -41,6 +41,10 @@ The annotation keys in `data/blind/`, `data/pairs/` and `data/spec/` identify th
 contrast, rewrite and pair-audit annotations live in `data/blind2/` through `data/blind5/`. Do not redraw keys for
 existing labels. The panel generators refuse to overwrite them.
 
+`data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs, sample reviews and panels, and LLM
+reference labels. `adjudicate/` holds claim judgments; `adjudicate2/` holds grouping judgments. JSONL and Parquet
+files use Git LFS. These are LLM labels, not human labels.
+
 The original sample uses the source snapshot in `data/backup_predup/`. Preserve that snapshot to reproduce its
 paper and review identifiers. Claim and review embeddings, detector scores and reference annotations are saved
 model outputs, not analysis estimates.
