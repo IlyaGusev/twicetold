@@ -239,3 +239,5 @@ paper/*.fdb_latexmk
 paper/*.fls
 paper/*.synctex.gz
 uv.lock
+!data/review_emb.npy
+!data/sample_reviews.parquet
