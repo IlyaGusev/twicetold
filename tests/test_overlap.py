@@ -1,4 +1,3 @@
-import math
 import sys
 from pathlib import Path
 
@@ -28,8 +27,8 @@ def test_overlap(a, b, expected):
     assert hit(a, b) == pytest.approx(expected)
 
 
-def test_empty_pair_is_undefined():
-    assert math.isnan(hit([], [1]))
+def test_empty_pair_scores_zero():
+    assert hit([], [1]) == 0.0
 
 
 def panel_frame(groups):
@@ -56,7 +55,7 @@ def test_each_paper_has_equal_weight():
     ("groups", "expected"),
     [
         ([range(10), range(20)], 1.0),
-        ([range(10), range(20), []], 1.0),
+        ([range(10), range(20), []], 1 / 3),
         ([[1], [1, 2], [2]], 2 / 3),
         ([[1, 1, 2], [1, 3]], 0.5),
     ],

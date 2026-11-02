@@ -7,6 +7,8 @@ from functools import cache, partial
 from pathlib import Path
 
 import fire
+import pandas as pd
+from openai import OpenAI
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -73,15 +75,11 @@ usage_lock = threading.Lock()
 
 @cache
 def openai_client():
-    from openai import OpenAI
-
     return OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=CLIENT_MAX_RETRIES, timeout=CLIENT_TIMEOUT_SECONDS)
 
 
 @cache
 def openrouter_client():
-    from openai import OpenAI
-
     return OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=settings.OPENROUTER_API_KEY,
@@ -283,8 +281,6 @@ def pass1(
     paper_kind="ml",
     data=str(settings.DATA_DIR),
 ):
-    import pandas as pd
-
     effort = reasoning_efforts(model).pass1
     items = pd.read_parquet(reviews, columns=["review_id", "text"]).to_dict("records")
     worker = partial(

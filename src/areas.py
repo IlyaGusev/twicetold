@@ -7,6 +7,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fire
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import cross_val_score
 
 from between import openai_embed
 from settings import settings
@@ -20,9 +22,6 @@ AREA_YEARS = (2023, 2024, 2025, 2026)
 
 
 def classify(out, data=str(settings.DATA_DIR)):
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import cross_val_score
-
     data, out = Path(data), Path(out)
     papers = pd.read_parquet(data / "papers.parquet")
     sampled = {json.loads(line)["panel_id"] for line in open(data / "panels.jsonl")}

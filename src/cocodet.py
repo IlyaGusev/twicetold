@@ -7,6 +7,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fire
 import pandas as pd
+import torch
+import torch.nn.functional as F
+from huggingface_hub import hf_hub_download
+from torch import nn
+from transformers import AutoModel, AutoTokenizer
 
 from settings import settings
 
@@ -18,12 +23,6 @@ FLUSH_BATCHES = 250
 
 
 def load_model():
-    import torch
-    import torch.nn.functional as F
-    from huggingface_hub import hf_hub_download
-    from torch import nn
-    from transformers import AutoModel
-
     class CoCoDet(nn.Module):
         def __init__(self):
             super().__init__()
@@ -46,9 +45,6 @@ def load_model():
 
 
 def scores(input, out, max_len=512, batch=8, limit=None):
-    import torch
-    from transformers import AutoTokenizer
-
     out = Path(out)
     df = pd.read_parquet(input, columns=["review_id", "text"])
     done = {json.loads(line)["review_id"] for line in open(out)} if out.exists() else set()

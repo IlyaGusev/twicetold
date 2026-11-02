@@ -305,7 +305,17 @@ def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         ax.set_yticks([5, 10, 15, 20])
         ax.set_ylabel("Critique overlap (%)")
         ax.set_title(title, fontweight="bold")
-        ax.annotate("LLM era", (CHATGPT_BAND[0], 21), xytext=(3, -2), textcoords="offset points", ha="left", va="top", fontsize=6.5, color=COLORS["grey"], style="italic")
+        ax.annotate(
+            "LLM era",
+            (CHATGPT_BAND[0], 21),
+            xytext=(3, -2),
+            textcoords="offset points",
+            ha="left",
+            va="top",
+            fontsize=6.5,
+            color=COLORS["grey"],
+            style="italic",
+        )
         ax.tick_params(axis="x", labelsize=6)
     bottom.set_xlim(2018.6, CHATGPT_BAND[1])
     bottom.set_xticks(range(2019, 2027))

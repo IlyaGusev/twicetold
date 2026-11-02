@@ -10,6 +10,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
+import statsmodels.api as sm
 from tqdm import tqdm
 
 from metrics import assign, load_jsonl, mean_overlap, review_groups
@@ -88,7 +89,12 @@ def form_panel(panel, claims, n_reviews):
     )
 
 
-def forms(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "forms.tex"):
+def forms(
+    model=settings.DEFAULT_MODEL,
+    data=settings.DATA_DIR,
+    reports=settings.ANALYSIS_REPORTS_DIR,
+    tex=settings.TABLES_DIR / "forms.tex",
+):
     data = Path(data)
     main = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").query(
         f"conf == 'ICLR' and year >= {ICLR_FROM} and n_claims > 0"
@@ -96,7 +102,10 @@ def forms(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings
     claims = {rid: row["claims"] for rid, row in load_jsonl(data / f"claims_{model}.jsonl", "review_id").items()}
     clusters = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
     panels = pd.DataFrame(
-        [dict(year=p.year, **form_panel(clusters[p.panel_id], claims, p.n_reviews)) for p in tqdm(main.itertuples(), total=len(main))],
+        [
+            dict(year=p.year, **form_panel(clusters[p.panel_id], claims, p.n_reviews))
+            for p in tqdm(main.itertuples(), total=len(main))
+        ],
         index=main.panel_id,
     )
     pair_table = pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "hit_spec"])
@@ -132,8 +141,6 @@ def forms(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings
 
 
 def fe_gap(design, flag, controls=()):
-    import statsmodels.api as sm
-
     n_flagged = flag.reindex(design.a).to_numpy() + flag.reindex(design.b).to_numpy()
     X = pd.DataFrame(
         {"one": (n_flagged == 1) * 1.0, "two": (n_flagged == 2) * 1.0, "hit": design.hit.to_numpy()}, index=design.index

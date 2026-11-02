@@ -7,6 +7,7 @@ from pathlib import Path
 import fire
 import numpy as np
 import pandas as pd
+from openai import APIError, BadRequestError, OpenAI, RateLimitError
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -21,8 +22,6 @@ REVIEW_EMBED_CHARS = 12000
 
 
 def openai_embed(texts, model, batch, threads, desc):
-    from openai import APIError, BadRequestError, OpenAI, RateLimitError
-
     client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
 
     def embed_chunk(chunk):

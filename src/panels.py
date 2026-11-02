@@ -275,7 +275,12 @@ def nocq(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
     review_ids = [r for p in panels for r in p["review_ids"]]
     kept = reviews.loc[review_ids]
     kept = kept.assign(text=kept.text.str.rsplit(OTHER_TAG, n=1).str[0].str.rstrip()).reset_index()
-    print("nocq reviews", len(kept), "chars dropped share", 1 - kept.text.str.len().sum() / reviews.loc[review_ids].text.str.len().sum())
+    print(
+        "nocq reviews",
+        len(kept),
+        "chars dropped share",
+        1 - kept.text.str.len().sum() / reviews.loc[review_ids].text.str.len().sum(),
+    )
     kept["review_id"] = NOCQ_PREFIX + kept.review_id
     kept[["conf", "year", "paper_id", "review_id", "text"]].to_parquet(out / "nocq_reviews.parquet")
     write_jsonl(

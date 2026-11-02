@@ -13,6 +13,7 @@ from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 import fire
+import openreview
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
@@ -874,8 +875,6 @@ def value_of(content, key):
 
 
 def icml_download(year, raw):
-    import openreview
-
     client = openreview.api.OpenReviewClient(
         baseurl=OPENREVIEW_API, username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD
     )

@@ -15,6 +15,9 @@
 6. Model outputs are named by model short name (`claims_<model>.jsonl`, `clusters_<model>.jsonl`,
    `reports/<name>_<model>.csv`). One model has one claims file and one clusters file. A new model or effort setting
    gets a new short name in `settings.OPENROUTER_ROUTES`.
+7. All imports sit at the top of the file. No import inside a function or a class. The only code allowed
+   between imports is the `sys.path.insert` line that makes `src/` importable. CI runs ruff with `E402` and
+   `PLC0415` and fails on the first one.
 
 
 ## Writing guide
