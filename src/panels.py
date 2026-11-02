@@ -271,22 +271,10 @@ def cocodet(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=7):
     print(len(review_ids), "reviews ->", out / "cocodet_input.parquet")
 
 
-def dedup(panels, out, data=str(settings.DATA_DIR)):
-    reviews = pd.read_parquet(Path(data) / "reviews.parquet", columns=["paper_id", "review_id", "text"])
-    copies = set(reviews[reviews.duplicated(["paper_id", "text"])].review_id)
-    kept, changed, dropped = [], 0, 0
-    for panel in read_panels(panels):
-        review_ids = [r for r in panel["review_ids"] if r not in copies]
-        if len(review_ids) == len(panel["review_ids"]):
-            kept.append(panel)
-        elif len(review_ids) >= MIN_REVIEWS:
-            kept.append(dict(panel, review_ids=review_ids))
-            changed += 1
-        else:
-            dropped += 1
-    write_panels(out, kept)
-    print(f"{changed} panels shortened, {dropped} dropped, {len(kept)} left")
+def wd(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
+    reviews = pd.read_parquet(Path(data) / "wd_reviews.parquet", columns=["paper_id", "review_id"])
+    write_panels(Path(out) / "panels_wd.jsonl", by_paper_panels(reviews, "wd_", sort=True))
 
 
 if __name__ == "__main__":
-    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "cocodet": cocodet, "dedup": dedup})
+    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "cocodet": cocodet, "wd": wd})

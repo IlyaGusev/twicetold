@@ -1,7 +1,7 @@
 # data/claims_gpt-6-luna-high.jsonl
 
 Pass-1 claims of `gpt-6-luna-high` (OpenRouter `openai/gpt-6-luna`, reasoning effort high) for every review sample.
-One line per review: 221,517 rows, 1,593,212 claims. Each `review_id` occurs once.
+One line per review: 221,516 rows, 1,593,207 claims. Each `review_id` occurs once.
 
 | Field | Meaning |
 |---|---|
@@ -18,7 +18,7 @@ No row has an `error` field. 4,207 reviews have an empty claim list.
 | ICML | `icml_sample.parquet` | `_icml` | OpenReview note id | 11,500 | 74,693 | 168 | 0 |
 | No questions | `noq_reviews.parquet` | `_noq` | `noq_` + OpenReview note id | 46,972 | 242,400 | 556 | 153 |
 | Journals | `other_pass1.parquet` | `_other` | journal review id | 40,992 | 426,977 | 2,063 | 1,356 |
-| Withdrawn | `wd_reviews.parquet` | `_wd` | OpenReview note id | 3,892 | 29,778 | 3 | 0 |
+| Withdrawn | `wd_reviews.parquet` | `_wd` | OpenReview note id | 3,891 | 29,773 | 3 | 0 |
 | None | none | none | journal review id | 1,314 | 16,157 | 84 | 0 |
 
 Each review of the five inputs has one row. The 1,314 rows of the last line are journal reviews (SciPost, F1000, BMC

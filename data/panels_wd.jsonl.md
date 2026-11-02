@@ -5,12 +5,15 @@ Keys: `panel_id` (`wd_<paper_id>`) and `review_ids`. Sorted by paper id.
 
 Panel sizes: 3 reviews (164), 4 (781), 5 (55).
 
-Each panel holds the reviews of one paper of `wd_reviews.parquet`, without review `zlaasankug` (same text as review
-`foBgDN8Ecm` of the same paper). All 3,891 review ids are in `reviews.parquet`.
+Each panel holds all reviews of one paper of `wd_reviews.parquet`. All 3,891 review ids are in `reviews.parquet`.
 
 ## Make
 
-No command in the repo makes this file. It is a saved one-off output, like `wd_reviews.parquet`.
+```
+uv run python -I src/panels.py wd
+```
+
+It groups `wd_reviews.parquet` by paper. Deterministic; no network.
 
 ## Read by
 
