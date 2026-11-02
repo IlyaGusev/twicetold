@@ -37,7 +37,7 @@ Peer review relies on several readers finding different problems. We measure cri
 
 Peer review asks several people to read a paper so that they catch different problems. In a classic study, two reviewers of the same paper usually shared no critical point at all \citep{fiske1990reviewers}. LLM use raises a concrete question: do several reviewers still provide distinct critiques, or do they repeat the same problems?
 
-Prior work measures whole-review similarity \citep{liang2024monitoring,baumann2026stop} or studies synthetic LLM reviews \citep{hou2026converge,kim2026limits}. Whole-review embeddings mix wording and content. They cannot distinguish different accounts of one problem from similar prose about different problems. LLM-based critique extraction exists \citep{liang2024feedback,kim2026limits}; we use it to compare critiques within papers, across papers and over time in real reviews.
+Prior work measures whole-review similarity \citep{liang2024monitoring,baumann2026stop} or studies synthetic LLM reviews \citep{hou2026converge,kim2026limits}. In synthetic reviews of one paper, AI reviews share more claims with each other than human reviews do; \citet{duarte2026semdetect} use this gap to detect AI reviews. Whole-review embeddings mix wording and content. They cannot distinguish different accounts of one problem from similar prose about different problems. LLM-based critique extraction exists \citep{liang2024feedback,kim2026limits}; we use it to compare critiques within papers, across papers and over time in real reviews.
 
 Our contributions are:
 
@@ -79,7 +79,7 @@ which is IntraSim \citep{baumann2026stop} with $o$ in place of embedding similar
 \input{tables/match_example}
 
 \paragraph{AI-flagged.}
-The style detector is a logistic regression on word 1--2-gram and character 3--4-gram TF-IDF features. We trained it on human and LLM reviews of ICLR 2021--2023 papers, never on 2024--2026 reviews. A review is \emph{AI-flagged} if its score exceeds the 99th percentile of scores on pre-2023 reviews. As a second detector, CoCoDet \citep{chen2025coconuts}, a ModernBERT classifier, labels each review human, mixed or AI from its first 512 tokens. A word-use index measures AI-likeness at source-year level \citep{liang2024monitoring}; Appendix~\ref{app:ai} defines it.
+The style detector is a logistic regression on word 1--2-gram and character 3--4-gram TF-IDF features. We trained it on human and LLM reviews of ICLR 2021--2023 papers from the benchmark of \citet{yu2026reviewed}, never on 2024--2026 reviews. A review is \emph{AI-flagged} if its score exceeds the 99th percentile of scores on pre-2023 reviews. As a second detector, CoCoDet \citep{chen2025coconuts}, a ModernBERT classifier, labels each review human, mixed or AI from its first 512 tokens. A word-use index measures AI-likeness at source-year level \citep{liang2024monitoring}; Appendix~\ref{app:ai} defines it.
 
 \paragraph{Reference labels.}
 An LLM council supplies reference claims and problem groups from Sol 6.1, Claude Opus 5.5 and Kimi K3.1 Pro proposals, followed by LLM judgments (Appendix~\ref{app:reference}).
@@ -227,7 +227,7 @@ ICLR changed the free-text fields of its review form in 2022, 2023 and 2024 (Tab
 \label{app:ai}
 
 \paragraph{Word-use index.}
-Following \citet{liang2024monitoring}, each review is a binary vector of word occurrences. Human and AI reference distributions define a fitted mixture weight for each source-year. For conferences, the references use human and LLM reviews from ResearchArcade \citep{arcade2025dataset}. Journal references pair pre-2022 reports with length-matched LLM rewrites of their content. Half of the reference papers train the distributions; the other half supports recovery checks. A rewrite preserves human critique content, unlike a review generated from the paper, so we compare the journal indices with each other rather than directly with conference levels. The index measures resemblance to whole-review word distributions, not the fraction of words written by an LLM.
+Following \citet{liang2024monitoring}, each review is a binary vector of word occurrences. Human and AI reference distributions define a fitted mixture weight for each source-year. For conferences, the human reference is ICLR and NeurIPS reviews from 2018--2022 \citep{arcade2025dataset}, and the AI reference is the LLM reviews of \citet{yu2026reviewed}. Journal references pair pre-2022 reports with length-matched LLM rewrites of their content. Half of the reference papers train the distributions; the other half supports recovery checks. A rewrite preserves human critique content, unlike a review generated from the paper, so we compare the journal indices with each other rather than directly with conference levels. The index measures resemblance to whole-review word distributions, not the fraction of words written by an LLM.
 
 \paragraph{Rates.}
 Figure~\ref{fig:likeness} gives the word-use index and flag rate; Tables~\ref{tab:byyear} and~\ref{tab:byyear2} give all source-years.
