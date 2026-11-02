@@ -66,12 +66,20 @@ Table~\ref{tab:data} lists the sources. ICLR and NeurIPS reviews come from OpenR
 A \emph{critique claim} names one problem the authors would answer with one fix. Any positive or neutral things do not count. Two claims match only if they concern the same problem in the same part of the paper. A proof gap and an unjustified assumption are different problems, even if both concern the same theorem. An LLM (\texttt{gpt-6-luna}) lists each review's claims; a separate call groups matching claims across the reviews of a paper, without seeing the review texts. Repeated claims within one review count as one problem.
 
 \paragraph{Overlap metric.}
-For two reviews, \emph{critique overlap} is the overlap coefficient: the number of distinct problems both raise, divided by the number in the smaller critique set. An overlap of 100\% means that every problem in the smaller set already appears in the other review. Table~\ref{tab:match_example} gives an example. A review with no critique shares no problem, so its pairs score 0. We average over all review pairs within a paper, then over papers, so every paper has equal weight. This is IntraSim \citep{baumann2026stop} with the overlap coefficient in place of embedding similarity. Appendix~\ref{app:robust} gives the formula and intervals.
+Let $G_A$ and $G_B$ be the sets of distinct problems that reviews $A$ and $B$ raise. Their \emph{critique overlap} is the overlap coefficient
+\begin{equation}
+ o(A,B)=\frac{|G_A\cap G_B|}{\min(|G_A|,|G_B|)},
+\end{equation}
+and $o(A,B)=0$ if either set is empty. An overlap of 100\% means that every problem in the smaller set already appears in the other review. Table~\ref{tab:match_example} gives an example. A paper $p$ with review set $R_p$ of size $m_p$ has overlap
+\begin{equation}
+ O_p=\binom{m_p}{2}^{-1}\sum_{\{A,B\}\subseteq R_p} o(A,B),
+\end{equation}
+which is IntraSim \citep{baumann2026stop} with $o$ in place of embedding similarity. A year's overlap is the mean of $O_p$ over papers, so every paper has equal weight. Appendix~\ref{app:robust} gives the intervals.
 
 \input{tables/match_example}
 
 \paragraph{AI-flagged.}
-A style detector flags a review above the 99th percentile of its scores on pre-2023 reviews. CoCoDet provides a separate content-versus-polishing detector \citep{chen2025coconuts}; a word-use index measures AI-likeness at source-year level \citep{liang2024monitoring}. Appendix~\ref{app:ai} defines all three measures.
+The style detector is a logistic regression on word 1--2-gram and character 3--4-gram TF-IDF features. We trained it on human and LLM reviews of ICLR 2021--2023 papers, never on 2024--2026 reviews. A review is \emph{AI-flagged} if its score exceeds the 99th percentile of scores on pre-2023 reviews. As a second detector, CoCoDet \citep{chen2025coconuts}, a ModernBERT classifier, labels each review human, mixed or AI from its first 512 tokens. A word-use index measures AI-likeness at source-year level \citep{liang2024monitoring}; Appendix~\ref{app:ai} defines it.
 
 \paragraph{Reference labels.}
 An LLM council supplies reference claims and problem groups from Sol 6.1, Claude Opus 5.5 and Kimi K3.1 Pro proposals, followed by LLM judgments (Appendix~\ref{app:reference}).
@@ -177,11 +185,7 @@ The reference set contains same-paper and cross-paper panels with saved developm
 \section{Measure and Robustness}
 \label{app:robust}
 
-Let $G_A$ and $G_B$ be the sets of distinct problem groups raised by two reviews. Their overlap is
-\begin{equation}
- o(A,B)=\frac{|G_A\cap G_B|}{\min(|G_A|,|G_B|)}.
-\end{equation}
-A claim that matches no other claim forms its own group. Multiple claims of one review in the same group count once. If $G_A$ or $G_B$ is empty, $o(A,B)=0$. A paper's overlap is the mean over all $m_p(m_p-1)/2$ pairs of its $m_p$ reviews; a year's overlap is the mean over papers. Thus larger review panels do not receive more weight merely because they contain more pairs. The same rule applies to sampled cross-paper panels.
+A claim that matches no other claim forms its own group. Multiple claims of one review in the same group count once. Sampled cross-paper panels use the same overlap and averaging as same-paper panels.
 
 For year means, intervals use the SE across paper-level means. For the difference between independent years, we combine their SEs in quadrature. The within-paper detector comparison regresses pair overlap on indicators for one and two flagged reviews, with paper fixed effects and paper-clustered SEs. The control check adds the log lengths and log claim counts of the shorter and longer review. Those controls test the flagged-pair association; they do not define a different overlap score. Cross-paper intervals describe variation across sampled comparison panels, conditional on the corpus.
 
@@ -225,8 +229,8 @@ ICLR changed the free-text fields of its review form in 2022, 2023 and 2024 (Tab
 \paragraph{Word-use index.}
 Following \citet{liang2024monitoring}, each review is a binary vector of word occurrences. Human and AI reference distributions define a fitted mixture weight for each source-year. For conferences, the references use human and LLM reviews from ResearchArcade \citep{arcade2025dataset}. Journal references pair pre-2022 reports with length-matched LLM rewrites of their content. Half of the reference papers train the distributions; the other half supports recovery checks. A rewrite preserves human critique content, unlike a review generated from the paper, so we compare the journal indices with each other rather than directly with conference levels. The index measures resemblance to whole-review word distributions, not the fraction of words written by an LLM.
 
-\paragraph{Review detectors.}
-The style detector is a logistic regression on hashed word 1--2-gram and character 3--4-gram TF-IDF features. Its training data pair human and LLM reviews of ICLR 2021--2023 papers; training never uses 2024--2026 reviews. The flag threshold is the 99th percentile of pre-2023 scores. CoCoDet \citep{chen2025coconuts} is a ModernBERT classifier with human, mixed and AI classes; we use the most likely class over the first 512 tokens. Figure~\ref{fig:likeness} gives the word-use index and flag rate; Tables~\ref{tab:byyear} and~\ref{tab:byyear2} give all source-years.
+\paragraph{Rates.}
+Figure~\ref{fig:likeness} gives the word-use index and flag rate; Tables~\ref{tab:byyear} and~\ref{tab:byyear2} give all source-years.
 
 \begin{figure}[t]
 \centering
