@@ -35,15 +35,17 @@ Peer review relies on several readers finding different problems, not just writi
 
 Peer review asks several people to read a paper so that they catch different problems. In a classic study, two reviewers of the same paper usually shared no critical point at all \citep{fiske1990reviewers}. LLM use raises a concrete question: do several reviewers still provide distinct critiques, or do they repeat the same problems?
 
-Prior work measures whole-review similarity \citep{liang2024monitoring,baumann2026stop} or studies synthetic LLM reviews \citep{hou2026converge,kim2026limits}. Whole-review embeddings mix wording and content. They cannot distinguish different accounts of one problem from similar prose about different problems. LLM-based critique extraction exists \citep{liang2024feedback,kim2026limits}; we use it to compare critiques within papers, across papers and over time in real reviews. Our answers are:
+Prior work measures whole-review similarity \citep{liang2024monitoring,baumann2026stop} or studies synthetic LLM reviews \citep{hou2026converge,kim2026limits}. Whole-review embeddings mix wording and content. They cannot distinguish different accounts of one problem from similar prose about different problems. LLM-based critique extraction exists \citep{liang2024feedback,kim2026limits}; we use it to compare critiques within papers, across papers and over time in real reviews.
 
-\begin{description}\itemsep0pt
-\item[RQ1] Same-paper overlap rose at ICLR and ICML in 2026 and at NeurIPS in 2025 (Section~\ref{sec:trends}, Figure~\ref{fig:overlap}).
-\item[RQ2] Within a paper, two AI-flagged reviews overlap \FlagGap{} points more than two unflagged ones (Section~\ref{sec:ai}, Figure~\ref{fig:ai}).
-\item[RQ3] Cross-paper overlap did not rise at ICLR or NeurIPS (Section~\ref{sec:cross}, Figure~\ref{fig:cross}).
-\item[RQ4] Clarity and typo critiques fell while requests for more experiments rose (Section~\ref{sec:categories}, Figure~\ref{fig:categories}).
-\item[RQ5] In five journal sources, the largest rises coincide with the largest increases in AI-likeness (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).
-\end{description}
+Our contributions are:
+
+\begin{itemize}\itemsep0pt
+\item Same-paper overlap rose at ICLR and ICML in 2026 and at NeurIPS in 2025 (Section~\ref{sec:trends}, Figure~\ref{fig:overlap}).
+\item Within a paper, two AI-flagged reviews overlap \FlagGap{} points more than two unflagged ones (Section~\ref{sec:ai}, Figure~\ref{fig:ai}).
+\item Cross-paper overlap did not rise at ICLR or NeurIPS (Section~\ref{sec:cross}, Figure~\ref{fig:cross}).
+\item Clarity and typo critiques fell while requests for more experiments rose (Section~\ref{sec:categories}, Figure~\ref{fig:categories}).
+\item In five journal sources, the largest rises coincide with the largest increases in AI-likeness (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).
+\end{itemize}
 
 \section{Data and Measure}
 \label{sec:data}
@@ -75,11 +77,11 @@ An LLM council supplies reference claims and problem groups from Sol 6.1, Claude
 \section{Results}
 \label{sec:results}
 
-\paragraph{RQ1: Same-paper repetition rose.}
+\paragraph{RQ1: Do reviewers of one paper repeat more of each other's critiques?}
 \label{sec:trends}
 ICLR overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2026: $+\IclrChange$ points (95\% CI \IclrChangeLow--\IclrChangeHigh; \IclrBaseN{} and \IclrLastN{} papers). The latest review cycles also rose at NeurIPS, from \NeuripsBase\% in 2024 to \NeuripsLast\% in 2025, and ICML, from \IcmlBase\% in 2025 to \IcmlLast\% in 2026 (Figure~\ref{fig:overlap}). The rise holds when we restrict to specific claims, use a lenient problem-matching rule, regroup three-review subsets, or remove the questions field (Table~\ref{tab:robust}).
 
-\paragraph{RQ2: AI-flagged reviews repeat more critiques.}
+\paragraph{RQ2: Do AI-flagged reviews repeat more critiques?}
 \label{sec:ai}
 Within a paper, two flagged reviews overlap \FlagGap{} points more than two unflagged reviews (95\% CI \FlagGapLow--\FlagGapHigh; \FlagGapN{} ICLR papers). The unflagged-pair baseline is \FlagBaseline\%. Figure~\ref{fig:ai} shows the pair-type means; the gap compares pairs within the same paper. It also appears at NeurIPS, with CoCoDet labels, and with length and claim-count controls (Figure~\ref{fig:checks}).
 
@@ -90,11 +92,11 @@ Within a paper, two flagged reviews overlap \FlagGap{} points more than two unfl
 \label{fig:ai}
 \end{figure}
 
-\paragraph{RQ3: Different papers did not converge.}
+\paragraph{RQ3: Do reviews of different papers converge?}
 \label{sec:cross}
 ICLR reviews of different papers overlap \CrossBase\% in 2023 and \CrossLast\% in 2026 (Figure~\ref{fig:cross}). NeurIPS shows the same lack of a rise. Restricting the control to papers in the same research area raises the level but does not reverse the pattern (Figure~\ref{fig:area}). These controls use the same grouping prompt as same-paper panels; the prompt assumes one paper, so the controls support comparisons over time, not an absolute baseline for unrelated papers. Whole-review embeddings, in contrast, became more similar within papers throughout the period (Figure~\ref{fig:embedding}).
 
-\paragraph{RQ4: Experiment requests rose; clarity critiques fell.}
+\paragraph{RQ4: Which kinds of critiques gained or lost share?}
 \label{sec:categories}
 Clarity critiques fell from \ClarityBase\% of ICLR claims in 2020--2022 to \ClarityLast\% in 2026. Typo critiques fell from \TyposBase\% to \TyposLast\%, while requests about experiment scope rose from \ExperimentsBase\% to \ExperimentsLast\% (Figure~\ref{fig:categories}). Generalization, ablation and compute-cost critiques also gained share. These are changes in what reviewers ask authors to fix, not merely in how they phrase requests.
 
@@ -105,7 +107,7 @@ Clarity critiques fell from \ClarityBase\% of ICLR claims in 2020--2022 to \Clar
 \label{fig:categories}
 \end{figure}
 
-\paragraph{RQ5: The journal rise tracks AI-likeness.}
+\paragraph{RQ5: Does the journal rise track AI-likeness?}
 \label{sec:journals}
 F1000 and PLOS have the largest increases in the word-use AI-likeness index and in critique overlap. Against the 2019--2023 mean, F1000 rose by \FResearchChange{} points (95\% CI \FResearchChangeLow--\FResearchChangeHigh), and PLOS by \PlosChange{} (\PlosChangeLow--\PlosChangeHigh). The other source changes are smaller (Figures~\ref{fig:fields} and~\ref{fig:journals}). Across five sources, the correlation is \JournalCorrelation{} (95\% CI \JournalCorrelationLow--\JournalCorrelationHigh). This extension is exploratory: five sources and one extraction pipeline. Cross-paper journal overlap remains much lower than same-paper overlap (Figure~\ref{fig:journals_cross}).
 
