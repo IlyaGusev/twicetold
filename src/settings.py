@@ -27,6 +27,7 @@ class Settings(BaseSettings):
 
     DATA_DIR: Path = ROOT / "data"
     REPORTS_DIR: Path = ROOT / "reports"
+    GOLD_DIR: Path = ROOT / "data" / "gold"
     ANALYSIS_DIR: Path = ROOT / "data" / "overlap"
     ANALYSIS_REPORTS_DIR: Path = ROOT / "reports" / "overlap"
     FIGURES_DIR: Path = ROOT / "paper" / "figs"
@@ -42,6 +43,8 @@ class Settings(BaseSettings):
     DEFAULT_MODEL: str = "gpt-6-luna-high"
     BLIND_SET_MODEL: str = "gpt-6-luna"
     AI_REFERENCE_MODEL: str = "gpt-6-luna"
+    GOLD_COUNCIL: list[str] = ["sol-or", "opus-5.5", "kimi-k3.1-pro"]
+    GOLD_JUDGE_MODEL: str = "opus-5.5"
     REVIEW_TEXT_MAX_CHARS: int = 14000
 
     EMBED_MODEL: str = "text-embedding-3-small"
