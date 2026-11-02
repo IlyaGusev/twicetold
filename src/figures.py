@@ -52,6 +52,8 @@ COLORS = {
     "ICLR": "#0072B2",
     "NeurIPS": "#D55E00",
     "ICML": "#009E73",
+    "F1000": "#CC79A7",
+    "PLOS": "#56B4E9",
     "flag": "#E69F00",
     "flag_light": "#F3CF7F",
     "grey": "#8C8C8C",
@@ -252,22 +254,62 @@ def ai_checks(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     save(fig, figs, "figA_checks.pdf", PAGE_WIDTH)
 
 
+def spread_labels(ys, gap):
+    order = np.argsort(ys)
+    placed = np.array(ys, dtype=float)[order]
+    for i in range(1, len(placed)):
+        placed[i] = max(placed[i], placed[i - 1] + gap)
+    placed -= (placed.mean() - np.mean(ys)) / 2
+    out = np.empty_like(placed)
+    out[order] = placed
+    return out
+
+
+def overlap_panel(ax, by_year, styles, label_x, gap):
+    ends = {}
+    for conf, (name, color, marker, dx) in styles.items():
+        rows = by_year[by_year.conf == conf]
+        x, y, ci = rows.year + dx, rows["match"], Z95 * rows.match_se
+        muted = color == COLORS["grey"]
+        ax.fill_between(x, y - ci, y + ci, color=color, alpha=0.1 if muted else 0.2, lw=0, zorder=1)
+        ax.plot(x, y, "-", color=color, lw=0.9 if muted else 1.4, zorder=2 if muted else 3)
+        ax.plot(x, y, marker, color=color, mec="white", mew=0.6, ms=3.5 if muted else 4, zorder=4)
+        ends[name] = (x.iloc[-1], y.iloc[-1], color)
+    label_ys = spread_labels([y for _, y, _ in ends.values()], gap)
+    for (name, (x, y, color)), label_y in zip(ends.items(), label_ys):
+        ax.plot([x, label_x - 0.08], [y, label_y], color=color, lw=0.5, alpha=0.6, zorder=2)
+        ax.annotate(name, (label_x, label_y), ha="left", va="center", color=color, fontsize=7, annotation_clip=False)
+
+
 def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     by_year = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv")
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.9))
-    fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.13)
-    shade_chatgpt_period(ax)
-    rates = {}
-    for conf, dx in [("ICLR", 0), ("NeurIPS", 0), ("ICML", 0.25)]:
-        rates[conf] = overlap_line(ax, by_year, conf, COLORS[conf], dx)
-    end_label(ax, ICLR_FROM, rates["ICLR"].iloc[0], "ICLR", COLORS["ICLR"], dx=-2, dy=13, ha="left")
-    end_label(ax, 2022, rates["NeurIPS"].loc[2022], "NeurIPS", COLORS["NeurIPS"], dx=0, dy=-11, ha="center")
-    end_label(ax, 2025.25, rates["ICML"].iloc[0], "ICML", COLORS["ICML"], dx=4, dy=-4, ha="left")
-    ax.set_ylim(0, 20)
-    ax.set_xlim(2019.6, 2026.5)
-    few_ticks(ax)
-    year_ticks(ax)
-    ax.set_ylabel("Smaller critique set repeated (%)")
+    fig, (top, bottom) = plt.subplots(2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.1, 3.1))
+    fig.subplots_adjust(left=0.13, right=0.76, top=0.93, bottom=0.11, hspace=0.42)
+    conferences = {
+        "ICLR": ("ICLR", COLORS["ICLR"], "o", 0),
+        "NeurIPS": ("NeurIPS", COLORS["NeurIPS"], "s", 0),
+        "ICML": ("ICML", COLORS["ICML"], "D", 0.12),
+    }
+    journals = {
+        "F1000": ("F1000", COLORS["F1000"], "o", 0),
+        "PLOS": ("PLOS", COLORS["PLOS"], "s", 0),
+        "Copernicus": ("Copernicus", COLORS["grey"], "^", 0),
+        "SciPost": ("SciPost", COLORS["grey"], "v", 0),
+        "BMC-Med": ("BMC Medicine", COLORS["grey"], "D", 0),
+    }
+    for ax, styles, title in [(top, conferences, "a  ML conferences"), (bottom, journals, "b  Journals")]:
+        shade_chatgpt_period(ax)
+        overlap_panel(ax, by_year, styles, 2026.65, 2.4)
+        ax.set_ylim(5, 26)
+        ax.set_yticks([5, 10, 15, 20, 25])
+        ax.set_ylabel("Critique overlap (%)")
+        ax.set_title(title, fontweight="bold")
+        ax.annotate("LLM era", (CHATGPT_BAND[0], 26), xytext=(3, -2), textcoords="offset points", ha="left", va="top", fontsize=6.5, color=COLORS["grey"], style="italic")
+        ax.tick_params(axis="x", labelsize=6)
+    bottom.set_xlim(2018.6, CHATGPT_BAND[1])
+    bottom.set_xticks(range(2019, 2027))
+    top.tick_params(labelbottom=True)
+    bottom.set_xlabel("Review year")
     save(fig, figs, "fig1_trends.pdf", COLUMN_WIDTH)
 
 
