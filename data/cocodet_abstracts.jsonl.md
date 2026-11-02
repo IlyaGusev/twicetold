@@ -37,4 +37,5 @@ On 2026-11-02 we did not rerun the model. We checked the file against `cocodet_i
 
 ## Read by
 
-`src/validate.py paper_side`: score = `ai + mix` per paper.
+No current code reads this file. `src/validate.py paper_side` read it (score = `ai + mix` per paper) until it was
+removed on 2026-11-02, because the paper did not use its result.

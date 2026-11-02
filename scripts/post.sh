@@ -22,14 +22,10 @@ for tag in "" _noq _wd _icml _other; do
   step src/outcomes.py panels --model "$MODEL" --tag "$tag"
 done
 step src/outcomes.py pairs --model "$MODEL"
-step src/outcomes.py withdrawals --model "$MODEL"
 step src/between.py claims_table --model "$MODEL"
 step src/between.py embed --model "$MODEL"
 step src/validate.py detector_placebo --model "$MODEL"
 step src/validate.py rq1_evidence --model "$MODEL"
-step src/validate.py variants --model "$MODEL"
-step src/validate.py reviewer_fe --model "$MODEL"
-step src/validate.py paper_side --model "$MODEL"
 if [ -z "$OUT_DIR" ]; then
   step src/validate.py robust --model "$MODEL"
   step src/figures.py table --model "$MODEL"

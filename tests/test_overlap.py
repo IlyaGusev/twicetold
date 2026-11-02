@@ -7,8 +7,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import pandas as pd
 import pytest
 
+from figures import summarize
 from metrics import panel_metrics
-from outcomes import hit, panel_pairs, year_rates
+from outcomes import hit, panel_pairs
 
 
 @pytest.mark.parametrize(
@@ -31,11 +32,24 @@ def test_empty_pair_is_undefined():
     assert math.isnan(hit([], [1]))
 
 
+def panel_frame(groups):
+    rows = [
+        dict(review=review, cluster=group, target=group, specific=True, category="novelty")
+        for review, problems in enumerate(groups)
+        for group in problems
+    ]
+    return pd.DataFrame(rows)
+
+
 def test_each_paper_has_equal_weight():
-    pairs = pd.DataFrame([dict(year=2026, panel_id="A", hit=1.0)] * 10 + [dict(year=2026, panel_id="B", hit=0.0)])
-    mean, error = year_rates(pairs)[2026]
-    assert mean == 50.0
-    assert error == pytest.approx(50.0)
+    shared = [[1, 2]] * 5
+    disjoint = [[1], [2]]
+    panels = pd.DataFrame(
+        [dict(conf="ICLR", year=2026, **panel_metrics(panel_frame(groups), len(groups))) for groups in (shared, disjoint)]
+    )
+    row = summarize(panels, panels.iloc[:0]).loc[("ICLR", 2026)]
+    assert row.match == pytest.approx(50.0)
+    assert row.match_se == pytest.approx(50.0)
 
 
 @pytest.mark.parametrize(

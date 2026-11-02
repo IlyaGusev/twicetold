@@ -49,4 +49,4 @@ On 2026-11-02 we compared this file with the current tables:
 
 ## Read by
 
-`src/ai.py cocodet` (input). `src/validate.py paper_side` reads only the output `cocodet_abstracts.jsonl`.
+`src/ai.py cocodet` (input). No current code reads the output `cocodet_abstracts.jsonl`.

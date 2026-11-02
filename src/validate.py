@@ -10,16 +10,6 @@ from tqdm import tqdm
 
 from settings import settings
 
-VARIANT_COLS = [
-    "S3",
-    "D3",
-    "U3",
-    "share_shared_claims",
-    "hit_rate_strict",
-    "share_specific",
-    "claims_per_review",
-]
-
 
 def load_flags(data):
     return (
@@ -34,65 +24,6 @@ def clustered(model, *groups):
 
 def se(x):
     return x.std(ddof=1) / np.sqrt(x.count())
-
-
-def nonempty_outcomes(path):
-    outcomes = pd.read_parquet(path)
-    return outcomes[outcomes.n_claims > 0]
-
-
-def variants(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    data = Path(data)
-    full = nonempty_outcomes(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").set_index("panel_id")
-    out = {}
-    sub3 = nonempty_outcomes(settings.ANALYSIS_DIR / f"sub3_outcomes_{model}.parquet").set_index("paper_id")
-    sub3_joined = sub3.join(full[["S3", "D3", "share_shared_claims", "hit_rate_strict"]], suffixes=("", "_full"))
-    sub3_joined = sub3_joined.dropna(subset=["S3", "S3_full"])
-    out["sub3"] = pd.DataFrame(
-        [
-            {
-                "year": y,
-                "n": len(g),
-                "S3_recluster": g.S3.mean(),
-                "S3_rarefied": g.S3_full.mean(),
-                "D3_recluster": g.D3.mean(),
-                "D3_rarefied": g.D3_full.mean(),
-                "share_recluster": g.share_shared_claims.mean(),
-                "share_rarefied": g.share_shared_claims_full.mean(),
-                "se_S3": se(g.S3),
-            }
-            for y, g in sub3_joined.groupby("year")
-        ]
-    ).set_index("year")
-    noq = nonempty_outcomes(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_noq.parquet").set_index("paper_id")
-    noq_joined = noq.join(full[VARIANT_COLS], suffixes=("", "_full")).dropna(subset=["S3", "S3_full"])
-    noq_cols = ["S3", "share_shared_claims", "claims_per_review", "D3"]
-    out["noq"] = pd.DataFrame(
-        [
-            dict(
-                year=y,
-                n=len(g),
-                **{f"{c}_noq": g[c].mean() for c in noq_cols},
-                **{f"{c}_full": g[f"{c}_full"].mean() for c in noq_cols},
-                se_S3=se(g.S3),
-            )
-            for y, g in noq_joined.groupby("year")
-        ]
-    ).set_index("year")
-    withdrawn = nonempty_outcomes(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_wd.parquet")
-    kept = full[(full.conf == "ICLR") & (full.year == 2026)]
-    out["wd"] = pd.DataFrame(
-        {
-            "withdrawn": withdrawn[VARIANT_COLS].mean(),
-            "withdrawn_se": withdrawn[VARIANT_COLS].agg(se),
-            "kept": kept[VARIANT_COLS].mean(),
-            "kept_se": kept[VARIANT_COLS].agg(se),
-        }
-    )
-    out["wd"].loc["n"] = [len(withdrawn), np.nan, len(kept), np.nan]
-    for name, table in out.items():
-        table.round(4).to_csv(Path(reports) / f"variant_{name}_{model}.csv")
-        print(f"== {name}\n{table.round(3).to_string()}\n")
 
 
 def robust(
@@ -237,113 +168,11 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
     print(out.round(2).to_string(index=False))
 
 
-def f1000_reviewer_names(xml_dir):
-    import xml.etree.ElementTree as ET
-
-    names = {}
-    for f in tqdm(sorted(Path(xml_dir).glob("*.xml")), desc="f1000 xml"):
-        try:
-            root = ET.parse(f).getroot()
-        except ET.ParseError:
-            continue
-        for sub in root.iter("sub-article"):
-            meta = sub.find("front-stub")
-            if meta is None:
-                meta = sub.find("front/article-meta")
-            if meta is None:
-                continue
-            person = meta.find(".//contrib/name")
-            if person is not None:
-                full_name = f"{person.findtext('given-names')} {person.findtext('surname')}"
-                names[meta.findtext("article-id[@pub-id-type='doi']")] = full_name.lower()
-    return pd.Series(names)
-
-
-def reviewer_fe(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    import statsmodels.formula.api as smf
-
-    data, reports = Path(data), Path(reports)
-    reviewer_name = f1000_reviewer_names(settings.RAW_JOURNAL_REVIEWS_DIR / "f1000")
-    f1000 = pd.read_parquet(
-        settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
-    )
-    f1000 = f1000[(f1000.conf == "F1000") & (f1000.year >= 2019) & (f1000.year != 2024)]
-    sides = pd.concat([f1000.rename(columns={"a": "rid", "b": "other"}), f1000.rename(columns={"b": "rid", "a": "other"})])
-    per_review = sides.groupby(["rid", "panel_id", "year"], as_index=False).agg(hit=("hit", "mean"))
-    per_review["name"] = per_review.rid.map(reviewer_name)
-    per_review["post"] = (per_review.year >= 2025).astype(int)
-    per_review["hit"] *= 100
-    span = per_review.groupby("name").post.agg(["min", "max"])
-    seen_both = per_review[per_review.name.isin(span.index[(span["min"] == 0) & (span["max"] == 1)])]
-
-    def fit(label, formula, df):
-        result = clustered(smf.ols(formula, data=df), df.panel_id, df.name.fillna(df.rid))
-        return dict(
-            label=label,
-            est=result.params["post"],
-            se=result.bse["post"],
-            reports=int(result.nobs),
-            reviewers=df.name.nunique(),
-            pre=df[df.post == 0].hit.mean(),
-            post=df[df.post == 1].hit.mean(),
-        )
-
-    out = pd.DataFrame(
-        [
-            fit("All reports, pooled", "hit ~ post", per_review),
-            fit("Reviewers seen in both periods, pooled", "hit ~ post", seen_both),
-            fit("Reviewers seen in both periods, reviewer fixed effects", "hit ~ post + C(name)", seen_both),
-        ]
-    )
-    out.to_csv(reports / f"reviewer_fe_f1000_{model}.csv", index=False)
-    print(out.round(2).to_string(index=False))
-
-
-def paper_side(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    import statsmodels.formula.api as smf
-
-    from outcomes import pair_design
-
-    data, reports = Path(data), Path(reports)
-    abstract_labels = (
-        pd.read_json(data / "cocodet_abstracts.jsonl", lines=True).drop_duplicates("review_id").set_index("review_id")
-    )
-    score = abstract_labels["ai"] + abstract_labels["mix"]
-    design = pair_design(model, data)
-    design = design[design.conf == "ICLR"]
-    design["score"] = score.reindex(design.panel_id).to_numpy()
-    design = design.dropna(subset=["score"])
-    paper_scores = design.drop_duplicates("panel_id").score
-    design["z"] = (design.score - paper_scores.mean()) / paper_scores.std()
-    flag = load_flags(data)
-    design["nflag"] = flag.reindex(design.a).to_numpy().astype(float) + flag.reindex(design.b).to_numpy().astype(float)
-    papers = design.groupby("year").panel_id.nunique()
-    print(f"{design.panel_id.nunique()} ICLR papers with an abstract score; by year {papers.to_dict()}")
-    abstracts = design.drop_duplicates("panel_id")
-    print(
-        "share of abstracts CoCoDet labels AI or mixed:",
-        abstracts.groupby("year").score.apply(lambda s: (s > 0.5).mean()).round(3).to_dict(),
-    )
-    neither_flagged = design[design.nflag == 0]
-    both_flagged = design[design.nflag == 2]
-    rows = []
-    for subset, subset_pairs in [("all pairs", design), ("neither flagged", neither_flagged), ("both flagged", both_flagged)]:
-        paper_rates = subset_pairs.groupby(["panel_id", "year"], as_index=False).agg(hit=("hit", "mean"), z=("z", "first"))
-        fit = clustered(smf.ols("hit ~ C(year) + z", data=paper_rates), paper_rates.panel_id)
-        rows.append(dict(subset=subset, est=fit.params["z"] * 100, se=fit.bse["z"] * 100, papers=len(paper_rates)))
-    out = pd.DataFrame(rows)
-    out.to_csv(reports / f"paper_side_{model}.csv", index=False)
-    print(out.round(2).to_string(index=False))
-
-
 if __name__ == "__main__":
     fire.Fire(
         {
-            "variants": variants,
             "robust": robust,
             "detector_placebo": detector_placebo,
             "rq1_evidence": rq1_evidence,
-            "reviewer_fe": reviewer_fe,
-            "paper_side": paper_side,
         }
     )

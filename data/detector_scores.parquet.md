@@ -58,5 +58,5 @@ On 2026-11-02 we did not rerun the detector (the run takes about 12 minutes). We
 
 ## Read by
 
-`src/validate.py` (`load_flags`, used by `rq1_evidence` and `paper_side`; `detector_placebo`), `src/figures.py`
+`src/validate.py` (`load_flags`, used by `rq1_evidence`; `detector_placebo`), `src/figures.py`
 (`likeness`, `ai`, `by_year`, `numbers`).

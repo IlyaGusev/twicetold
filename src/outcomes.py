@@ -68,10 +68,6 @@ BATCH_ROWS = 20000
 ICLR_FROM = 2020
 FIRST_YEAR = {"ICLR": ICLR_FROM}
 DEFAULT_FIRST_YEAR = 2019
-ICLR_SUBMITTED = {2017: 490, 2018: 1018, 2019: 1579, 2020: 2594, 2021: 3014, 2022: 3422, 2023: 4955, 2024: 7404, 2025: 11672}
-ICLR_WITHDRAWN = {2017: 0, 2018: 83, 2019: 160, 2020: 369, 2021: 403, 2022: 779, 2023: 1145, 2024: 1661, 2025: 2991}
-WITHDRAWALS_OBSERVED_YEAR = 2026
-QUINTILE_EDGES = [0, 0.2, 0.4, 0.6, 0.8, 1]
 
 
 def load_claims(path):
@@ -169,17 +165,7 @@ def claims_of_reviews(df, review_ids):
     return kept.assign(review=kept.review_id.map(position))
 
 
-def placebo_cells(placebo):
-    counted = placebo.assign(
-        trimmed=placebo.n_excluded_reviews > 0,
-        review_pairs=placebo.n_reviews * (placebo.n_reviews - 1) // 2,
-    )
-    return counted.groupby(["conf", "year", "placebo_kind"], as_index=False).agg(
-        panels=("panel_id", "size"), trimmed_panels=("trimmed", "sum"), review_pairs=("review_pairs", "sum")
-    )
-
-
-def ml_panels(model, tag, data, out, reports):
+def ml_panels(model, tag, data, out):
     claims = load_claims(data / f"claims_{model}{tag}.jsonl")
     rmeta = review_meta(claims.keys(), data).set_index("review_id")
     pmeta = paper_meta(data).set_index("paper_id")
@@ -233,10 +219,6 @@ def ml_panels(model, tag, data, out, reports):
     for kind, table in tables.items():
         table.to_parquet(out / f"{kind}_outcomes_{model}{tag}.parquet")
         print(kind, len(table), "panels,", dropped[kind], "dropped:", DROP_REASONS[kind])
-    if "placebo" in tables:
-        cells = placebo_cells(tables["placebo"])
-        cells.to_csv(reports / f"placebo_cells_{model}{tag}.csv", index=False)
-        print(cells.to_string(index=False))
     if "panel" in tables:
         review_table = pd.DataFrame(reviews)
         review_table = review_table.merge(rmeta.drop(columns=["paper_id"]), left_on="review_id", right_index=True, how="left")
@@ -293,14 +275,12 @@ def panels(
     tag="",
     data=str(settings.DATA_DIR),
     out=str(settings.ANALYSIS_DIR),
-    reports=str(settings.ANALYSIS_REPORTS_DIR),
 ):
     Path(out).mkdir(parents=True, exist_ok=True)
-    Path(reports).mkdir(parents=True, exist_ok=True)
     if tag in SOURCE_FILES:
         source_panels(model, tag, Path(data), Path(out))
     else:
-        ml_panels(model, tag, Path(data), Path(out), Path(reports))
+        ml_panels(model, tag, Path(data), Path(out))
 
 
 def panel_pairs(df, review_ids):
@@ -370,12 +350,11 @@ def in_window(df):
     return df[df.year >= df.conf.map(FIRST_YEAR).fillna(DEFAULT_FIRST_YEAR)]
 
 
-def pair_design(model, data, all_years=False):
+def pair_design(model, data):
     design = pd.read_parquet(
         settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
     )
-    if not all_years:
-        design = in_window(design)
+    design = in_window(design)
     chars = review_chars(data, set(design.a) | set(design.b))
     log_a = np.log(chars.reindex(design.a).to_numpy())
     log_b = np.log(chars.reindex(design.b).to_numpy())
@@ -386,77 +365,5 @@ def pair_design(model, data, all_years=False):
     return design
 
 
-def year_rates(pairs, weights=None):
-    weighted = pairs.assign(weight=1.0 if weights is None else np.asarray(weights))
-    papers = weighted.groupby(["year", "panel_id"]).agg(hit=("hit", "mean"), weight=("weight", "first"))
-    rates = {}
-    for year, group in papers.groupby("year"):
-        mean = np.average(group.hit, weights=group.weight)
-        error = (group.weight * (group.hit - mean)).std(ddof=1) / np.sqrt(len(group)) / group.weight.mean()
-        rates[year] = (mean * 100, error * 100)
-    return rates
-
-
-def rating_icc(reviews):
-    z = (reviews.rating - reviews.rating.mean()) / reviews.rating.std()
-    return 1 - z.groupby(reviews.paper_id).var().mean() / z.var()
-
-
-def withdrawals(model=settings.DEFAULT_MODEL, target=0.23, data=str(settings.DATA_DIR), out=None):
-    out = out or settings.ANALYSIS_REPORTS_DIR / f"withdrawals_{model}.csv"
-    data = Path(data)
-    reviews = pd.read_parquet(
-        data / "reviews.parquet",
-        columns=["paper_id", "review_id", "rating", "year", "withdrawn", "decision"],
-        filters=[("conf", "==", "ICLR")],
-    )
-    papers = reviews.groupby("paper_id").agg(
-        year=("year", "first"), rating=("rating", "mean"), withdrawn=("withdrawn", "first"), decision=("decision", "first")
-    )
-    papers["pct"] = papers.groupby("year").rating.rank(pct=True)
-    main_sample_rating = papers.rating.where(in_main_sample(papers))
-    papers["main_sample_pct"] = main_sample_rating.groupby(papers.year).rank(pct=True)
-    decile = np.minimum((papers.pct * 10).astype(int), 9)
-    in_observed_year = papers.year == WITHDRAWALS_OBSERVED_YEAR
-    withdrawn_by_decile = papers[in_observed_year].groupby(decile[in_observed_year]).withdrawn.mean()
-    withdrawn_share = {y: ICLR_WITHDRAWN[y] / ICLR_SUBMITTED[y] for y in ICLR_SUBMITTED}
-    papers["drop_share"] = [
-        max(0.0, (target - withdrawn_share[y]) / (1 - withdrawn_share[y])) if y in withdrawn_share else 0.0 for y in papers.year
-    ]
-    papers["withdraw_rate"] = withdrawn_by_decile.reindex(decile).to_numpy()
-    year_mean_rate = papers.groupby("year").withdraw_rate.transform("mean")
-    papers["weight"] = 1 - np.clip(papers.withdraw_rate * papers.drop_share / year_mean_rate, 0, 1)
-
-    design = pair_design(model, data, all_years=True)
-    design = design[design.conf == "ICLR"].copy()
-    pair_paper = reviews.set_index("review_id").paper_id.reindex(design.a).to_numpy()
-    design["pct"] = papers.pct.reindex(pair_paper).to_numpy()
-    design["main_sample_pct"] = papers.main_sample_pct.reindex(pair_paper).to_numpy()
-    design["weight"] = papers.weight.reindex(pair_paper).to_numpy()
-    design["keep"] = design.pct > papers.drop_share.reindex(pair_paper).to_numpy()
-    rates_by_variant = {
-        "as published": year_rates(design),
-        "weight": year_rates(design, design.weight.to_numpy()),
-        "drop": year_rates(design[design.keep]),
-    }
-    estimates = {variant: {year: rate for year, (rate, _) in rates.items()} for variant, rates in rates_by_variant.items()}
-    errors = {f"{variant}_se": {year: se for year, (_, se) in rates.items()} for variant, rates in rates_by_variant.items()}
-    table = pd.DataFrame(estimates).join(pd.DataFrame(errors))
-    table["withdrawn_share"] = pd.Series(withdrawn_share)
-    table["extra_drop"] = papers.groupby("year").drop_share.first()
-
-    rated = reviews[in_main_sample(reviews) & reviews.rating.notna()]
-    table["rating_icc"] = rated.groupby("year")[["paper_id", "rating"]].apply(rating_icc)
-    panel_hits = (
-        design.groupby(["year", "panel_id"]).agg(hit=("hit", "mean"), main_sample_pct=("main_sample_pct", "first")).reset_index()
-    )
-    quintile = pd.cut(panel_hits.main_sample_pct, QUINTILE_EDGES, labels=[f"q{i}" for i in range(1, 6)])
-    hits_by_quintile = panel_hits.groupby(["year", quintile], observed=True).hit.mean().unstack().mul(100)
-    table = table.join(hits_by_quintile.add_prefix("raw_rating_"))
-    table.index.name = "year"
-    table.to_csv(out)
-    print(table.round(2).to_string())
-
-
 if __name__ == "__main__":
-    fire.Fire({"panels": panels, "pairs": pairs, "withdrawals": withdrawals})
+    fire.Fire({"panels": panels, "pairs": pairs})
