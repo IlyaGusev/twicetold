@@ -12,6 +12,8 @@
 \usepackage{xurl}
 \usepackage{float}
 \usepackage{array}
+\usepackage{enumitem}
+\raggedbottom
 \input{tables/numbers}
 
 \title{Twice-Told Critiques: Claim-Level Homogenization of Peer Review in the LLM Era}
@@ -21,13 +23,13 @@
 \maketitle
 
 \begin{abstract}
-Peer review relies on several readers finding different problems, not just writing different text. We measure critique overlap in 115k conference reviews and 39k journal reports. At ICLR, overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2026 ($+\IclrChange$ percentage points, 95\% CI \IclrChangeLow--\IclrChangeHigh), with year-on-year rises at NeurIPS and ICML. Within a paper, two AI-flagged reviews overlap \FlagGap{} points more than two unflagged reviews (95\% CI \FlagGapLow--\FlagGapHigh). ICLR reviews of different papers did not converge (\CrossBase\% to \CrossLast\%). Clarity critiques fell from \ClarityBase\% to \ClarityLast\% while requests for more experiments rose. Across five journal sources, overlap rose most where AI-likeness rose most (F1000: $+\FResearchChange$ points). These results provide evidence of claim-level homogenization in the LLM era: reviewers of one paper increasingly repeat the same problems. Review diversity needs assessment at the level of critiques, not wording.
+Peer review relies on several readers finding different problems. We measure critique overlap in 115k conference reviews and 39k journal reports. At ICLR, overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2026 ($+\IclrChange$ percentage points), with year-on-year rises at NeurIPS and ICML. Within a paper, two AI-flagged reviews overlap \FlagGap{} points more than two unflagged reviews. Clarity critiques fell from \ClarityBase\% to \ClarityLast\% while requests for more experiments rose. Across five journal sources, overlap rose most where AI-likeness rose most ($+\FResearchChange$ points for F1000). These results provide evidence of claim-level homogenization in the LLM era: reviewers of one paper increasingly repeat the same problems.
 \end{abstract}
 
 \begin{figure}[t]
 \centering
 \includegraphics{figs/fig1_trends.pdf}
-\caption{Reviewers repeated more of each other's critiques at ICLR and ICML in 2026 and at NeurIPS in 2025 (a); among journals, overlap rose most at F1000 and PLOS (b). Each pair's overlap is the number of shared problems divided by the smaller critique set; rates average over pairs within a paper, then over papers. About 1--5k papers per conference-year and 120--500 per journal-year. ICML is shifted right. Shaded bands: 95\% confidence intervals over papers. Grey background: review cycles from 2023 on; ICLR 2023 reviews predate ChatGPT.}
+\caption{Reviewers repeated more of each other's critiques at ICLR and ICML in 2026 and at NeurIPS in 2025. Among journals, overlap rose most at F1000 and PLOS. Each pair's overlap is the overlap coefficient: the number of shared problems divided by the smaller critique set. Rates average over pairs within a paper, then over papers. About 1--5k papers per conference-year and 120--500 per journal-year. Shaded bands: 95\% confidence intervals over papers. Grey background: review cycles from 2023 on. ICLR 2023 reviews predate ChatGPT.}
 \label{fig:overlap}
 \end{figure}
 
@@ -39,7 +41,7 @@ Prior work measures whole-review similarity \citep{liang2024monitoring,baumann20
 
 Our contributions are:
 
-\begin{itemize}\itemsep0pt
+\begin{itemize}[nosep]
 \item Same-paper overlap rose at ICLR and ICML in 2026 and at NeurIPS in 2025 (Section~\ref{sec:trends}, Figure~\ref{fig:overlap}).
 \item Within a paper, two AI-flagged reviews overlap \FlagGap{} points more than two unflagged ones (Section~\ref{sec:ai}, Figure~\ref{fig:ai}).
 \item Cross-paper overlap did not rise at ICLR or NeurIPS (Section~\ref{sec:cross}, Figure~\ref{fig:cross}).
@@ -64,7 +66,7 @@ Table~\ref{tab:data} lists the sources. ICLR and NeurIPS reviews come from OpenR
 A \emph{critique claim} names one problem the authors would answer with one fix. Praise and summary do not count. Two claims match only if they concern the same problem in the same part of the paper. A proof gap and an unjustified assumption are different problems, even if both concern the same theorem. An LLM (\texttt{gpt-6-luna}) lists each review's claims; a separate call groups matching claims across the reviews of a paper, without seeing the review texts. Repeated claims within one review count as one problem.
 
 \paragraph{One overlap measure.}
-For two reviews, \emph{critique overlap} is the number of distinct problems both raise, divided by the number in the smaller critique set. An overlap of 100\% means that every problem in the smaller set already appears in the other review; the longer set can still add problems. Table~\ref{tab:match_example} gives an example. We average over pairs within a paper, then over papers, so every paper has equal weight. We use the same measure in trends, detector comparisons and cross-paper controls. Appendix~\ref{app:robust} gives the formula and intervals.
+For two reviews, \emph{critique overlap} is the overlap coefficient: the number of distinct problems both raise, divided by the number in the smaller critique set. An overlap of 100\% means that every problem in the smaller set already appears in the other review; the longer set can still add problems. Table~\ref{tab:match_example} gives an example. We average over pairs within a paper, then over papers, so every paper has equal weight. We use the same measure in trends, detector comparisons and cross-paper controls. Appendix~\ref{app:robust} gives the formula and intervals.
 
 \input{tables/match_example}
 
@@ -145,7 +147,7 @@ We join all review-form text fields. ICML changed its form between 2025 and 2026
 \begin{table*}[t]
 \centering\small
 \resizebox{\textwidth}{!}{\input{tables/by_year_ml}}
-\caption{Conference source-years. Overlap: mean containment overlap across papers, with SE. Other papers: mean across sampled cross-paper panels. AI-likeness: word-use index. Flagged: share of reviews flagged by the style detector. CoCoDet: share labeled AI or mixed. --: not computed.}
+\caption{Conference source-years. Overlap: mean overlap coefficient across papers, with SE. Other papers: mean across sampled cross-paper panels. AI-likeness: word-use index. Flagged: share of reviews flagged by the style detector. CoCoDet: share labeled AI or mixed. --: not computed.}
 \label{tab:byyear}
 \end{table*}
 
@@ -188,7 +190,7 @@ Table~\ref{tab:robust} repeats the trend comparison with specific claims only, l
 \begin{table*}[t]
 \centering\small
 \input{tables/robust}
-\caption{The ICLR overlap comparison under changes to claim scope, grouping, panel size, review fields and exclusions. Overlap percentages use the same minimum-set denominator throughout. SE of each change appears in parentheses.}
+\caption{The ICLR overlap comparison under changes to claim scope, grouping, panel size, review fields and exclusions. Overlap percentages use the overlap coefficient throughout. SE of each change appears in parentheses.}
 \label{tab:robust}
 \end{table*}
 
@@ -221,7 +223,7 @@ The style detector is a logistic regression on hashed word 1--2-gram and charact
 \begin{figure}[t]
 \centering
 \includegraphics{figs/figA_cross.pdf}
-\caption{Reviews of different ICLR and NeurIPS papers did not converge over time. Overlap uses the shared-problem count divided by the smaller critique set, averaged within each sampled panel. Up to 300 panels of four papers per venue-year. Bars: 95\% intervals over sampled panels. Grey band: review cycles from 2023 on.}
+\caption{Reviews of different ICLR and NeurIPS papers did not converge over time. Overlap is the overlap coefficient, averaged within each sampled panel. Up to 300 panels of four papers per venue-year. Bars: 95\% intervals over sampled panels. Grey band: review cycles from 2023 on.}
 \label{fig:cross}
 \end{figure}
 
@@ -235,7 +237,7 @@ The style detector is a logistic regression on hashed word 1--2-gram and charact
 \begin{figure*}[t]
 \centering
 \includegraphics{figs/figA_journals.pdf}
-\caption{F1000 and PLOS have the largest rises in same-paper journal overlap. Each panel uses the same containment measure and axis range; 100--500 papers per source-year. Bars: 95\% intervals over papers. Grey band: 2023 on. The 2026 data cover January--October.}
+\caption{F1000 and PLOS have the largest rises in same-paper journal overlap. Each panel uses the overlap coefficient and the same axis range; 100--500 papers per source-year. Bars: 95\% intervals over papers. Grey band: 2023 on. The 2026 data cover January--October.}
 \label{fig:journals}
 \end{figure*}
 

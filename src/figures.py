@@ -214,7 +214,7 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     ax.set_xlim(2023.6, 2027.4)
     ax.set_ylim(0, 20)
     year_ticks(ax, (2024, 2025, 2026))
-    ax.set_ylabel("Smaller critique set repeated (%)")
+    ax.set_ylabel("Critique overlap (%)")
     save(fig, figs, "fig2_ai.pdf", COLUMN_WIDTH)
 
 
