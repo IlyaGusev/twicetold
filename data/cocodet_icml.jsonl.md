@@ -29,7 +29,7 @@ uv run python -I src/cocodet.py scores --input data/cocodet_input_icml.parquet -
 
 `src/cocodet.py` is `src/detect_cocodet.py` (the script that made this file) without comments, with paths and model
 names from `src/settings.py`. It removes only the seven ML section tags, as the original did. The command appends to
-an existing output and skips ids that it holds. `src/ai.py cocodet` is a later version that removes 10 more tags.
+an existing output and skips ids that it holds.
 
 ## Check
 

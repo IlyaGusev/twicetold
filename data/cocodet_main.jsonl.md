@@ -20,7 +20,6 @@ step 2), not the input order. A review counts as AI or mixed when `human` is not
      `[OTHER]`;
    - shuffles the rows (`random_state=0`), then sorts by text length inside chunks of 256 rows;
    - truncates to 512 tokens, batch 8, CPU, on this machine.
-   `src/ai.py cocodet` now does the same steps. It also removes 10 more tags, but no row of this input has them.
 3. Command, Claude Code session `881519d6` (project `~/ideas`), 2026-10-29 13:14:51 UTC:
 
    ```
@@ -38,7 +37,7 @@ uv run python -I src/cocodet.py scores --input data/cocodet_input.parquet --out 
 
 `src/cocodet.py` is `src/detect_cocodet.py` (the script that made this file) without comments, with paths and model
 names from `src/settings.py`. It removes only the seven ML section tags, as the original did. The command appends to
-an existing output and skips ids that it holds. `src/ai.py cocodet` is a later version that removes 10 more tags.
+an existing output and skips ids that it holds.
 
 ## Check
 

@@ -38,10 +38,7 @@ order as `sample_reviews.parquet` (ICLR 96,995; NeurIPS 19,852).
 uv run python -I src/detector.py scores --out <dir>/detector_scores.parquet --by_cell <dir>/detector_by_cell.csv
 ```
 
-CPU only, about 12 minutes. `src/ai.py style` is a later version: it sets `llm_flag_ss` with a separate threshold
-(the 99th percentile of `p_llm_ss` over ICLR 2017–2022, 0.376 on this file) and leaves it empty where `p_llm_ss` is
-NaN. On this file the two rules agree on 79.0% of the rows that have `p_llm_ss`. No code that makes the paper reads
-`llm_flag_ss`.
+CPU only, about 12 minutes.
 
 ## Check
 
