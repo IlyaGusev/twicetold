@@ -30,4 +30,4 @@ files.
 
 ## Read by
 
-`scripts/extract_all.sh` (pass-2 input, tag `_other`), `src/outcomes.py` (`PANEL_FILES`, `SOURCE_PANEL_FILES`).
+`scripts/extract_all.sh` (pass-2 input, tag `_other`), `src/outcomes.py` (`SOURCE_PANEL_FILES`).

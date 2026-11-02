@@ -40,8 +40,8 @@ run.
 5. Both runs: `extract.py` (`pass2`, `pass2_worker`, `openrouter_call`) listed the claims of
    `claims_gpt-6-luna-high_noq.jsonl` for each panel and sent them to OpenRouter `openai/gpt-6-luna` with a strict
    JSON schema, `provider: {"require_parameters": true}` and reasoning effort high. The prompt is
-   `src/prompts/pass2.j2` with `paper` = "machine-learning paper" and `different` = false. Its rendered text equals that
-   of `prompts/pass2.j2` in commit `291542f`; the only change since then removed a jinja comment.
+   `src/prompts/pass2.j2` with `paper` = "machine-learning paper". Its rendered text equals that
+   of `prompts/pass2.j2` in commit `291542f`; the changes since then removed a jinja comment and the unused `different` flag.
 6. Commit `e03a1c1` (2026-11-01) added the file to Git LFS.
 
 ## Reproduce

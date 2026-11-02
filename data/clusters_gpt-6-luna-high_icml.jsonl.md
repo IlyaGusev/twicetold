@@ -23,8 +23,8 @@ No row has an `error` or `effort` field. No panel id occurs twice.
 2. `extract.py` (`pass2`, `pass2_worker`, `openrouter_call`) listed the claims of
    `claims_gpt-6-luna-high_icml.jsonl` for each panel and sent them to OpenRouter `openai/gpt-6-luna` with a strict
    JSON schema, `provider: {"require_parameters": true}` and reasoning effort high. The prompt is
-   `src/prompts/pass2.j2` with `paper` = "machine-learning paper" and `different` = false. Its rendered text equals that
-   of `prompts/pass2.j2` in commit `291542f`; the only change since then removed a jinja comment. That `extract.py`
+   `src/prompts/pass2.j2` with `paper` = "machine-learning paper". Its rendered text equals that
+   of `prompts/pass2.j2` in commit `291542f`; the changes since then removed a jinja comment and the unused `different` flag. That `extract.py`
    did not write an `effort` field.
 3. The rerun of 2026-11-01 17:55 UTC overwrote the chain log `logs/extract_gpt-6-luna-high/icml.log`; the new log
    shows `3000 done, 0 to do`. `reconcile.py` found 0 stale rows. So the file did not change after step 1. No log

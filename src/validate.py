@@ -6,33 +6,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fire
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
 from tqdm import tqdm
 
+from outcomes import ICLR_FROM, SOURCE_FILES, in_window
 from settings import settings
 
-
-def load_flags(data):
-    return (
-        pd.read_parquet(Path(data) / "detector_scores.parquet", columns=["review_id", "llm_flag"]).set_index("review_id").llm_flag
-    )
-
-
-def clustered(model, *groups):
-    codes = [pd.factorize(g)[0] for g in groups]
-    return model.fit(cov_type="cluster", cov_kwds={"groups": codes[0] if len(codes) == 1 else np.column_stack(codes)})
+BATCH_ROWS = 20000
 
 
 def se(x):
     return x.std(ddof=1) / np.sqrt(x.count())
 
 
-def robust(
-    model=settings.DEFAULT_MODEL,
-    data=settings.DATA_DIR,
-    reports=settings.ANALYSIS_REPORTS_DIR,
-    tex=settings.TABLES_DIR / "robust.tex",
-):
-    data = Path(data)
+def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "robust.tex"):
     main = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
     pair_table = pd.read_parquet(
         settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "hit_spec"]
@@ -83,7 +72,9 @@ def fe_gap(design, flag, controls=()):
     )
     X = X.join(design[list(controls)])
     X = X - X.groupby(design.panel_id.to_numpy()).transform("mean")
-    fit = clustered(sm.OLS(X.hit, X[["one", "two", *controls]]), design.panel_id)
+    fit = sm.OLS(X.hit, X[["one", "two", *controls]]).fit(
+        cov_type="cluster", cov_kwds={"groups": pd.factorize(design.panel_id)[0]}
+    )
     return {
         "one": fit.params["one"] * 100,
         "one_se": fit.bse["one"] * 100,
@@ -93,8 +84,6 @@ def fe_gap(design, flag, controls=()):
 
 
 def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    from outcomes import ICLR_FROM
-
     data, reports = Path(data), Path(reports)
     iclr_pairs = pd.read_parquet(
         settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
@@ -133,11 +122,37 @@ def short_long_logs(values, design):
     return np.minimum(log_a, log_b), np.maximum(log_a, log_b)
 
 
-def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    from outcomes import pair_design
+def batches(path, columns, ids, desc):
+    parquet = pq.ParquetFile(path)
+    wanted = pa.array(list(ids), type=parquet.schema_arrow.field("review_id").type)
+    n_batches = -(-parquet.metadata.num_rows // BATCH_ROWS)
+    for batch in tqdm(parquet.iter_batches(batch_size=BATCH_ROWS, columns=columns), total=n_batches, desc=desc):
+        yield batch.filter(pc.is_in(batch.column("review_id"), value_set=wanted))
 
+
+def review_chars(data, ids):
+    parts = []
+    for name in ["reviews.parquet", *SOURCE_FILES.values()]:
+        for batch in batches(data / name, ["review_id", "text"], ids, name):
+            lengths = pc.utf8_length(batch.column("text")).to_numpy()
+            parts.append(pd.Series(lengths, index=batch.column("review_id").to_pandas()))
+    chars = pd.concat(parts)
+    return chars[~chars.index.duplicated()]
+
+
+def pair_design(model, data):
+    design = in_window(
+        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+    )
+    chars = review_chars(data, set(design.a) | set(design.b))
+    design["log_short"], design["log_long"] = short_long_logs(chars, design)
+    return design
+
+
+def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     data, reports = Path(data), Path(reports)
-    flag = load_flags(data).astype(int)
+    flag = pd.read_parquet(data / "detector_scores.parquet", columns=["review_id", "llm_flag"]).set_index("review_id").llm_flag
+    flag = flag.astype(int)
     design = pair_design(model, data)
     claim_counts = pd.read_parquet(data / f"claims_table_{model}.parquet", columns=["review_id"]).groupby("review_id").size()
     design["claims_short"], design["claims_long"] = short_long_logs(claim_counts, design)

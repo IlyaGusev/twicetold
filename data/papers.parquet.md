@@ -51,4 +51,4 @@ On 2026-11-02 we ran the "Reproduce" command with the current code and the raw d
 
 ## Read by
 
-`src/panels.py` (`ml`), `src/outcomes.py`, `src/corpus.py` (`areas`).
+`src/panels.py` (`ml`), `src/outcomes.py`, `src/areas.py` (`classify`).

@@ -40,18 +40,8 @@ SECTION_TAGS = [
 ]
 TAGS = r"\[(?:" + "|".join(SECTION_TAGS) + r")\]"
 
-OUTLINE_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["points"],
-    "properties": {"points": {"type": "array", "items": {"type": "string"}}},
-}
-REVIEW_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": ["review"],
-    "properties": {"review": {"type": "string"}},
-}
+OUTLINE_SCHEMA = extract.strict_object(points={"type": "array", "items": {"type": "string"}})
+REVIEW_SCHEMA = extract.strict_object(review={"type": "string"})
 VENUE = {
     "ICLR": "a machine-learning conference (ICLR)",
     "NeurIPS": "a machine-learning conference (NeurIPS)",
@@ -69,13 +59,8 @@ def clean(s):
     return s.str.replace(TAGS, " ", regex=True)
 
 
-def read_jsonl(path):
-    with open(path) as f:
-        return [json.loads(line) for line in f]
-
-
 def done_ids(path):
-    return {r["review_id"] for r in read_jsonl(path)} if path.exists() else set()
+    return {r["review_id"] for r in extract.read_jsonl(path)} if path.exists() else set()
 
 
 def load_ml_reviews(columns):
@@ -229,7 +214,7 @@ def wordshare_fields(
     reviews = pd.concat(
         [load_ml_reviews(cols), pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=cols)], ignore_index=True
     )
-    ai_reviews = pd.DataFrame(read_jsonl(reference)).merge(reviews[["review_id", "paper_id"]], on="review_id")
+    ai_reviews = pd.DataFrame(list(extract.read_jsonl(reference))).merge(reviews[["review_id", "paper_id"]], on="review_id")
 
     rows = []
     for conf, source_reviews in tqdm(reviews.groupby("conf"), desc="sources"):

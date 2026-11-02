@@ -52,5 +52,5 @@ On 2026-11-02 we ran the "Reproduce" command with the current code and the raw c
 
 ## Read by
 
-`src/panels.py other`, `src/outcomes.py` (tag `_other`), `src/ai.py` (`reference`, `wordshare_fields`),
+`src/panels.py other`, `src/outcomes.py` (tag `_other`), `src/validate.py` (`review_chars`), `src/ai.py` (`reference`, `wordshare_fields`),
 `src/figures.py` (corpus table).

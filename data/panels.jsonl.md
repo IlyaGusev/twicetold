@@ -34,5 +34,5 @@ that are still in `reviews.parquet` are not in a panel: their papers have fewer 
 
 ## Read by
 
-`scripts/extract_all.sh` (pass-2 input of the main chain), `src/panels.py` (`robust`, `sol`), `src/outcomes.py`
-(`pair_design`, through `PANEL_FILES`), `src/corpus.py` (`areas`).
+`scripts/extract_all.sh` (pass-2 input of the main chain), `src/panels.py` (`robust`), `src/areas.py`
+(`classify`).

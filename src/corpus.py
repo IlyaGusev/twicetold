@@ -1,14 +1,11 @@
 import json
 import re
 import sys
-import time
-from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 from pathlib import Path
 
 import duckdb
 import fire
-import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -20,13 +17,6 @@ ARCADE_PAPERS = settings.RAW_ML_REVIEWS_DIR / "arcade/papers.parquet"
 ICLR26 = settings.RAW_ML_REVIEWS_DIR / "iclr2026/heineman.parquet"
 ICLR26_RAW = settings.RAW_ML_REVIEWS_DIR / "iclr2026/jerma_2026.parquet"
 REPORT = settings.REPORTS_DIR / "other_inventory.txt"
-OPENREVIEW_V1_API = "https://api.openreview.net"
-OPENREVIEW_V2_API = "https://api2.openreview.net"
-ICLR_AREA_NOTES = [
-    (2023, "v1", "ICLR.cc/2023/Conference/-/Blind_Submission", "Please_choose_the_closest_area_that_your_submission_falls_into"),
-    (2024, "v2", "ICLR.cc/2024/Conference/-/Submission", "primary_area"),
-    (2025, "v2", "ICLR.cc/2025/Conference/-/Submission", "primary_area"),
-]
 
 SECTION_KEYS = [
     ("summary", ("summary", "summary of the paper")),
@@ -63,9 +53,6 @@ MIN_REVIEWS_PER_PAPER = 2
 SNIPPETS_PER_SOURCE = 3
 SNIPPET_CHARS = 300
 TOP_JOURNALS_PER_SOURCE = 6
-
-MAX_DOC_CHARS = 6000
-MIN_DOC_CHARS = 50
 
 
 def unwrap(v):
@@ -349,89 +336,5 @@ def other(src=settings.OTHER_REVIEWS_DIR, out=settings.DATA_DIR, report=REPORT):
     Path(report).write_text(text + "\n")
 
 
-def embed(docs, chunk_size=256):
-    from openai import OpenAI, RateLimitError
-
-    client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
-
-    def embed_chunk(chunk):
-        while True:
-            try:
-                response = client.embeddings.create(model=settings.EMBED_MODEL, input=chunk)
-                return [item.embedding for item in response.data]
-            except RateLimitError:
-                time.sleep(10)
-
-    chunks = [docs[i : i + chunk_size] for i in range(0, len(docs), chunk_size)]
-    with ThreadPoolExecutor(2) as pool:
-        chunk_vectors = tqdm(pool.map(embed_chunk, chunks), total=len(chunks), desc="embed abstracts")
-        return np.array([vector for vectors in chunk_vectors for vector in vectors], dtype=np.float32)
-
-
-def openreview_areas(out=settings.DATA_DIR):
-    import openreview
-
-    login = dict(username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD)
-    clients = dict(
-        v1=openreview.Client(baseurl=OPENREVIEW_V1_API, **login),
-        v2=openreview.api.OpenReviewClient(baseurl=OPENREVIEW_V2_API, **login),
-    )
-    found = pd.DataFrame(
-        [
-            dict(year=year, paper_id=note.id, primary_area=unwrap(note.content.get(field)))
-            for year, api, invitation, field in ICLR_AREA_NOTES
-            for note in clients[api].get_all_notes(invitation=invitation)
-        ]
-    )
-    found.to_parquet(Path(out) / "openreview_areas.parquet")
-    print(found.groupby("year").primary_area.agg(["size", "count"]).to_string())
-
-
-def areas(out=settings.DATA_DIR):
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.model_selection import cross_val_score
-
-    out = Path(out)
-    papers = pd.read_parquet(settings.DATA_DIR / "papers.parquet")
-    openreview_area = pd.read_parquet(settings.DATA_DIR / "openreview_areas.parquet").set_index("paper_id").primary_area
-    panel_lines = (settings.DATA_DIR / "panels.jsonl").read_text().splitlines()
-    panel_paper_ids = {json.loads(line)["panel_id"] for line in panel_lines}
-    in_panels = papers.paper_id.isin(panel_paper_ids)
-    labelled_2026 = (papers.year == 2026) & papers.primary_area.notna()
-    need = papers[in_panels | labelled_2026]
-    need["doc"] = (need.title.fillna("") + "\n" + need.abstract.fillna("")).str.slice(0, MAX_DOC_CHARS)
-    need = need[need.doc.str.len() > MIN_DOC_CHARS].reset_index(drop=True)
-    print(len(need), "papers to embed")
-    embeddings = embed(need.doc.tolist())
-    np.save(out / "abstract_emb.npy", embeddings)
-
-    labelled = need.primary_area.notna().to_numpy()
-    y = need.primary_area[labelled].to_numpy()
-    clf = LogisticRegression(max_iter=2000, C=3.0)
-    cv_accuracy = cross_val_score(clf, embeddings[labelled], y, cv=5).mean().round(3)
-    print("5-fold accuracy on 2026 labels:", cv_accuracy)
-    clf.fit(embeddings[labelled], y)
-    proba = clf.predict_proba(embeddings)
-    pred = clf.classes_[proba.argmax(1)]
-    area_true = need.primary_area.fillna(need.paper_id.map(openreview_area))
-    has_true = area_true.notna().to_numpy()
-    paper_areas = pd.DataFrame(
-        dict(
-            paper_id=need.paper_id,
-            area=np.where(labelled, need.primary_area, pred),
-            area_prob=proba.max(1),
-            area_pred=pred,
-            row=np.arange(len(need)),
-            area_true=area_true,
-            area_final=np.where(has_true, area_true, pred),
-            area_source=np.where(has_true, "openreview", "predicted"),
-        )
-    )
-    paper_areas.to_parquet(out / "paper_areas.parquet")
-    with_venue = paper_areas.merge(papers[["paper_id", "conf", "year"]])
-    area_shares = with_venue.groupby(["conf", "year"]).area.value_counts(normalize=True)
-    print(area_shares.unstack(fill_value=0).round(2).T.to_string())
-
-
 if __name__ == "__main__":
-    fire.Fire(dict(ml=ml, other=other, openreview_areas=openreview_areas, areas=areas))
+    fire.Fire(dict(ml=ml, other=other))

@@ -6,12 +6,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 ROOT = Path(__file__).resolve().parent.parent
 
 
-class OpenRouterRoute(BaseModel):
-    id: str
-    provider: dict | None = None
-    strict: bool = True
-
-
 class PassEfforts(BaseModel):
     pass1: str
     pass2: str
@@ -73,11 +67,11 @@ class Settings(BaseSettings):
         "opus-5.5": PassEfforts(pass1="medium", pass2="medium"),
         "kimi-k3.1-pro": PassEfforts(pass1="medium", pass2="medium"),
     }
-    OPENROUTER_ROUTES: dict[str, OpenRouterRoute] = {
-        "gpt-6-luna-high": OpenRouterRoute(id="openai/gpt-6-luna"),
-        "sol-or": OpenRouterRoute(id="openai/gpt-6.1-sol"),
-        "opus-5.5": OpenRouterRoute(id="anthropic/claude-opus-5.5"),
-        "kimi-k3.1-pro": OpenRouterRoute(id="moonshotai/kimi-k3.1-pro"),
+    OPENROUTER_ROUTES: dict[str, str] = {
+        "gpt-6-luna-high": "openai/gpt-6-luna",
+        "sol-or": "openai/gpt-6.1-sol",
+        "opus-5.5": "anthropic/claude-opus-5.5",
+        "kimi-k3.1-pro": "moonshotai/kimi-k3.1-pro",
     }
 
 

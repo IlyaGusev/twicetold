@@ -1,5 +1,4 @@
 import json
-import os
 import sys
 import threading
 import time
@@ -64,8 +63,8 @@ def pass1_instructions(paper_kind="ml"):
     return render("pass1", paper=PASS1_PAPER_WORDING[paper_kind])
 
 
-def pass2_instructions(paper_kind="ml", different=False):
-    return render("pass2", paper=PASS2_PAPER_WORDING[paper_kind], different=different)
+def pass2_instructions(paper_kind="ml"):
+    return render("pass2", paper=PASS2_PAPER_WORDING[paper_kind])
 
 
 JSON_TYPES = {"string": str, "integer": int, "boolean": bool}
@@ -75,13 +74,7 @@ CLIENT_TIMEOUT_SECONDS = 180
 API_ATTEMPTS = 4
 RETRY_BACKOFF_SECONDS = 5
 ERROR_REPR_CHARS = 300
-NON_STRICT_TEMPERATURES = (0.0, 0.8, 0.8, 0.8)
-LOCAL_CONTEXT_TOKENS = 8192
-LOCAL_CLAIMS_MAX_TOKENS = 1200
-LOCAL_DEFAULT_MAX_TOKENS = 2500
 
-_llm = None
-llama_lock = threading.Lock()
 usage_by_model = {}
 usage_lock = threading.Lock()
 
@@ -165,59 +158,21 @@ def openai_call(instructions, text, schema, name, model, effort):
 
 
 def openrouter_call(instructions, text, schema, name, model, effort):
-    route = settings.OPENROUTER_ROUTES[model]
-    provider = route.provider or {"require_parameters": True}
-    if route.strict:
-        response_format = {"type": "json_schema", "json_schema": {"name": name, "strict": True, "schema": schema}}
-        sampling_options = [{}]
-    else:
-        response_format = {"type": "json_object"}
-        instructions += f"\n\nReturn one JSON object that follows this JSON schema exactly:\n{json.dumps(schema)}"
-        sampling_options = [{"temperature": temperature} for temperature in NON_STRICT_TEMPERATURES]
-    for sampling in sampling_options:
-        response = openrouter_client().chat.completions.create(
-            model=route.id,
-            **sampling,
-            messages=[{"role": "system", "content": instructions}, {"role": "user", "content": text}],
-            response_format=response_format,
-            extra_body={"reasoning": {"effort": effort}, "provider": provider},
-        )
-        record(model, response.usage.prompt_tokens, response.usage.completion_tokens)
-        try:
-            return parse_object(response.choices[0].message.content, schema)
-        except ValueError as e:
-            last_error = e
-    raise last_error
-
-
-def local_call(instructions, text, schema, max_tokens, model, local_model_path):
-    global _llm
-    from llama_cpp import Llama
-
-    with llama_lock:
-        if _llm is None:
-            _llm = Llama(model_path=local_model_path, n_ctx=LOCAL_CONTEXT_TOKENS, n_threads=os.cpu_count(), verbose=False)
-        response = _llm.create_chat_completion(
-            messages=[{"role": "system", "content": instructions}, {"role": "user", "content": text}],
-            response_format={"type": "json_object", "schema": schema},
-            temperature=0.0,
-            max_tokens=max_tokens,
-        )
-    record(model, response["usage"]["prompt_tokens"], response["usage"]["completion_tokens"])
-    return json.loads(response["choices"][0]["message"]["content"])
+    response = openrouter_client().chat.completions.create(
+        model=settings.OPENROUTER_ROUTES[model],
+        messages=[{"role": "system", "content": instructions}, {"role": "user", "content": text}],
+        response_format={"type": "json_schema", "json_schema": {"name": name, "strict": True, "schema": schema}},
+        extra_body={"reasoning": {"effort": effort}, "provider": {"require_parameters": True}},
+    )
+    record(model, response.usage.prompt_tokens, response.usage.completion_tokens)
+    return parse_object(response.choices[0].message.content, schema)
 
 
 def error_row(e):
     return {"error": repr(e)[:ERROR_REPR_CHARS]}
 
 
-def call(instructions, text, schema, name, model, effort, local_model_path=None):
-    if local_model_path:
-        try:
-            max_tokens = LOCAL_CLAIMS_MAX_TOKENS if name == "claims" else LOCAL_DEFAULT_MAX_TOKENS
-            return local_call(instructions, text, schema, max_tokens, model, local_model_path)
-        except Exception as e:
-            return error_row(e)
+def call(instructions, text, schema, name, model, effort):
     for attempt in range(API_ATTEMPTS):
         try:
             if model in settings.OPENROUTER_ROUTES:
@@ -259,8 +214,8 @@ def done_ids(path, key, effort):
     return done
 
 
-def run(items, worker, out_path, key, model, effort, threads, budget, local_model_path):
-    if not local_model_path and model not in settings.PRICES_USD_PER_MTOK:
+def run(items, worker, out_path, key, model, effort, threads, budget):
+    if model not in settings.PRICES_USD_PER_MTOK:
         raise SystemExit(f"{model} has no entry in settings.PRICES_USD_PER_MTOK, so the budget cap would not count its calls")
     done = done_ids(out_path, key, effort)
     todo = [item for item in items if item[key] not in done]
@@ -293,13 +248,13 @@ def run(items, worker, out_path, key, model, effort, threads, budget, local_mode
     )
 
 
-def pass1_worker(item, model, instructions, local_model_path, effort):
+def pass1_worker(item, model, instructions, effort):
     review_text = item["text"][: settings.REVIEW_TEXT_MAX_CHARS]
-    out = call(instructions, review_text, PASS1_SCHEMA, "claims", model=model, effort=effort, local_model_path=local_model_path)
+    out = call(instructions, review_text, PASS1_SCHEMA, "claims", model=model, effort=effort)
     return dict(review_id=item["review_id"], model=model, effort=effort, **out)
 
 
-def pass2_worker(item, model, instructions, local_model_path, effort):
+def pass2_worker(item, model, instructions, effort):
     claim_lines = [
         f"R{review_no}-{claim_no} [{claim['category']}; {claim['target']}]: {claim['claim']}"
         for review_no, review_claims in enumerate(item["claims"])
@@ -307,9 +262,7 @@ def pass2_worker(item, model, instructions, local_model_path, effort):
     ]
     if claim_lines:
         panel_text = "\n".join(claim_lines)
-        out = call(
-            instructions, panel_text, PASS2_SCHEMA, "clusters", model=model, effort=effort, local_model_path=local_model_path
-        )
+        out = call(instructions, panel_text, PASS2_SCHEMA, "clusters", model=model, effort=effort)
     else:
         out = {"clusters": []}
     return dict(panel_id=item["panel_id"], model=model, effort=effort, review_ids=item["review_ids"], **out)
@@ -322,18 +275,15 @@ def pass1(
     threads=48,
     budget=60.0,
     paper_kind="ml",
-    local_model_path=None,
     data=str(settings.DATA_DIR),
 ):
     import pandas as pd
 
-    effort = None if local_model_path else reasoning_efforts(model).pass1
+    effort = reasoning_efforts(model).pass1
     items = pd.read_parquet(reviews, columns=["review_id", "text"]).to_dict("records")
-    worker = partial(
-        pass1_worker, model=model, instructions=pass1_instructions(paper_kind), local_model_path=local_model_path, effort=effort
-    )
+    worker = partial(pass1_worker, model=model, instructions=pass1_instructions(paper_kind), effort=effort)
     out_path = Path(data) / f"claims_{model}{tag}.jsonl"
-    run(items, worker, out_path, "review_id", model, effort, threads, budget, local_model_path)
+    run(items, worker, out_path, "review_id", model, effort, threads, budget)
 
 
 def pass2(
@@ -343,12 +293,10 @@ def pass2(
     threads=48,
     budget=60.0,
     paper_kind="ml",
-    local_model_path=None,
     claims_files=None,
     data=str(settings.DATA_DIR),
-    different=False,
 ):
-    effort = None if local_model_path else reasoning_efforts(model).pass2
+    effort = reasoning_efforts(model).pass2
     if claims_files is None:
         claims_files = f"claims_{model}{tag}.jsonl"
     if isinstance(claims_files, str):
@@ -368,15 +316,9 @@ def pass2(
     ]
     if len(items) < len(panel_rows):
         print(f"{len(panel_rows) - len(items)} panels skipped: a review has no claims (pass-1 error or not run)", flush=True)
-    worker = partial(
-        pass2_worker,
-        model=model,
-        instructions=pass2_instructions(paper_kind, different),
-        local_model_path=local_model_path,
-        effort=effort,
-    )
+    worker = partial(pass2_worker, model=model, instructions=pass2_instructions(paper_kind), effort=effort)
     out_path = Path(data) / f"clusters_{model}{tag}.jsonl"
-    run(items, worker, out_path, "panel_id", model, effort, threads, budget, local_model_path)
+    run(items, worker, out_path, "panel_id", model, effort, threads, budget)
 
 
 if __name__ == "__main__":

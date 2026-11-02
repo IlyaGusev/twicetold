@@ -33,5 +33,5 @@ scratch folder. All three output files are byte-identical to the files in `data/
 
 ## Read by
 
-`src/outcomes.py` (tag `_icml`: `source_panels`, `pairs`, `review_chars`), `src/figures.py` (`REVIEW_FILES`),
+`src/outcomes.py` (tag `_icml`: `source_panels`, `pairs`), `src/validate.py` (`review_chars`), `src/figures.py` (`REVIEW_FILES`),
 `src/ai.py` (`wordshare`).

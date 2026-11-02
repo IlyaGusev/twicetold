@@ -20,7 +20,7 @@ EMBED_MAX_BACKOFF_S = 30
 REVIEW_EMBED_CHARS = 12000
 
 
-def openai_embed(texts, model, batch, threads=4, dtype=np.float32, desc=None, **kw):
+def openai_embed(texts, model, batch, threads, desc):
     from openai import APIError, BadRequestError, OpenAI, RateLimitError
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
@@ -28,8 +28,8 @@ def openai_embed(texts, model, batch, threads=4, dtype=np.float32, desc=None, **
     def embed_chunk(chunk):
         for attempt in range(EMBED_ATTEMPTS):
             try:
-                response = client.embeddings.create(model=model, input=chunk, **kw)
-                return np.array([item.embedding for item in response.data], dtype=dtype)
+                response = client.embeddings.create(model=model, input=chunk)
+                return np.array([item.embedding for item in response.data], dtype=np.float32)
             except BadRequestError:
                 chunk = [t[: len(t) // 2] for t in chunk]
             except RateLimitError, APIError:
@@ -38,7 +38,7 @@ def openai_embed(texts, model, batch, threads=4, dtype=np.float32, desc=None, **
 
     chunks = [texts[i : i + batch] for i in range(0, len(texts), batch)]
     with ThreadPoolExecutor(threads) as pool:
-        embedded = tqdm(pool.map(embed_chunk, chunks), total=len(chunks), desc=desc, disable=desc is None)
+        embedded = tqdm(pool.map(embed_chunk, chunks), total=len(chunks), desc=desc)
         return np.concatenate(list(embedded))
 
 
@@ -146,28 +146,6 @@ def cell_similarity(R, E, intra, rng):
     return cells
 
 
-def year_effects(intra):
-    import statsmodels.formula.api as smf
-
-    fit = smf.ols("intra ~ C(year, Treatment(reference=2023))", data=intra[intra.conf == "ICLR"]).fit(cov_type="HC1")
-    print("\nICLR IntraSim year effects vs 2023:")
-    for term, coef in fit.params.items():
-        if "year" in term:
-            year = term.split("T.")[1].rstrip("]")
-            print(f"  {year:6s} {coef:+.4f} (SE {fit.bse[term]:.4f})")
-
-
-def claim_vs_embedding(intra, model, data):
-    outcomes = ["S3", "share_shared_claims", "D3"]
-    panels = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["paper_id", *outcomes])
-    merged = intra.merge(panels, on="paper_id")
-    rho = {outcome: merged[["intra", outcome]].corr("spearman").iloc[0, 1] for outcome in outcomes}
-    print(
-        f"\npaper-level Spearman: intra vs S3 {rho['S3']:.3f}, vs share shared {rho['share_shared_claims']:.3f}, "
-        f"vs D3 {rho['D3']:.3f} (n={len(merged)})"
-    )
-
-
 def embed(model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     data, reports = Path(data), Path(reports)
     if reembed:
@@ -177,8 +155,6 @@ def embed(model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.
     cells = cell_similarity(R, E, intra, np.random.default_rng(0))
     cells.to_csv(reports / f"embed_{model}.csv", index=False)
     print(cells.round(4).to_string(index=False))
-    year_effects(intra)
-    claim_vs_embedding(intra, model, data)
 
 
 if __name__ == "__main__":

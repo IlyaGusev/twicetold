@@ -72,5 +72,5 @@ On 2026-11-02 we ran the "Reproduce" command with the current code and the raw d
 
 ## Read by
 
-`src/panels.py` (`ml`), `src/outcomes.py`, `src/between.py` (`claims_table`), `src/ai.py`, `src/figures.py`
+`src/panels.py` (`ml`), `src/outcomes.py`, `src/validate.py` (`review_chars`), `src/between.py` (`claims_table`), `src/ai.py`, `src/figures.py`
 (corpus table).

@@ -55,8 +55,8 @@ The `panels.jsonl` and `papers.parquet` of 2026-10-28 no longer exist. On 2026-1
 `/tmp/scout/pa/dl/` to `RAW_ML_REVIEWS_DIR/iclr_areas/` (byte-identical).
 
 `src/areas.py classify` is the step-1 script without comments. `src/areas.py labels` is step 2.
-`src/corpus.py areas` is a later version of step 1. It cannot rebuild this file: it calls the paid embedding API, it
-reads `data/openreview_areas.parquet` (not present), and its `area_true` and `area_final` rules are different.
+A later version of step 1 (`src/corpus.py areas`) could not rebuild this file: it read `data/openreview_areas.parquet`
+(never committed) and used different `area_true` and `area_final` rules. We removed it on 2026-11-02.
 
 ## Reproduce
 
@@ -86,5 +86,4 @@ A full rebuild is not possible. On 2026-11-02 we ran these checks, with no API c
 
 ## Read by
 
-`src/panels.py` (`robust`: `area_pred` for `panels_placebo_area.jsonl`), `src/outcomes.py` (`paper_meta`: `area`,
-`area_prob`), `src/between.py` (`load_reviews`: `area_pred`).
+`src/panels.py` (`robust`: `area_pred` for `panels_placebo_area.jsonl`), `src/between.py` (`load_reviews`: `area_pred`).

@@ -46,7 +46,7 @@ def write_jsonl(path, rows):
 
 
 def council_names(council):
-    return ", ".join(settings.OPENROUTER_ROUTES[model].id for model in council)
+    return ", ".join(settings.OPENROUTER_ROUTES[model] for model in council)
 
 
 def sample(out, seed=7, data=str(settings.DATA_DIR), gold=str(settings.GOLD_DIR)):

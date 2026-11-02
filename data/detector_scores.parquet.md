@@ -48,5 +48,5 @@ The run printed the same test AUC (0.9939) and thresholds (q90 = 0.015, q99 = 0.
 
 ## Read by
 
-`src/validate.py` (`load_flags`, used by `rq1_evidence`; `detector_placebo`), `src/figures.py`
+`src/validate.py` (`rq1_evidence`, `detector_placebo`), `src/figures.py`
 (`likeness`, `ai`, `by_year`, `numbers`).

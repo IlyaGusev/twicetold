@@ -18,8 +18,6 @@ INTEL_FIELDS = [
     ("other", ["clarity,_quality,_novelty_and_reproducibility", "summary_of_the_review"]),
 ]
 MIN_TEXT_CHARS = 200
-CDATE_YEARS = (2023, 2024, 2025, 2026)
-RATING_CHANGE_YEARS = (2024, 2025)
 
 
 def intel_text(row, columns):
@@ -54,23 +52,5 @@ def intel(out, data=str(settings.DATA_DIR)):
     print(len(reviews), "reviews,", reviews.paper_id.notna().sum(), "with a paper id")
 
 
-def review_cdates(out, data=str(settings.DATA_DIR)):
-    ours = pd.read_parquet(Path(data) / "reviews.parquet", columns=["review_id", "conf", "year", "paper_id", "reviewer"])
-    dates = []
-    for year in CDATE_YEARS:
-        columns = ["forum", "primary_area", "reviewer_suffix", "review_cdate"]
-        columns += ["ext_rating_before", "ext_rating_after"] if year in RATING_CHANGE_YEARS else []
-        d = pd.read_parquet(settings.ICLR_AREAS_DIR / f"mlouis_{year}.parquet", columns=columns)
-        d["reviewer"] = "Reviewer_" + d.reviewer_suffix.astype(str)
-        dates.append(d.assign(year=year))
-    dates = pd.concat(dates)
-    matched = ours[ours.conf == "ICLR"].merge(
-        dates, left_on=["paper_id", "reviewer", "year"], right_on=["forum", "reviewer", "year"], how="inner"
-    )
-    matched["review_cdate"] = pd.to_datetime(matched.review_cdate, unit="ms", errors="coerce")
-    matched[["review_id", "review_cdate", "ext_rating_before", "ext_rating_after"]].to_parquet(out)
-    print("matched by year:", matched.groupby("year").size().to_dict())
-
-
 if __name__ == "__main__":
-    fire.Fire({"intel": intel, "review_cdates": review_cdates})
+    fire.Fire({"intel": intel})
