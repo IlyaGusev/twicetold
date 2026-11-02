@@ -1,5 +1,0 @@
-ICLR 2026 withdrawn papers with reviews: 2187 reviews 8526
-NeurIPS share accept among papers with decision: 0.951 decisions {'accept': 17831, 'reject': 920}
-ICLR 2023 share of reviews created after 2022-11-30: 0.0011
-share rating changed after response: {2024: 0.229, 2025: 0.314}
-paper_areas columns ['paper_id', 'area', 'area_prob', 'area_pred', 'row', 'area_true', 'area_final', 'area_source']
