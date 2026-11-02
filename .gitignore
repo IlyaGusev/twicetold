@@ -242,3 +242,13 @@ uv.lock
 !data/review_emb.npy
 !data/sample_reviews.parquet
 !data/ai_reference_gpt-6-luna.jsonl
+!data/panels_noq.jsonl
+!data/panels_noq_full.jsonl
+!data/panels_wd.jsonl
+!data/panels_placebo.jsonl
+!data/panels_placebo_area.jsonl
+!data/panels_sub3.jsonl
+!data/panels_sub3_full.jsonl
+!data/noq_reviews.parquet
+!data/noq_full_reviews.parquet
+!data/wd_reviews.parquet
