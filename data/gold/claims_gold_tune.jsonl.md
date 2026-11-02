@@ -1,21 +1,18 @@
 # data/gold/claims_gold_tune.jsonl
 
-`gold_claims.jsonl` in the pipeline's claim format: `review_id`, `model` (`gold`), `claims` without `support`. This
-lets `src/extract.py pass2` group the reference claims.
+`gold_claims.jsonl` in the pipeline claim format. One line per review: `review_id`, `model` (`gold`), `claims`
+(each claim: `claim`, `category`, `target`, `specific`; no `support`). 240 lines. With this format,
+`src/extract.py pass2` can group the reference claims.
 
-## How we got it
+## Make
 
-All `data/gold/` files except `blind_key.json` come from Claude Code session `881519d6` (project `~/ideas`) on
-2026-10-31. That session wrote them to `data/tune/` and `data/` with inline commands; no script was saved. Commit
-`d63b8e0` (2026-11-01) moved them to `data/gold/` without changes. `src/gold.py` and `scripts/gold.sh` (2026-11-02)
-rebuild the same steps. `tests/test_gold.py` checks that the steps without model calls give byte-identical files.
+```
+uv run python -I src/gold.py merge_claims --out <dir>
+```
 
-`src/gold.py merge_claims`. Original run: 2026-10-31 15:19 UTC.
-
-## Check
-
-`tests/test_gold.py` rebuilds this file from the inputs above. The result is byte-identical.
+Step 5 of `scripts/gold.sh <dir>`. The same step writes `gold_claims.jsonl`. Deterministic, no API.
+`tests/test_gold.py` rebuilds the file and checks that it is byte-identical.
 
 ## Read by
 
-`src/extract.py pass2 --claims_files claims_gold_tune.jsonl`, `src/gold.py group_inputs`.
+`src/gold.py council_groups` (as `--claims_files` of `src/extract.py pass2`), `src/gold.py group_inputs`.

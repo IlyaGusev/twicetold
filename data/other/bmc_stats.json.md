@@ -1,14 +1,18 @@
 # data/other/bmc_stats.json
 
-Counts from the fetch run of bmc. The same run as `bmc_reviews.parquet` writes it (`finalize` in
-`src/fetch.py`).
+Filter counts of the BMC fetch:
 
-- `parsed_reviews`: 8,109
-- `short_dropped`: 302
-- `dup_dropped`: 2
+- `parsed_reviews`: 8,109 reviews before filters;
+- `short_dropped`: 302 texts with fewer than 100 characters;
+- `dup_dropped`: 2 duplicate (paper, text) pairs.
 
-`parsed_reviews` counts reviews before filters; `short_dropped` counts texts under 100 characters; `dup_dropped`
-counts duplicate (paper, text) pairs. Other keys count papers that the parser skipped, by reason.
+## Make
+
+```
+uv run python -I src/fetch.py bmc
+```
+
+`finalize` in `src/fetch.py` writes it in the same step as `bmc_reviews.parquet`; see `bmc_reviews.parquet.md`.
 
 ## Read by
 

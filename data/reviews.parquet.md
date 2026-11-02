@@ -29,48 +29,39 @@ Rows per venue and year:
 | 2025 | 34,991 | 22,324 |
 | 2026 | 75,804 | – |
 
-## How we got it
-
-1. On 2026-10-28 at 21:32 UTC, `curl` downloaded four Hugging Face datasets into `RAW_ML_REVIEWS_DIR`
-   (`/home/yallen/data/peer-review`). No dataset revision was pinned; each download took the `main` branch.
-
-   | Local file | Source |
-   |---|---|
-   | `arcade/train-0000{0..5}-of-00006.parquet` | `https://huggingface.co/datasets/ulab-ai/ResearchArcade-openreview-reviews/resolve/main/data/<file>` |
-   | `arcade/papers.parquet` | First file under `data/` of `ulab-ai/ResearchArcade-openreview-papers` |
-   | `iclr2026/heineman.parquet` | `https://huggingface.co/datasets/davidheineman/iclr-2026/resolve/main/data/main-00000-of-00001.parquet` |
-   | `iclr2026/jerma_2026.parquet` | `https://huggingface.co/datasets/JerMa88/ICLR_Peer_Reviews_2026/resolve/main/data/iclr_2026.parquet` |
-
-   The commands are in Claude Code session `881519d6` (project `~/ideas`), 2026-10-28 21:32. The OpenReview API
-   blocks anonymous scripts, so we used these dumps.
-2. `uv run python -I src/corpus.py ml` builds the table (`src/corpus.py`, functions `from_arcade`, `from_iclr26`,
-   `merge_ml`):
-   - ResearchArcade gives ICLR 2017–2025 and NeurIPS 2021–2025. It keeps rows whose title starts with
-     `Official Review`, and drops EMNLP and ICLR before 2017.
-   - ICLR 2026 comes from the Heineman snapshot. The JerMa88 dump adds the questions field, creation and edit
-     times, decisions, primary areas and final venues.
-   - It keeps reviews with more than 200 characters of text, drops duplicate review ids and duplicate
-     (paper, text) pairs.
-   - It drops an older version of a review when the same reviewer has a later review of the same paper whose first
-     3,000 characters match at a `SequenceMatcher` ratio of 0.8 or more.
-3. The last write was on 2026-11-01 between 17:25 and 17:27 UTC, by step `src/corpus.py ml` of
-   `regen.sh` in session `881519d6`. The log is `logs/regen_gpt-6-luna-high.log`. The code was the working tree at
-   that time, between commits `410e18d` and `6f9fa51`.
-
-An earlier build of this table was in `data/backup_predup/`. `sample_reviews.parquet` was drawn from it. That folder
-was deleted on 2026-11-02 and no copy exists.
-
-## Reproduce
+## Make
 
 ```
-uv run python -I src/corpus.py ml --out <dir>
+uv run python -I src/corpus.py ml
 ```
 
-## Check
+It writes this file and `papers.parquet` into `data/` (`--out` changes the folder). No script in `scripts/` runs it.
+It is deterministic and needs no network, but it needs these Hugging Face dumps in `RAW_ML_REVIEWS_DIR`:
 
-On 2026-11-02 we ran the "Reproduce" command with the current code and the raw dumps in `RAW_ML_REVIEWS_DIR` into a scratch folder. The output is identical to this file (`pandas.DataFrame.equals`).
+| Local file | Source dataset |
+|---|---|
+| `arcade/train-*.parquet` | `ulab-ai/ResearchArcade-openreview-reviews` |
+| `arcade/papers.parquet` | `ulab-ai/ResearchArcade-openreview-papers` |
+| `iclr2026/heineman.parquet` | `davidheineman/iclr-2026` |
+| `iclr2026/jerma_2026.parquet` | `JerMa88/ICLR_Peer_Reviews_2026` |
+
+Steps (`from_arcade`, `from_iclr26`, `merge_ml` in `src/corpus.py`):
+
+- ResearchArcade gives ICLR 2017–2025 and NeurIPS 2021–2025. It keeps rows whose title starts with
+  `Official Review`, and drops EMNLP and ICLR before 2017.
+- ICLR 2026 comes from the Heineman snapshot. The JerMa88 dump adds the questions field, creation and edit times,
+  decisions, primary areas and final venues.
+- It keeps reviews with more than 200 characters of text and drops duplicate review ids and duplicate
+  (paper, text) pairs.
+- It drops an older version of a review when the same reviewer has a later review of the same paper whose first
+  3,000 characters match at a `SequenceMatcher` ratio of 0.8 or more.
+
+## Notes
+
+`sample_reviews.parquet` is a fixed sample. 414 of its reviews are not in this file (see `sample_reviews.parquet.md`).
 
 ## Read by
 
-`src/panels.py` (`ml`), `src/outcomes.py`, `src/validate.py` (`review_chars`), `src/between.py` (`claims_table`), `src/ai.py`, `src/figures.py`
-(corpus table).
+`src/panels.py` (`ml`, `dedup`), `src/outcomes.py` (`review_status`), `src/validate.py` (`review_chars`),
+`src/between.py` (`claims_table`), `src/external.py` (`intel`), `src/ai.py` (`load_ml_reviews`, `reference_sample`),
+`src/figures.py` (`likeness`, `by_year`).

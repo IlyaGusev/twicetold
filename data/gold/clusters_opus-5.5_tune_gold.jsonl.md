@@ -1,24 +1,23 @@
 # data/gold/clusters_opus-5.5_tune_gold.jsonl
 
 Council grouping of the reference claims by `opus-5.5` (OpenRouter `anthropic/claude-opus-5.5`). One line per panel: `panel_id`,
-`model`, `review_ids`, `targets`, `clusters` (each cluster: `target_id`, `problem`, `claim_ids` such as `R2-5`).
-61 lines: 2 error rows and 59 grouped panels. Panel `B34` has no Opus grouping: it failed in the run and in one retry, so its grouping-judge input has no Opus entry.
+`model`, `review_ids`, `targets`, `clusters` (each cluster: `target_id`, `problem`, `claim_ids` such as
+`R2-5`). 61 lines: 59 grouped panels and 2 error rows, both for panel `B34`. `B34` has no Opus grouping, so its
+grouping-judge input has no Opus entry.
 
-## How we got it
+## Make
 
-All `data/gold/` files except `blind_key.json` come from Claude Code session `881519d6` (project `~/ideas`) on
-2026-10-31. That session wrote them to `data/tune/` and `data/` with inline commands; no script was saved. Commit
-`d63b8e0` (2026-11-01) moved them to `data/gold/` without changes. `src/gold.py` and `scripts/gold.sh` (2026-11-02)
-rebuild the same steps. `tests/test_gold.py` checks that the steps without model calls give byte-identical files.
+```
+uv run python -I src/gold.py council_groups --out <dir>
+```
 
-`src/extract.py pass2 data/tune/panels_tune.jsonl --model opus-5.5 --tag _tune_gold --claims_files claims_gold_tune.jsonl
---effort medium --threads 12 --budget 15` on 2026-10-31 at about 15:20 UTC. The prompt is identical to the current
-`src/prompts/pass2.j2`. The same command also ran a fourth model, `glm-zai`; its file was not kept and the grouping
-judges did not see it.
+Step 6 of `scripts/gold.sh <dir>`. It runs `src/extract.py pass2` on `panels_tune.jsonl` with
+`--claims_files claims_gold_tune.jsonl` and tag `_tune_gold` for each model of `settings.GOLD_COUNCIL`, two times, so
+the second run retries failed panels. Reasoning effort medium. Paid API; needs network and the OpenRouter key.
 
-## Reproduce
+## Notes
 
-`src/gold.py council_groups --out <dir>`. It runs each model twice, so the second run retries failed panels.
+- Model output; a rerun gives different groups.
 
 ## Read by
 

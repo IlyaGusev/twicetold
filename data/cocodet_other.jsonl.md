@@ -1,47 +1,24 @@
 # data/cocodet_other.jsonl
 
 CoCoDet class probabilities for the 10,042 journal reviews of `cocodet_input_other.parquet`. One JSON object per
-line: `review_id` (string), `human`, `mix`, `ai` (floats that sum to 1). The line order is the scoring order, not the
-input order.
+line: `review_id` (string), `human`, `mix`, `ai` (floats that sum to 1). Largest class: human 9,553; mix 355;
+ai 134.
 
-## How we got it
-
-1. Model, script and settings: the same as `cocodet_main.jsonl` (CoCoDet `khaaaaaan/CoCoDet` `CoCoDet.bin`, cached
-   revision `7f60a5dcdad3af02767cb57da842ead41424c89d`; `src/detect_cocodet.py`; 512 tokens, batch 8, CPU, this
-   machine).
-2. The script removed only the tags `[SUMMARY]`, `[MAIN]`, `[STRENGTHS]`, `[WEAKNESSES]`, `[QUESTIONS]`,
-   `[LIMITATIONS]`, `[OTHER]`. Other tags, for example `[REPORT]` and `[REQUESTED CHANGES]`, stayed in the text.
-   1,990 input rows have such a tag.
-3. Two runs in Claude Code session `881519d6` (project `~/ideas`) wrote the file:
-   - 2026-10-29 21:59 UTC: the first run scored 986 reviews. The session stopped it at 22:06:10 UTC and restarted it with `nice -n 19` and 2
-     threads.
-   - 2026-10-29 22:06:18 UTC: the second run skipped the 986 done ids and scored the other 9,056:
-
-     ```
-     OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 HF_TOKEN=$(cat ~/.cache/huggingface/token) setsid nohup nice -n 19 uv run python -I src/detect_cocodet.py data/cocodet_input_other.parquet other > logs/cocodet_other.log 2>&1
-     ```
-
-   The log is `logs/cocodet_other.log` (second run only): "986 done, 9056 to score", "finished in 139.7 min". The
-   last write was on 2026-10-30 at 00:26:10 UTC. No paid API.
-
-## Reproduce
+## Make
 
 ```
 uv run python -I src/cocodet.py scores --input data/cocodet_input_other.parquet --out <dir>/cocodet_other.jsonl
 ```
 
-`src/cocodet.py` is `src/detect_cocodet.py` (the script that made this file) without comments, with paths and model
-names from `src/settings.py`. It removes only the seven ML section tags, as the original did. The command appends to
-an existing output and skips ids that it holds.
+It runs CoCoDet (`settings.COCODET_REPO`, file `settings.COCODET_WEIGHTS_FILE`, base model `settings.COCODET_BASE_MODEL`) on CPU: 512 tokens, batch 8. It downloads the weights from Hugging Face (network); the code pins no revision. No paid API. It is CPU-heavy and no chain script runs it. It removes only the seven ML section tags (`[SUMMARY]`, `[MAIN]`, `[STRENGTHS]`, `[WEAKNESSES]`, `[QUESTIONS]`, `[LIMITATIONS]`, `[OTHER]`). It appends to `--out` and skips the ids it holds.
 
-## Check
+## Notes
 
-On 2026-11-02 we did not rerun the model. We checked the file against `cocodet_input_other.parquet`:
-
-- 10,042 lines, 10,042 distinct ids; the id set equals the input id set. The restart left no duplicate lines.
-- No NaN. Each probability is in [3.4e-14, 1.0]; each row sums to 1.000000.
-- Largest class: human 9,553; mix 355; ai 134.
+- Journal tags, for example `[REPORT]` and `[REQUESTED CHANGES]`, stay in the text that the model reads. 1,990 input
+  rows have such a tag.
+- The line order is the scoring order, not the input order.
+- Git LFS stores it.
 
 ## Read by
 
-`src/figures.py by_year` (list `COCODET`).
+`src/figures.py by_year` (list `COCODET`), which `figures.py table` calls.

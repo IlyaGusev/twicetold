@@ -27,30 +27,24 @@ Rows per source and year:
 | 2025 | 331 | 1,082 | 1,264 | 1,242 | 1,123 |
 | 2026 | 0 | 1,074 | 1,244 | 637 | 917 |
 
-## How we got it
+## Make
 
-1. `src/fetch.py <source>` for each of `scipost`, `f1000`, `bmc`, `plos`, `copernicus` writes
-   `data/other/<source>_reviews.parquet`. Each source has its own `.md` file there.
-2. `uv run python -I src/corpus.py other` (`src/corpus.py`, function `other`) merges them:
-   - unifies PLoS journal names;
-   - drops duplicate (paper, text) pairs across sources (0 in this build);
-   - keeps papers with 2 or more reviews;
-   - writes this file, `other_papers.parquet` and `reports/other_inventory.txt`.
-
-Last write: 2026-11-01 17:50 UTC, step `src/corpus.py other` of `regen.sh` in Claude Code session `881519d6`
-(log `logs/regen_gpt-6-luna-high.log`).
-
-## Reproduce
+`scripts/inputs.sh` makes it. The step that writes it:
 
 ```
-uv run python -I src/corpus.py other --out <dir> --report <dir>/other_inventory.txt
+uv run python -I src/corpus.py other
 ```
 
-## Check
+It reads `data/other/<source>_reviews.parquet` and `<source>_papers.parquet` for `scipost`, `f1000`, `bmc`, `plos`,
+`copernicus` (`--src` changes the folder). It unifies PLoS journal names, drops duplicate (paper, text) pairs and
+keeps papers with 2 or more reviews. It writes this file, `other_papers.parquet` and `reports/other_inventory.txt`.
+It is deterministic and needs no network.
 
-On 2026-11-02 we ran the "Reproduce" command with the current code and the raw cache into a scratch folder. The output is identical to this file (`pandas.DataFrame.equals`). `reports/other_inventory.txt` is also identical.
+## Notes
+
+Git does not track this file. `scripts/post.sh` runs `scripts/inputs.sh` when the file is missing.
 
 ## Read by
 
-`src/panels.py other`, `src/outcomes.py` (tag `_other`), `src/validate.py` (`review_chars`), `src/ai.py` (`reference`, `wordshare_fields`),
-`src/figures.py` (corpus table).
+`src/panels.py other`, `src/outcomes.py` (`SOURCE_FILES`, tag `_other`), `src/validate.py` (`review_chars`),
+`src/ai.py` (`reference_sample`, `wordshare_fields`), `src/figures.py` (`by_year`).

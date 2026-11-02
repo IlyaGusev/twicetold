@@ -1,44 +1,17 @@
 # data/panels_wd.jsonl
 
 Panels of withdrawn ICLR 2026 papers: one panel per paper of `wd_reviews.parquet`. 1,000 panels with 3,891 reviews.
-Keys: `panel_id` (`wd_<paper_id>`) and `review_ids`.
+Keys: `panel_id` (`wd_<paper_id>`) and `review_ids`. Sorted by paper id.
 
 Panel sizes: 3 reviews (164), 4 (781), 5 (55).
 
-## How we got it
+Each panel holds the reviews of one paper of `wd_reviews.parquet`, without review `zlaasankug` (same text as review
+`foBgDN8Ecm` of the same paper). All 3,891 review ids are in `reviews.parquet`.
 
-No script in the repo makes this file.
+## Make
 
-1. On 2026-10-29 at 02:24 UTC, the inline command that made `wd_reviews.parquet` (Claude Code session `1e2ee420`,
-   project `~/twicetold`) wrote the first version: the reviews of `wd_reviews.parquet` grouped by paper, sorted by
-   paper id.
-2. On 2026-10-29 at 12:19 UTC, `uv run python -I src/dedup_panels.py` in session `881519d6` (project `~/ideas`)
-   rewrote the file. The script removed from each panel the reviews whose (paper, text) pair repeats an earlier
-   review. It removed 1 review (`zlaasankug`, a copy of `foBgDN8Ecm`) and printed `panels_wd.jsonl: 1 panels
-   shortened, 0 dropped, 1000 left`. Before the run, the same command copied the old file to `data/backup_predup/`.
-   `src/dedup_panels.py` was never in git. `src/panels.py dedup` is its panel step without comments; the
-   original also removed the stale rows of the cluster files.
-3. Last write: 2026-10-29 12:19:18 UTC (file time).
-
-## Reproduce
-
-Not possible with the current data (see `wd_reviews.parquet.md`): step 1 cannot be redone. Step 2 is
-
-```
-uv run python -I src/panels.py dedup --panels <step-1 panels file> --out <dir>/panels_wd.jsonl
-```
-
-On this file, `panels.py dedup` changes nothing: `0 panels shortened, 0 dropped, 1000 left`, and the output is
-byte-identical.
-
-## Check
-
-On 2026-11-02 we grouped `wd_reviews.parquet` by paper (sorted) and removed every review that has the same text as an
-earlier row of the same paper. The result is equal to this file, panel for panel. Also:
-
-- All 3,891 review ids are in `wd_reviews.parquet` and in the current `reviews.parquet`.
-- The one review of `wd_reviews.parquet` that is not in a panel is `zlaasankug`.
+No command in the repo makes this file. It is a saved one-off output, like `wd_reviews.parquet`.
 
 ## Read by
 
-`scripts/extract_all.sh` (pass-2 input, tag `_wd`), `src/outcomes.py` (tag `_wd`, through the clusters file).
+`scripts/extract_all.sh` (pass-2 input, tag `_wd`).

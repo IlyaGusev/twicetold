@@ -1,27 +1,25 @@
 # data/icml2026_raw.jsonl
 
-Raw OpenReview notes for ICML 2026 accepted papers, with all replies. One JSON line per paper.
-6,341 papers, 95,957 replies.
+Raw OpenReview notes for ICML 2026 accepted papers, with all replies. One JSON line per paper:
+`{"id": <forum id>, "content": <submission content>, "replies": [<every reply note>]}`. Replies include official
+reviews, comments, rebuttals and decisions. 6,341 papers, 95,957 replies.
 
-Each line: `{"id": <forum id>, "content": <submission content>, "replies": [<every reply note>]}`. Replies include
-official reviews, comments, rebuttals and decisions.
+## Make
 
-## How we got it
+```
+uv run python -I src/fetch.py icml --year 2026
+```
 
-`src/fetch.py icml --year 2026` calls `icml_download` when this file does not exist:
+`scripts/inputs.sh` runs this step. It downloads the file (`icml_download`) only when the file does not exist. It
+calls OpenReview API v2 (`https://api2.openreview.net`) with `OPENREVIEW_USERNAME` and `OPENREVIEW_PASSWORD` from
+`.env`: `client.get_all_notes(content={"venueid": "ICML.cc/2026/Conference"}, details="replies")`. Needs network
+and credentials; no cost.
 
-- OpenReview API v2 (`https://api2.openreview.net`), logged in with `OPENREVIEW_USERNAME` and
-  `OPENREVIEW_PASSWORD` from `.env`;
-- `client.get_all_notes(content={"venueid": "ICML.cc/2026/Conference"}, details="replies")`. This venue id holds
-  accepted papers only, so rejected papers are not in the file.
+## Notes
 
-The download ran on 2026-10-29 at about 14:40 UTC in Claude Code session `881519d6` (project `~/ideas`). The code
-then was `src/fetch_icml2026.py`, which later became `fetch.py icml`. The query and the line format are the same.
-
-## Reproduce
-
-Delete or move the file, then run `uv run python -I src/fetch.py icml --year 2026`. OpenReview content can change
-after the download (edits, withdrawn notes), so a new download can differ.
+- This venue id holds accepted papers only. Rejected papers are not in the file.
+- OpenReview content can change, so a new download can differ.
+- Git LFS stores it.
 
 ## Read by
 

@@ -8,6 +8,7 @@ fi
 MODEL=$1
 OUT_DIR=${2:-}
 export OMP_NUM_THREADS=2
+[ -f data/other_reviews.parquet ] || scripts/inputs.sh
 step() {
   echo "=== $* $(date +%H:%M:%S)"
   local exit_code=0

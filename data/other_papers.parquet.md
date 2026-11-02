@@ -17,21 +17,21 @@ paper's rows in `other_reviews.parquet`.
 | 2025 | 132 | 500 | 500 | 500 | 500 |
 | 2026 | 0 | 500 | 500 | 256 | 407 |
 
-## How we got it
+## Make
 
-The same run as `other_reviews.parquet` writes this file (`src/corpus.py other`, 2026-11-01 17:50 UTC). It merges
-`data/other/<source>_papers.parquet` and keeps the papers that have 2 or more reviews.
-
-## Reproduce
+`scripts/inputs.sh` makes it. The step that writes it:
 
 ```
-uv run python -I src/corpus.py other --out <dir> --report <dir>/other_inventory.txt
+uv run python -I src/corpus.py other
 ```
 
-## Check
+It merges `data/other/<source>_papers.parquet` and keeps the papers that have 2 or more reviews in
+`other_reviews.parquet`. The same run writes `other_reviews.parquet`. It is deterministic and needs no network.
 
-On 2026-11-02 we ran the "Reproduce" command with the current code and the raw cache into a scratch folder. The output is identical to this file (`pandas.DataFrame.equals`).
+## Notes
+
+Git does not track this file. It documents titles and licences.
 
 ## Read by
 
-No code reads it. It documents titles and licences.
+Nothing reads it.

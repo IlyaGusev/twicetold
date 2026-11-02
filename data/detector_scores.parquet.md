@@ -12,41 +12,23 @@ order as `sample_reviews.parquet` (ICLR 96,995; NeurIPS 19,852).
 | `p_llm_ss` | float | The same detector on the `[SUMMARY]` and `[STRENGTHS]` fields only; NaN when these fields have 200 characters or fewer (26,346 rows) |
 | `llm_flag_ss` | bool | `p_llm_ss >= q99`, with the full-text q99; False where `p_llm_ss` is NaN |
 
-## How we got it
-
-1. Detector: `src/detector.py` of that time (in git at `c57b0a8^`). `src/detector.py scores` is the same code
-   without comments, with paths from `src/settings.py` and without the GPTZero comparison print:
-   - features: hashed word 1–2-grams and character 3–4-grams (`char_wb`), 2^18 features each, TF-IDF with
-     sublinear tf, after removal of the seven ML section tags;
-   - logistic regression, `C=4.0`, `max_iter=3000`;
-   - training data: `intel_reviews.parquet` years 2021–2023 (57,692 texts); test: year 2024 (19,037 texts), AUC
-     0.9939.
-2. It scores every row of `sample_reviews.parquet`, sets the thresholds from ICLR 2017–2022 rows, and writes this
-   file.
-3. Command, Claude Code session `1e2ee420` (project `~/twicetold`), 2026-10-29 04:58:48 UTC:
-
-   ```
-   setsid nohup uv run python -I src/detector.py > logs/detector3.log 2>&1
-   ```
-
-   The log is `logs/detector3.log`. The last write was on 2026-10-29 at 05:10:50 UTC. CPU only, on this machine. No
-   paid API. Two earlier runs wrote `logs/detector.log` and `logs/detector2.log`.
-
-## Reproduce
+## Make
 
 ```
 uv run python -I src/detector.py scores --out <dir>/detector_scores.parquet --by_cell <dir>/detector_by_cell.csv
 ```
 
-CPU only, about 12 minutes.
+The detector is a logistic regression (`C=4.0`, `max_iter=3000`) on TF-IDF (sublinear tf) of hashed word 1–2-grams
+and character 3–4-grams (`char_wb`), 2^18 features each, after removal of the seven ML section tags. It trains on
+`intel_reviews.parquet` years 2021–2023 and tests on 2024 (AUC 0.9939). Then it scores `sample_reviews.parquet` and
+sets the thresholds from ICLR 2017–2022 rows. The command also writes `detector_by_cell.csv`, the same as
+`reports/detector_by_cell.csv`. CPU only, about 12 minutes. Deterministic, no network, no paid API. No chain script
+runs it.
 
-## Check
+## Notes
 
-On 2026-11-02 we ran the "Reproduce" command into a scratch folder (CPU, about 12 minutes). The output is identical
-to this file (`pandas.DataFrame.equals`), and `detector_by_cell.csv` is identical to `reports/detector_by_cell.csv`.
-The run printed the same test AUC (0.9939) and thresholds (q90 = 0.015, q99 = 0.087).
+- Git LFS stores it.
 
 ## Read by
 
-`src/validate.py` (`rq1_evidence`, `detector_placebo`), `src/figures.py`
-(`likeness`, `ai`, `by_year`, `numbers`).
+`src/validate.py` (`rq1_evidence`, `detector_placebo`), `src/figures.py` (`likeness`, `ai`, `by_year`, `numbers`).

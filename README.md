@@ -27,9 +27,11 @@ Run commands as `uv run python -I src/<module>.py <command>`. Raw ML dumps live 
 sources live at `RAW_JOURNAL_REVIEWS_DIR`, both set in `src/settings.py`.
 
 1. Fetch source data with `fetch.py`.
-2. Build the review tables with `corpus.py ml` and `corpus.py other`.
-3. Build conference, journal and control panels with `panels.py ml`, `panels.py robust`, `panels.py icml` and
-   `panels.py other`.
+2. Build the ML review tables with `corpus.py ml`.
+3. Run `scripts/inputs.sh`. It builds the journal tables (`corpus.py other`), parses the ICML downloads
+   (`fetch.py icml`), and builds the ICML, journal, robustness and CoCoDet inputs (`panels.py icml`, `other`,
+   `robust`, `cocodet`). Git does not store these inputs. `extract_all.sh` and `post.sh` run `inputs.sh` when the
+   inputs are missing. No step calls a paid API.
 4. Run `scripts/extract_all.sh gpt-6-luna-high` for extraction and grouping. This step calls paid APIs. Each pass
    has its own budget cap; inspect the script's argument and logs before starting it.
 
@@ -43,11 +45,11 @@ files use Git LFS. These are LLM labels, not human labels. `scripts/gold.sh OUT_
 folder (`src/gold.py`); it calls paid APIs and never writes into `data/gold/`. `tests/test_gold.py` checks that the
 steps without model calls rebuild `data/gold/` byte for byte.
 
-Each data file has a `<file>.md` next to it that says what it holds and how it was made.
+Each data file has a `<file>.md` next to it that says what it holds, how to make it and what reads it.
 
-`sample_reviews.parquet` and `panels.jsonl` were drawn from an earlier build of `reviews.parquet` (the deleted
-`data/backup_predup/`). Treat the committed files as the fixed sample; `panels.py ml` cannot redraw them. Claim and
-review embeddings, detector scores and reference annotations are saved model outputs, not analysis estimates.
+`sample_reviews.parquet` and `panels.jsonl` are the fixed sample; `panels.py ml` cannot redraw them from the current
+`reviews.parquet`. Claim and review embeddings, detector scores and reference annotations are saved model outputs,
+not analysis estimates.
 
 ## Analysis
 
@@ -59,7 +61,7 @@ Each run recomputes the analysis from saved model outputs. It does not reuse ear
 model calls. The stages rebuild panel and pair scores, detector comparisons, robustness checks, yearly tables,
 paper numbers and figures.
 
-- `data/overlap/`: recomputed panel, review and pair tables.
+- `data/overlap/`: recomputed panel and pair tables.
 - `reports/overlap/`: recomputed statistical summaries and their sample sizes.
 - `paper/tables/`: generated result tables and `numbers.tex`.
 - `paper/figs/`: vector PDF figures.

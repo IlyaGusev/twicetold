@@ -1,11 +1,13 @@
 # data/other/scipost_papers.parquet
 
-SciPost (physics and related fields): one row per paper kept in `scipost_reviews.parquet`. 3,052 papers.
+SciPost (physics and related fields): one row per paper in `scipost_reviews.parquet`. 3,052 papers.
 
-Columns: `conf`, `field`, `journal`, `paper_id`, `title`, `licence`, `year`, `n_reviews`. `n_reviews` counts this paper's rows in `scipost_reviews.parquet`; `licence` is the article
-licence.
+Columns: `conf`, `field`, `journal`, `paper_id`, `title`, `licence`, `year`, `n_reviews`. `n_reviews` counts the
+paper's rows in `scipost_reviews.parquet`. `licence` is CC BY 4.0 for every paper.
 
-The same run as `scipost_reviews.parquet` writes this file; see `scipost_reviews.parquet.md`.
+## Make
+
+`src/fetch.py scipost` writes it in the same run as `scipost_reviews.parquet`. See `scipost_reviews.parquet.md`.
 
 ## Read by
 

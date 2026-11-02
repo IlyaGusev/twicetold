@@ -9,6 +9,7 @@ fi
 MODEL=$1
 LOG_DIR=logs/extract_$MODEL
 mkdir -p "$LOG_DIR"
+[ -f data/noq_reviews.parquet ] || scripts/inputs.sh || exit 1
 
 run_pass() {
   local pass=$1 threads=$2
@@ -28,8 +29,7 @@ p2() { run_pass pass2 "$@"; }
   p2 160 data/panels.jsonl &
   p2 32 data/panels_placebo.jsonl &
   p2 32 data/panels_placebo_area.jsonl &
-  p2 32 data/panels_sub3.jsonl &
-  p2 32 data/panels_sub3_full.jsonl &
+  p2 64 data/panels_sub3.jsonl &
   wait
   echo "CHAIN main DONE $(date)" ) > "$LOG_DIR/main.log" 2>&1 &
 
@@ -39,14 +39,11 @@ p2() { run_pass pass2 "$@"; }
   wait
   echo "CHAIN other DONE $(date)" ) > "$LOG_DIR/other.log" 2>&1 &
 
-( p1 32 data/noq_reviews.parquet --tag _noq
-  p1 96 data/noq_full_reviews.parquet --tag _noq
-  p2 32 data/panels_noq.jsonl --tag _noq &
-  p2 96 data/panels_noq_full.jsonl --tag _noq &
-  wait
+( p1 128 data/noq_reviews.parquet --tag _noq
+  p2 128 data/panels_noq.jsonl --tag _noq
   echo "CHAIN noq DONE $(date)" ) > "$LOG_DIR/noq.log" 2>&1 &
 
-( p1 64 data/icml_pass1.parquet --tag _icml
+( p1 64 data/icml_sample.parquet --tag _icml
   p2 64 data/panels_icml.jsonl --tag _icml
   echo "CHAIN icml DONE $(date)" ) > "$LOG_DIR/icml.log" 2>&1 &
 

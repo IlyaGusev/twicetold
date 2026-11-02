@@ -21,6 +21,12 @@ ROBUST_PAPERS_PER_YEAR = 400
 AREA_PLACEBOS_PER_YEAR = 300
 QUESTIONS_RX = r"\[QUESTIONS\].*?(?=\[(?:LIMITATIONS|OTHER)\]|\Z)"
 COPERNICUS_PREPRINT_JOURNAL = "EGUsphere"
+COCODET_PANELS = {
+    **{("ICLR", y): 300 for y in range(2017, 2024)},
+    **{("ICLR", y): 1000 for y in (2024, 2025, 2026)},
+    **{("NeurIPS", y): 300 for y in (2021, 2022, 2023)},
+    **{("NeurIPS", y): 500 for y in (2024, 2025)},
+}
 
 
 def read_panels(path):
@@ -120,7 +126,6 @@ def icml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), per_year=1500,
         shuffled = year_reviews[year_reviews.paper_id.isin(keep)].sample(frac=1, random_state=0)
         parts.append(shuffled.groupby("paper_id").head(MAX_REVIEWS))
     sample = pd.concat(parts)
-    sample[["review_id", "text"]].to_parquet(out / "icml_pass1.parquet")
     sample[["conf", "year", "paper_id", "review_id", "rating", "confidence", "text"]].to_parquet(out / "icml_sample.parquet")
     write_panels(out / "panels_icml.jsonl", by_paper_panels(sample, "icml_", sort=True))
     print(
@@ -211,23 +216,29 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
                     yield panel
 
     write_panels(out / "panels_placebo_area.jsonl", placebo_area())
-    write_panels(out / "panels_sub3.jsonl", sub3())
+    sub3_panels = list(sub3())
 
     noq_parts = []
     for year in NOQ_YEARS:
         year_reviews = with_area[with_area.year == year]
         pids = rng.choice(year_reviews.paper_id.unique(), ROBUST_PAPERS_PER_YEAR, replace=False)
         noq_parts.append(drop_questions(year_reviews[year_reviews.paper_id.isin(pids)]))
-    write_panels(out / "panels_noq.jsonl", (p for part in noq_parts for p in by_paper_panels(part, "noq_", sort=True)))
+    noq_panels = [p for part in noq_parts for p in by_paper_panels(part, "noq_", sort=True)]
     noq = pd.concat(noq_parts)
-    noq[["conf", "year", "paper_id", "review_id", "text"]].to_parquet(out / "noq_reviews.parquet")
     original_chars = with_area[with_area.review_id.isin(noq.review_id)].text.str.len().sum()
     print("noq reviews", len(noq), "chars dropped share", 1 - noq.text.str.len().sum() / original_chars)
-    robust_full(iclr, out, np.random.default_rng(full_seed), main_panel_reviews)
+
+    new_sub3 = full_sub3(iclr, np.random.default_rng(full_seed), main_panel_reviews, {p["panel_id"] for p in sub3_panels})
+    write_panels(out / "panels_sub3.jsonl", sub3_panels + new_sub3)
+    print("new sub3 panels", len(new_sub3))
+
+    noq_full = drop_questions(iclr[iclr.year.isin(NOQ_YEARS) & ~iclr.paper_id.isin(noq.paper_id)])
+    pd.concat([noq, noq_full])[["conf", "year", "paper_id", "review_id", "text"]].to_parquet(out / "noq_reviews.parquet")
+    write_panels(out / "panels_noq.jsonl", noq_panels + list(by_paper_panels(noq_full, "noq_", sort=True)))
+    print("new noq reviews", len(noq_full), "papers", noq_full.paper_id.nunique())
 
 
-def robust_full(iclr, out, rng, main_panel_reviews):
-    done_sub3 = {p["panel_id"] for p in read_panels(out / "panels_sub3.jsonl")}
+def full_sub3(iclr, rng, main_panel_reviews, done_sub3):
     new_sub3 = []
     for year in SUB3_FULL_YEARS:
         by_paper = review_ids_by_paper(iclr[iclr.year == year])
@@ -236,15 +247,24 @@ def robust_full(iclr, out, rng, main_panel_reviews):
                 panel = sub3_panel(rng, pid, rids)
                 if main_panel_reviews.issuperset(panel["review_ids"]):
                     new_sub3.append(panel)
-    write_panels(out / "panels_sub3_full.jsonl", new_sub3)
-    print("new sub3 panels", len(new_sub3))
+    return new_sub3
 
-    done_noq = {p["panel_id"] for p in read_panels(out / "panels_noq.jsonl")}
-    in_noq = iclr.paper_id.map(lambda p: f"noq_{p}" in done_noq)
-    noq_full = drop_questions(iclr[iclr.year.isin(NOQ_YEARS) & ~in_noq])
-    noq_full[["conf", "year", "paper_id", "review_id", "text"]].to_parquet(out / "noq_full_reviews.parquet")
-    write_panels(out / "panels_noq_full.jsonl", by_paper_panels(noq_full, "noq_", sort=True))
-    print("new noq reviews", len(noq_full), "papers", noq_full.paper_id.nunique())
+
+def cocodet(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=7):
+    data, out = Path(data), Path(out)
+    rng = np.random.default_rng(seed)
+    papers = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "conf", "year"]).set_index("paper_id")
+    panels_by_cell = {}
+    for panel in read_panels(data / "panels.jsonl"):
+        paper = papers.loc[panel["panel_id"]]
+        panels_by_cell.setdefault((paper.conf, int(paper.year)), []).append(panel)
+    review_ids = set()
+    for cell, cell_panels in panels_by_cell.items():
+        for i in rng.choice(len(cell_panels), min(COCODET_PANELS[cell], len(cell_panels)), replace=False):
+            review_ids.update(cell_panels[i]["review_ids"])
+    reviews = pd.read_parquet(data / "sample_reviews.parquet", columns=["review_id", "text"])
+    reviews[reviews.review_id.isin(review_ids)].to_parquet(out / "cocodet_input.parquet")
+    print(len(review_ids), "reviews ->", out / "cocodet_input.parquet")
 
 
 def dedup(panels, out, data=str(settings.DATA_DIR)):
@@ -265,4 +285,4 @@ def dedup(panels, out, data=str(settings.DATA_DIR)):
 
 
 if __name__ == "__main__":
-    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "dedup": dedup})
+    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "cocodet": cocodet, "dedup": dedup})

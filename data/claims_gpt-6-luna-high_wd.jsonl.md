@@ -9,45 +9,27 @@ withdrawn papers in `wd_reviews.parquet`. One line per review: 3,892 rows, 29,77
 | `model` | Short name, always `gpt-6-luna-high` |
 | `claims` | List of claims; each claim has `claim`, `category`, `target`, `specific` |
 
-3 reviews have an empty claim list. No row has an `error` field. No row has an `effort` field.
+3 reviews have an empty claim list. No row has an `error` or `effort` field. One review is in no panel of
+`panels_wd.jsonl`.
 
-## How we got it
-
-1. On 2026-10-31 at 22:03:05 UTC, Claude Code session `881519d6` (project `~/ideas`) started
-   `setsid nohup nice -n 19 scripts/extract_all.sh gpt-6-luna-high high high 700`. The script was the version of
-   commit `291542f`. This file comes from the first pass of its `small` chain:
-   `src/extract.py pass1 data/wd_reviews.parquet --tag _wd --model gpt-6-luna-high --threads 48 --budget 700 --effort high`.
-2. `extract.py` (`pass1`, `pass1_worker`, `openrouter_call`) sent each review, cut at 14,000 characters, to OpenRouter
-   `openai/gpt-6-luna` with a strict JSON schema, `provider: {"require_parameters": true}` and reasoning effort high.
-   The prompt is `src/prompts/pass1.j2` with `paper` = "machine-learning conference paper". The template is
-   byte-identical to `prompts/pass1.j2` of commit `291542f`. The `extract.py` of that time did not write an `effort`
-   field.
-3. The last write was on 2026-10-31 at 22:26:50 UTC (file time). The rerun of 2026-11-01 17:55 UTC overwrote the
-   chain log `logs/extract_gpt-6-luna-high/small.log`; the new log shows `3892 done, 0 to do`. So the file did not
-   change after the first run. No log gives the cost of the first run.
-4. Commit `e03a1c1` (2026-11-01) added the file to Git LFS.
-
-## Reproduce
+## Make
 
 ```
-uv run python -I src/extract.py pass1 data/wd_reviews.parquet --tag _wd --model gpt-6-luna-high --threads 48 --budget 300 --data <new folder>
+uv run python -I src/extract.py pass1 data/wd_reviews.parquet --tag _wd --model gpt-6-luna-high --threads 48 --budget 300
 ```
 
-This calls the paid OpenRouter API. Write to a new folder (`--data`) or under a new short name in `src/settings.py`.
-Never write into this file: model outputs are never overwritten, and `extract.py` appends to its output and skips
-done ids. Model output is not deterministic, so a new run gives other claims.
+This is the first step of the `small` chain in `scripts/extract_all.sh gpt-6-luna-high`. Each review, cut at 14,000
+characters, goes to OpenRouter with the prompt `src/prompts/pass1.j2` and a strict JSON schema. It calls a paid API
+and needs `OPENROUTER_API_KEY`. `extract.py` appends to the output in the `--data` folder (default `data/`) and skips
+done ids. To make a new copy, add `--data <new folder>`.
 
-## Check
+## Notes
 
-On 2026-11-02 we ran a check script without model calls:
-
-- The review ids are exactly the 3,892 ids of `wd_reviews.parquet`. No id is missing, extra or repeated.
-- All 3,891 review ids of `panels_wd.jsonl` have a row. One review of `wd_reviews.parquet` is in no panel.
-- Every claim has a string `claim` and a boolean `specific`.
-- `model` is `gpt-6-luna-high` in all rows. The launch command used effort high, which agrees with
-  `settings.REASONING_EFFORTS["gpt-6-luna-high"]`.
+- Model output; a rerun gives different claims.
+- `extract.py` reads a row without `effort` as effort `high`.
+- Git LFS stores it.
 
 ## Read by
 
-- `src/outcomes.py` `load_claims`, used by `ml_panels` (tag `_wd`).
-- `src/extract.py` `pass2`, as input to pass 2.
+- `src/outcomes.py` `load_claims`, in `ml_panels` (tag `_wd`).
+- `src/extract.py pass2`, as input to pass 2.

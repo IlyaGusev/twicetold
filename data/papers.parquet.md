@@ -28,27 +28,18 @@ Rows per venue and year:
 | 2025 | 8,701 | 5,529 |
 | 2026 | 19,471 | – |
 
-## How we got it
-
-The same run as `reviews.parquet` writes this table; see `reviews.parquet.md` for the downloads.
-
-- ICLR 2017–2025 and NeurIPS 2021–2025 come from `arcade/papers.parquet` (Hugging Face
-  `ulab-ai/ResearchArcade-openreview-papers`).
-- ICLR 2026 comes from `iclr2026/heineman.parquet` and `iclr2026/jerma_2026.parquet`. A paper whose final venue
-  says `Withdrawn` or `Desk Rejected` gets that decision; otherwise the snapshot decision applies.
-
-Last write: 2026-11-01 17:27 UTC, step `src/corpus.py ml` of `regen.sh` (session `881519d6`).
-
-## Reproduce
+## Make
 
 ```
-uv run python -I src/corpus.py ml --out <dir>
+uv run python -I src/corpus.py ml
 ```
 
-## Check
+The same run writes `reviews.parquet`; see `reviews.parquet.md` for the raw inputs. No script in `scripts/` runs it.
 
-On 2026-11-02 we ran the "Reproduce" command with the current code and the raw dumps in `RAW_ML_REVIEWS_DIR` into a scratch folder. The output is identical to this file (`pandas.DataFrame.equals`).
+- ICLR 2017–2025 and NeurIPS 2021–2025 come from `arcade/papers.parquet`.
+- ICLR 2026 comes from `iclr2026/heineman.parquet` and `iclr2026/jerma_2026.parquet`. A paper whose final venue says
+  `Withdrawn` or `Desk Rejected` gets that decision; otherwise the snapshot decision applies.
 
 ## Read by
 
-`src/panels.py` (`ml`), `src/outcomes.py`, `src/areas.py` (`classify`).
+`src/panels.py` (`ml`, `cocodet`), `src/outcomes.py` (`ml_panels`, `pairs`), `src/areas.py` (`classify`).
