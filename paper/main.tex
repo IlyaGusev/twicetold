@@ -53,28 +53,28 @@ Our contributions are:
 \label{sec:data}
 
 \paragraph{Reviews.}
-Table~\ref{tab:data} lists the sources. ICLR and NeurIPS reviews come from OpenReview \citep{arcade2025dataset,heineman2026iclr}; we require at least three reviews per paper. ICML contributes accepted papers from 2025 and 2026. Five journal sources publish first-round referee reports: SciPost, F1000Research and its sister platforms (F1000), PLOS, BMC Medicine \citep{jerma2026bmc}, and Copernicus/EGU. They cover physics, medicine, biology and geoscience; we require at least two reports per paper. We call conference texts \emph{reviews} and journal texts \emph{reports}. Appendix~\ref{app:data} gives sampling and dates.
+Table~\ref{tab:data} lists the sources. ICLR and NeurIPS reviews come from OpenReview \citep{arcade2025dataset,heineman2026iclr}. We require at least three reviews per paper. ICML contributes accepted papers from 2025 and 2026. Five journal sources publish first-round referee reports: SciPost, F1000Research and its sister platforms (F1000), PLOS, BMC Medicine \citep{jerma2026bmc}, and Copernicus/EGU. They cover physics, medicine, biology and geoscience. Journal papers need at least two reports. We call conference texts \emph{reviews} and journal texts \emph{reports}. Appendix~\ref{app:data} gives sampling and dates.
 
 \begin{table}[t]
 \centering\footnotesize
 \input{tables/corpus}
-\caption{Papers and reviews in the analysis. Journal reports are public under CC~BY. Per-year counts appear in Appendix~\ref{app:data}.}
+\caption{Papers and reviews in the analysis. Per-year counts are in Appendix~\ref{app:data}.}
 \label{tab:data}
 \end{table}
 
 \paragraph{What counts as a critique?}
-A \emph{critique claim} names one problem the authors would answer with one fix. Praise and summary do not count. Two claims match only if they concern the same problem in the same part of the paper. A proof gap and an unjustified assumption are different problems, even if both concern the same theorem. An LLM (\texttt{gpt-6-luna}) lists each review's claims; a separate call groups matching claims across the reviews of a paper, without seeing the review texts. Repeated claims within one review count as one problem.
+A \emph{critique claim} names one problem the authors would answer with one fix. Any positive or neutral things do not count. Two claims match only if they concern the same problem in the same part of the paper. A proof gap and an unjustified assumption are different problems, even if both concern the same theorem. An LLM (\texttt{gpt-6-luna}) lists each review's claims; a separate call groups matching claims across the reviews of a paper, without seeing the review texts. Repeated claims within one review count as one problem.
 
-\paragraph{One overlap measure.}
-For two reviews, \emph{critique overlap} is the overlap coefficient: the number of distinct problems both raise, divided by the number in the smaller critique set. An overlap of 100\% means that every problem in the smaller set already appears in the other review; the longer set can still add problems. Table~\ref{tab:match_example} gives an example. A review with no critique shares no problem, so its pairs score 0. We average over all review pairs within a paper, then over papers, so every paper has equal weight. This is IntraSim \citep{baumann2026stop} with the overlap coefficient in place of embedding similarity. We use the same measure in trends, detector comparisons and cross-paper controls. Appendix~\ref{app:robust} gives the formula and intervals.
+\paragraph{Overlap metric.}
+For two reviews, \emph{critique overlap} is the overlap coefficient: the number of distinct problems both raise, divided by the number in the smaller critique set. An overlap of 100\% means that every problem in the smaller set already appears in the other review. Table~\ref{tab:match_example} gives an example. A review with no critique shares no problem, so its pairs score 0. We average over all review pairs within a paper, then over papers, so every paper has equal weight. This is IntraSim \citep{baumann2026stop} with the overlap coefficient in place of embedding similarity. Appendix~\ref{app:robust} gives the formula and intervals.
 
 \input{tables/match_example}
 
 \paragraph{AI-flagged.}
-A style detector flags a review above the 99th percentile of its scores on pre-2023 reviews. A flag describes the text, not who wrote it. CoCoDet provides a separate content-versus-polishing detector \citep{chen2025coconuts}; a word-use index measures AI-likeness at source-year level \citep{liang2024monitoring}. Appendix~\ref{app:ai} defines all three measures.
+A style detector flags a review above the 99th percentile of its scores on pre-2023 reviews. CoCoDet provides a separate content-versus-polishing detector \citep{chen2025coconuts}; a word-use index measures AI-likeness at source-year level \citep{liang2024monitoring}. Appendix~\ref{app:ai} defines all three measures.
 
-\paragraph{Reference labels and analysis choices.}
-An LLM council supplies reference claims and problem groups from Sol 6.1, Claude Opus 5.5 and Kimi K3.1 Pro proposals, followed by LLM judgments (Appendix~\ref{app:reference}). These are LLM labels, not human labels. Nothing was preregistered. The 2020 start, placebo threshold, rating split and reference sample came after the initial results.
+\paragraph{Reference labels.}
+An LLM council supplies reference claims and problem groups from Sol 6.1, Claude Opus 5.5 and Kimi K3.1 Pro proposals, followed by LLM judgments (Appendix~\ref{app:reference}).
 
 \section{Results}
 \label{sec:results}
