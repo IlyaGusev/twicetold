@@ -39,11 +39,15 @@ reasoning effort needs a different short name; do not overwrite model outputs. G
 
 `data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs, sample reviews and panels, and LLM
 reference labels. `adjudicate/` holds claim judgments; `adjudicate2/` holds grouping judgments. JSONL and Parquet
-files use Git LFS. These are LLM labels, not human labels.
+files use Git LFS. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new
+folder (`src/gold.py`); it calls paid APIs and never writes into `data/gold/`. `tests/test_gold.py` checks that the
+steps without model calls rebuild `data/gold/` byte for byte.
 
-The original sample uses the source snapshot in `data/backup_predup/`. Preserve that snapshot to reproduce its
-paper and review identifiers. Claim and review embeddings, detector scores and reference annotations are saved
-model outputs, not analysis estimates.
+Each data file has a `<file>.md` next to it that says what it holds and how it was made.
+
+`sample_reviews.parquet` and `panels.jsonl` were drawn from an earlier build of `reviews.parquet` (the deleted
+`data/backup_predup/`). Treat the committed files as the fixed sample; `panels.py ml` cannot redraw them. Claim and
+review embeddings, detector scores and reference annotations are saved model outputs, not analysis estimates.
 
 ## Analysis
 
