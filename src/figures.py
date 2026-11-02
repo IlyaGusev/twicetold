@@ -95,6 +95,7 @@ FIELD_LABEL_PLACEMENT = {
     "BMC-Med": ("above_bar", (0, 2), "center", "bottom"),
     "SciPost": ("below_bar", (0, -2), "center", "top"),
     "Copernicus": ("at_point", (4, -3), "left", "top"),
+    "PLOS": ("at_point", (-4, 0), "right", "center"),
 }
 DEFAULT_FIELD_LABEL_PLACEMENT = ("at_point", (4, 0), "left", "center")
 
@@ -405,7 +406,7 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         ax.annotate(name, (dx, label_y), xytext=offset, textcoords="offset points", fontsize=7, ha=ha, va=va)
     ax.axhline(0, color=COLORS["light"], lw=0.6, zorder=0)
     ax.set_xlim(-4, 32)
-    ax.set_ylim(-4, 14)
+    ax.set_ylim(-4, 8)
     few_ticks(ax, "x", n=4)
     few_ticks(ax, n=4)
     ax.set_xlabel("Change in AI-likeness index (points)")
