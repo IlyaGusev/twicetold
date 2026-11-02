@@ -24,7 +24,7 @@ Columns: `conf`, `field`, `journal`, `year`, `paper_id`, `review_id`, `reviewer`
 uv run python -I src/fetch.py plos
 ```
 
-It writes `plos_reviews.parquet`, `plos_papers.parquet` and `plos_stats.json` into `data/other/` (`--out`
+It writes `plos_reviews.parquet`, `plos_papers.parquet` and the `plos` key of `stats.json` into `data/other/` (`--out`
 changes the folder). No script in `scripts/` runs it. It needs network for items that are not in the raw cache
 `RAW_JOURNAL_REVIEWS_DIR/plos/`; it never downloads a cached item again.
 

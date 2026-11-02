@@ -38,15 +38,13 @@ def test_deterministic_steps_rebuild_data_gold(tmp_path):
     rebuilt = pd.read_parquet(tmp_path / "tune_reviews.parquet")
     assert rebuilt.equals(pd.read_parquet(GOLD / "tune_reviews.parquet"))
 
-    copy(tmp_path, "claims_*_tune.jsonl")
+    copy(tmp_path, "claims_council.jsonl")
     gold.claim_inputs(tmp_path)
-    same_files(tmp_path, "adjudicate/in_*.jsonl")
+    same_files(tmp_path, "adjudicate/in.jsonl")
+    same_files(tmp_path, "adjudicate/INSTRUCTIONS.md")
 
-    copy(tmp_path, "adjudicate/out_*.jsonl")
-    gold.merge_claims(tmp_path)
-    same_files(tmp_path, "gold_claims.jsonl")
-    same_files(tmp_path, "claims_gold_tune.jsonl")
-
-    copy(tmp_path, "clusters_*_tune_gold.jsonl")
+    copy(tmp_path, "adjudicate/out.jsonl")
+    copy(tmp_path, "clusters_council.jsonl")
     gold.group_inputs(tmp_path)
-    same_files(tmp_path, "adjudicate2/in_*.jsonl")
+    same_files(tmp_path, "adjudicate2/in.jsonl")
+    same_files(tmp_path, "adjudicate2/INSTRUCTIONS.md")

@@ -1,7 +1,8 @@
 # data/noq_reviews.parquet
 
 ICLR 2024–2026 sample reviews with the questions field removed. The pass-1 input for `panels_noq.jsonl`. One row per
-review: 46,972 rows. Columns: `conf`, `year`, `paper_id`, `review_id`, `text`.
+review: 46,972 rows. Columns: `conf`, `year`, `paper_id`, `review_id`, `text`. `review_id` is `noq_` + the OpenReview
+note id, so these rows have their own ids in `claims_gpt-6-luna-high.jsonl`.
 
 | Year | Papers | Reviews |
 |---|---|---|
@@ -18,8 +19,9 @@ uv run python -I src/panels.py robust
 `scripts/inputs.sh` runs this step. The same step writes `panels_placebo_area.jsonl`, `panels_sub3.jsonl` and
 `panels_noq.jsonl`. Deterministic (seeds 1 and 11), no API. It reads `sample_reviews.parquet` (ICLR rows only),
 `paper_areas.parquet` and `panels.jsonl`. The rows are all ICLR 2024–2026 reviews of `sample_reviews.parquet`: first
-the reviews of 400 random papers per year, then the rest. `drop_questions` removes the text from `[QUESTIONS]` up to
-the next `[LIMITATIONS]` or `[OTHER]` tag, or to the end.
+the reviews of 400 random papers per year, then the rest. `without_questions` adds the `noq_` prefix to `review_id`
+and removes the text from `[QUESTIONS]` up to the next `[LIMITATIONS]` or `[OTHER]` tag, or to the end
+(`QUESTIONS_RX`).
 
 ## Notes
 

@@ -284,13 +284,12 @@ def inventory(reviews, papers, sources, n_dups, src):
     lines += ["Per source x year", by_year.round(2).to_string(), ""]
     lines += ["Totals by source", totals.to_string(), ""]
     lines.append(f"Exact-duplicate texts within a paper in the merged file: {n_dups} (dropped)")
+    stats = json.loads((src / "stats.json").read_text())
     for source in sources:
-        stats_file = src / f"{source}_stats.json"
-        if stats_file.exists():
-            lines.append(f"  {source} fetch stats: {json.loads(stats_file.read_text())}")
-    plos_stats_file = src / "plos_stats.json"
-    if plos_stats_file.exists():
-        plos = json.loads(plos_stats_file.read_text())
+        if source in stats:
+            lines.append(f"  {source} fetch stats: {stats[source]}")
+    if "plos" in stats:
+        plos = stats["plos"]
         lines.append(
             f"PLOS: letters where reviewer splitting found 2+ reviewers: {plos['letters_split_2plus']}/{plos['letters']}"
             f" = {plos['letters_split_2plus'] / plos['letters']:.1%}"

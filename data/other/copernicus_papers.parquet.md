@@ -10,7 +10,8 @@ the paper's rows in `copernicus_reviews.parquet`; `licence` is the article licen
 uv run python -I src/fetch.py copernicus
 ```
 
-The same step writes `copernicus_reviews.parquet` and `copernicus_stats.json`; see `copernicus_reviews.parquet.md`.
+The same step writes `copernicus_reviews.parquet` and the `copernicus` key of `stats.json`;
+see `copernicus_reviews.parquet.md`.
 
 ## Read by
 

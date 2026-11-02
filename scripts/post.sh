@@ -19,9 +19,7 @@ step() {
   fi
 }
 
-for tag in "" _noq _wd _icml _other; do
-  step src/outcomes.py panels --model "$MODEL" --tag "$tag"
-done
+step src/outcomes.py panels --model "$MODEL"
 step src/outcomes.py pairs --model "$MODEL"
 step src/between.py claims_table --model "$MODEL"
 step src/between.py embed --model "$MODEL"

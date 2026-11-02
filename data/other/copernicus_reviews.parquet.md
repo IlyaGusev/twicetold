@@ -24,9 +24,9 @@ the recommendation label.
 uv run python -I src/fetch.py copernicus
 ```
 
-No run chain calls it. The same step writes `copernicus_papers.parquet` and `copernicus_stats.json`. Needs network
-for items that are not in the raw cache under `RAW_JOURNAL_REVIEWS_DIR/copernicus/` (`crossref/`, `html/`, `pdf/`);
-it never downloads a cached item again. No API cost.
+No run chain calls it. The same step writes `copernicus_papers.parquet` and the `copernicus` key of `stats.json`.
+Needs network for items that are not in the raw cache under `RAW_JOURNAL_REVIEWS_DIR/copernicus/` (`crossref/`,
+`html/`, `pdf/`); it never downloads a cached item again. No API cost.
 
 - It lists all Crossref peer-review records under prefix 10.5194 created from 2018-01-01
   (`https://api.crossref.org/prefixes/10.5194/works`) and keeps DOIs that end in `-rc<n>` (referee comments).

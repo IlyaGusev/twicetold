@@ -1,8 +1,8 @@
 # data/panels_noq.jsonl
 
 ICLR panels for the reviews without the questions section. 12,000 panels with 46,972 reviews: every sampled ICLR
-paper of 2024 (3,000), 2025 (3,000) and 2026 (6,000). Keys: `panel_id` (`noq_<paper_id>`) and `review_ids`. The
-texts are in `noq_reviews.parquet`.
+paper of 2024 (3,000), 2025 (3,000) and 2026 (6,000). Keys: `panel_id` (`noq_<paper_id>`) and `review_ids`
+(`noq_<OpenReview note id>`). The texts are in `noq_reviews.parquet`, with the same review ids.
 
 Panel sizes: 3 reviews (2,294), 4 (8,440), 5 (1,266).
 

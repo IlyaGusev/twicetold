@@ -21,7 +21,7 @@ BMC Medicine first-round reviews. One row per review: 6,666 reviews of 2,612 pap
 uv run python -I src/fetch.py bmc
 ```
 
-No run chain calls it. The same step writes `bmc_papers.parquet` and `bmc_stats.json`. No API cost.
+No run chain calls it. The same step writes `bmc_papers.parquet` and the `bmc` key of `stats.json`. No API cost.
 
 - It reads `RAW_JOURNAL_REVIEWS_DIR/bmc/train.parquet`. When that file is missing, it downloads
   `https://huggingface.co/datasets/JerMa88/BMC_Medicine_Peer_Reviews/resolve/main/train.parquet` (branch `main`, not

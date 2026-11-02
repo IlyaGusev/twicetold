@@ -15,8 +15,6 @@ from settings import settings
 CROSS_YEARS = (2018, 2022, 2024, 2026)
 CROSS_PER_YEAR = 5
 TEST_PER_CELL = {"same": 3, "cross": 2}
-CLAIM_CHUNK = 20
-GROUP_FILES = 6
 MAX_CLAIM_WORDS = 25
 JUDGE_ATTEMPTS = 3
 COUNCIL_RUNS = 2
@@ -40,13 +38,23 @@ def read_jsonl(path):
     return list(extract.read_jsonl(path))
 
 
-def write_jsonl(path, rows):
-    with open(path, "w") as f:
-        f.writelines(json.dumps(row) + "\n" for row in rows)
-
-
 def council_names(council):
     return ", ".join(settings.OPENROUTER_ROUTES[model] for model in council)
+
+
+def by_model(path, key, field):
+    rows = {}
+    for row in read_jsonl(path):
+        if field in row:
+            rows.setdefault(row["model"], {})[row[key]] = row[field]
+    return rows
+
+
+def merge_council(out, kind, key, tag, council):
+    parts = [out / f"{kind}_{model}{tag}.jsonl" for model in council]
+    extract.write_jsonl(out / f"{kind}_council.jsonl", extract.merge_rows(parts, lambda row: (row["model"], row[key])))
+    for part in parts:
+        part.unlink()
 
 
 def sample(out, seed=7, data=str(settings.DATA_DIR), gold=str(settings.GOLD_DIR)):
@@ -66,7 +74,7 @@ def sample(out, seed=7, data=str(settings.DATA_DIR), gold=str(settings.GOLD_DIR)
     for (kind, _), cell in cells.items():
         for i, panel in enumerate(cell):
             panel["split"] = "test" if i >= len(cell) - TEST_PER_CELL[kind] else "dev"
-    write_jsonl(out / "panels_tune.jsonl", panels)
+    extract.write_jsonl(out / "panels_tune.jsonl", panels)
 
     reviews = pd.read_parquet(data / "sample_reviews.parquet")
     blind_ids = {r for v in key.values() for r in v["review_ids"]}
@@ -82,6 +90,7 @@ def council_claims(out, council=settings.GOLD_COUNCIL, threads=16, budget=15.0):
     for _ in range(COUNCIL_RUNS):
         for model in council:
             extract.pass1(str(out / "tune_reviews.parquet"), model=model, tag="_tune", threads=threads, budget=budget, data=out)
+    merge_council(out, "claims", "review_id", "_tune", council)
 
 
 def claim_inputs(out, council=settings.GOLD_COUNCIL):
@@ -89,11 +98,10 @@ def claim_inputs(out, council=settings.GOLD_COUNCIL):
     folder = out / "adjudicate"
     folder.mkdir(exist_ok=True)
     texts = pd.read_parquet(out / "tune_reviews.parquet").set_index("review_id").text
-    claims = {model: extract.load_claims(out / f"claims_{model}_tune.jsonl") for model in council}
+    claims = by_model(out / "claims_council.jsonl", "review_id", "claims")
     order = [r for p in read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]]
     items = [dict(review_id=r, text=texts[r], council={model: claims[model][r] for model in council}) for r in order]
-    for start in range(0, len(items), CLAIM_CHUNK):
-        write_jsonl(folder / f"in_{start // CLAIM_CHUNK:02d}.jsonl", items[start : start + CLAIM_CHUNK])
+    extract.write_jsonl(folder / "in.jsonl", items)
     (folder / "INSTRUCTIONS.md").write_text(render("gold_claims", council=council_names(council)))
 
 
@@ -108,6 +116,7 @@ def valid_groups(item, reply):
 
 def judge(folder, schema, name, key, keys, valid, model, effort, threads, budget):
     instructions = (folder / "INSTRUCTIONS.md").read_text()
+    out_path = folder / "out.jsonl"
 
     def one(item):
         for _ in range(JUDGE_ATTEMPTS):
@@ -118,19 +127,17 @@ def judge(folder, schema, name, key, keys, valid, model, effort, threads, budget
                 return [{k: entry[k] for k in keys} for entry in reply[name]]
         return None
 
-    for in_path in sorted(folder.glob("in_*.jsonl")):
-        out_path = folder / in_path.name.replace("in_", "out_")
-        if out_path.exists():
-            continue
-        items = read_jsonl(in_path)
-        with ThreadPoolExecutor(threads) as pool:
-            replies = list(pool.map(one, items))
-        failed = sum(reply is None for reply in replies)
-        if failed:
-            print(f"{in_path.name}: {failed} of {len(items)} items failed or hit the budget; run again to retry this file")
-            continue
-        write_jsonl(out_path, [{key: item[key], name: reply} for item, reply in zip(items, replies)])
-        print(f"{out_path.name}: {len(items)} items, ${extract.cost():.2f} so far", flush=True)
+    items = read_jsonl(folder / "in.jsonl")
+    done = {row[key]: row for row in read_jsonl(out_path)} if out_path.exists() else {}
+    todo = [item for item in items if item[key] not in done]
+    with ThreadPoolExecutor(threads) as pool:
+        replies = list(pool.map(one, todo))
+    done.update({item[key]: {key: item[key], name: reply} for item, reply in zip(todo, replies) if reply is not None})
+    extract.write_jsonl(out_path, [done[item[key]] for item in items if item[key] in done])
+    failed = len(items) - len(done)
+    print(f"{out_path}: {len(done)} of {len(items)} items, ${extract.cost():.2f}", flush=True)
+    if failed:
+        print(f"{failed} items failed or hit the budget; run again to retry them")
 
 
 def judge_claims(out, model=settings.GOLD_JUDGE_MODEL, threads=8, budget=15.0):
@@ -149,22 +156,6 @@ def judge_claims(out, model=settings.GOLD_JUDGE_MODEL, threads=8, budget=15.0):
     )
 
 
-def merge_claims(out):
-    out = Path(out)
-    folder = out / "adjudicate"
-    ins, outs = sorted(folder.glob("in_*.jsonl")), sorted(folder.glob("out_*.jsonl"))
-    if len(outs) != len(ins):
-        raise SystemExit(f"{len(ins) - len(outs)} of {len(ins)} judge files are missing; run judge_claims again")
-    rows = [row for path in outs for row in read_jsonl(path)]
-    write_jsonl(out / "gold_claims.jsonl", rows)
-    projected = [
-        dict(review_id=row["review_id"], model="gold", claims=[{k: c[k] for k in GOLD_CLAIM_KEYS[:-1]} for c in row["claims"]])
-        for row in rows
-    ]
-    write_jsonl(out / "claims_gold_tune.jsonl", projected)
-    print(len(rows), "reviews,", sum(len(row["claims"]) for row in rows), "gold claims")
-
-
 def council_groups(out, council=settings.GOLD_COUNCIL, threads=12, budget=15.0):
     out = Path(out)
     for _ in range(COUNCIL_RUNS):
@@ -173,22 +164,20 @@ def council_groups(out, council=settings.GOLD_COUNCIL, threads=12, budget=15.0):
                 str(out / "panels_tune.jsonl"),
                 model=model,
                 tag="_tune_gold",
-                claims_files="claims_gold_tune.jsonl",
+                claims_file="adjudicate/out.jsonl",
                 threads=threads,
                 budget=budget,
                 data=out,
             )
+    merge_council(out, "clusters", "panel_id", "_tune_gold", council)
 
 
 def group_inputs(out, council=settings.GOLD_COUNCIL):
     out = Path(out)
     folder = out / "adjudicate2"
     folder.mkdir(exist_ok=True)
-    gold = extract.load_claims(out / "claims_gold_tune.jsonl")
-    clusters = {
-        model: {r["panel_id"]: r["clusters"] for r in read_jsonl(out / f"clusters_{model}_tune_gold.jsonl") if "clusters" in r}
-        for model in council
-    }
+    gold = extract.load_claims(out / "adjudicate" / "out.jsonl")
+    clusters = by_model(out / "clusters_council.jsonl", "panel_id", "clusters")
     items = []
     for panel in read_jsonl(out / "panels_tune.jsonl"):
         claims = [
@@ -211,8 +200,7 @@ def group_inputs(out, council=settings.GOLD_COUNCIL):
                 council=votes,
             )
         )
-    for i in range(GROUP_FILES):
-        write_jsonl(folder / f"in_{i:02d}.jsonl", items[i::GROUP_FILES])
+    extract.write_jsonl(folder / "in.jsonl", items)
     (folder / "INSTRUCTIONS.md").write_text(render("gold_groups", council=council_names(council)))
 
 
@@ -239,7 +227,6 @@ if __name__ == "__main__":
             council_claims=council_claims,
             claim_inputs=claim_inputs,
             judge_claims=judge_claims,
-            merge_claims=merge_claims,
             council_groups=council_groups,
             group_inputs=group_inputs,
             judge_groups=judge_groups,

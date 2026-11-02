@@ -190,8 +190,22 @@ def read_jsonl(path):
             yield json.loads(line)
 
 
-def load_claims(path):
-    return {row["review_id"]: row["claims"] for row in read_jsonl(path) if "claims" in row}
+def write_jsonl(path, rows):
+    with open(path, "w") as f:
+        f.writelines(json.dumps(row) + "\n" for row in rows)
+
+
+def load_claims(*paths):
+    return {row["review_id"]: row["claims"] for path in paths if path.exists() for row in read_jsonl(path) if "claims" in row}
+
+
+def merge_rows(paths, key):
+    kept = {}
+    for path in paths:
+        for row in read_jsonl(path):
+            if "error" not in row or "error" in kept.get(key(row), {"error": None}):
+                kept[key(row)] = row
+    return list(kept.values())
 
 
 def reasoning_efforts(model):
@@ -214,10 +228,10 @@ def done_ids(path, key, effort):
     return done
 
 
-def run(items, worker, out_path, key, model, effort, threads, budget):
+def run(items, worker, out_path, merged_path, key, model, effort, threads, budget):
     if model not in settings.PRICES_USD_PER_MTOK:
         raise SystemExit(f"{model} has no entry in settings.PRICES_USD_PER_MTOK, so the budget cap would not count its calls")
-    done = done_ids(out_path, key, effort)
+    done = done_ids(out_path, key, effort) | done_ids(merged_path, key, effort)
     todo = [item for item in items if item[key] not in done]
     print(f"{model}: {len(done)} done, {len(todo)} to do -> {out_path}", flush=True)
 
@@ -282,8 +296,18 @@ def pass1(
     effort = reasoning_efforts(model).pass1
     items = pd.read_parquet(reviews, columns=["review_id", "text"]).to_dict("records")
     worker = partial(pass1_worker, model=model, instructions=pass1_instructions(paper_kind), effort=effort)
-    out_path = Path(data) / f"claims_{model}{tag}.jsonl"
-    run(items, worker, out_path, "review_id", model, effort, threads, budget)
+    data = Path(data)
+    run(
+        items,
+        worker,
+        data / f"claims_{model}{tag}.jsonl",
+        data / f"claims_{model}.jsonl",
+        "review_id",
+        model,
+        effort,
+        threads,
+        budget,
+    )
 
 
 def pass2(
@@ -293,17 +317,15 @@ def pass2(
     threads=48,
     budget=60.0,
     paper_kind="ml",
-    claims_files=None,
+    claims_file=None,
     data=str(settings.DATA_DIR),
 ):
     effort = reasoning_efforts(model).pass2
-    if claims_files is None:
-        claims_files = f"claims_{model}{tag}.jsonl"
-    if isinstance(claims_files, str):
-        claims_files = claims_files.split(",")
-    claims_by_review = {}
-    for claims_file in claims_files:
-        claims_by_review.update(load_claims(Path(data) / claims_file))
+    data = Path(data)
+    if claims_file is None:
+        claims_by_review = load_claims(data / f"claims_{model}.jsonl", data / f"claims_{model}{tag}.jsonl")
+    else:
+        claims_by_review = load_claims(data / claims_file)
     panel_rows = list(read_jsonl(panels))
     items = [
         dict(
@@ -317,9 +339,29 @@ def pass2(
     if len(items) < len(panel_rows):
         print(f"{len(panel_rows) - len(items)} panels skipped: a review has no claims (pass-1 error or not run)", flush=True)
     worker = partial(pass2_worker, model=model, instructions=pass2_instructions(paper_kind), effort=effort)
-    out_path = Path(data) / f"clusters_{model}{tag}.jsonl"
-    run(items, worker, out_path, "panel_id", model, effort, threads, budget)
+    run(
+        items,
+        worker,
+        data / f"clusters_{model}{tag}.jsonl",
+        data / f"clusters_{model}.jsonl",
+        "panel_id",
+        model,
+        effort,
+        threads,
+        budget,
+    )
+
+
+def merge(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR)):
+    for kind, key in [("claims", "review_id"), ("clusters", "panel_id")]:
+        merged = Path(data) / f"{kind}_{model}.jsonl"
+        parts = sorted(Path(data).glob(f"{kind}_{model}_*.jsonl"))
+        rows = merge_rows([merged, *parts] if merged.exists() else parts, lambda row: row[key])
+        write_jsonl(merged, rows)
+        for part in parts:
+            part.unlink()
+        print(f"{merged.name}: {len(rows)} rows from {len(parts)} part files")
 
 
 if __name__ == "__main__":
-    fire.Fire({"pass1": pass1, "pass2": pass2})
+    fire.Fire({"pass1": pass1, "pass2": pass2, "merge": merge})

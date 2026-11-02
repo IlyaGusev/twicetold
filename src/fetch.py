@@ -120,7 +120,9 @@ def finalize(source, reviews, papers, out, max_papers=MAX_PAPERS, stats=None):
     out.mkdir(parents=True, exist_ok=True)
     rv.to_parquet(out / f"{source}_reviews.parquet")
     pp.to_parquet(out / f"{source}_papers.parquet")
-    (out / f"{source}_stats.json").write_text(json.dumps(stats))
+    stats_path = out / "stats.json"
+    all_stats = json.loads(stats_path.read_text()) if stats_path.exists() else {}
+    stats_path.write_text(json.dumps(dict(all_stats, **{source: stats}), indent=1) + "\n")
     print(rv.groupby("year").agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")))
 
 

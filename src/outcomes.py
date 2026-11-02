@@ -16,6 +16,9 @@ from metrics import overlap as hit
 from settings import settings
 
 WITHDRAWN_TAG = "_wd"
+NOQ_TAG = "_noq"
+NOQ_PREFIX = "noq_"
+PANEL_PREFIXES = {"_icml": ("icml_",), "_other": ("other_", "otherplacebo_"), NOQ_TAG: (NOQ_PREFIX,), WITHDRAWN_TAG: ("wd_",)}
 DROP_REASON = "a review of a withdrawn or desk-rejected paper, or a review not in reviews.parquet"
 MIN_PLACEBO_REVIEWS = 2
 PLACEBO_DROP_REASON = f"fewer than {MIN_PLACEBO_REVIEWS} reviews left after removing reviews of withdrawn or desk-rejected papers"
@@ -32,6 +35,17 @@ def load_claims(path):
     with open(path) as f:
         rows = map(json.loads, f)
         return {row["review_id"]: [{"specific": claim["specific"]} for claim in row["claims"]] for row in rows if "claims" in row}
+
+
+def tag_of(panel_id):
+    return next((tag for tag, prefixes in PANEL_PREFIXES.items() if panel_id.startswith(prefixes)), "")
+
+
+def load_outputs(model, data):
+    clusters_by_tag = {}
+    for panel_id, panel in load_jsonl(data / f"clusters_{model}.jsonl", "panel_id").items():
+        clusters_by_tag.setdefault(tag_of(panel_id), {})[panel_id] = panel
+    return load_claims(data / f"claims_{model}.jsonl"), clusters_by_tag
 
 
 def in_main_sample(frame):
@@ -60,15 +74,14 @@ def claims_of_reviews(df, review_ids):
     return kept.assign(review=kept.review_id.map(position))
 
 
-def ml_panels(model, tag, data, out):
-    claims = load_claims(data / f"claims_{model}{tag}.jsonl")
+def ml_panels(model, tag, clusters, claims, data, out):
     papers = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "conf", "year"]).set_index("paper_id")
     corpus_reviews = set(review_status(data).review_id)
     excluded = set() if tag == WITHDRAWN_TAG else excluded_review_ids(data)
 
     rows_by_kind = {"panel": [], "placebo": [], "sub3": []}
     dropped = Counter()
-    for panel_id, panel in tqdm(load_jsonl(data / f"clusters_{model}{tag}.jsonl", "panel_id").items(), desc="panels"):
+    for panel_id, panel in tqdm(clusters.items(), desc=f"panels{tag}"):
         kind = "placebo" if panel_id.startswith("placebo") else "sub3" if panel_id.startswith("sub3_") else "panel"
         paper = re.sub(r"^(noq|wd|sub3)_", "", panel_id)
         if kind == "panel" and paper not in papers.index:
@@ -78,7 +91,8 @@ def ml_panels(model, tag, data, out):
             keep = len(review_ids) >= MIN_PLACEBO_REVIEWS
         else:
             review_ids = panel["review_ids"]
-            keep = corpus_reviews.issuperset(review_ids) and excluded.isdisjoint(review_ids)
+            source_ids = [r.removeprefix(NOQ_PREFIX) for r in review_ids] if tag == NOQ_TAG else review_ids
+            keep = corpus_reviews.issuperset(source_ids) and excluded.isdisjoint(source_ids)
         if not keep:
             dropped[kind] += 1
             continue
@@ -109,14 +123,13 @@ def current_source_panels(data, tag, source_reviews):
     return {panel_id: review_ids for panel_id, review_ids in current.items() if source_reviews.issuperset(review_ids)}
 
 
-def source_panels(model, tag, data, out):
+def source_panels(model, tag, clusters, claims, data, out):
     source = tag[1:]
-    claims = load_claims(data / f"claims_{model}{tag}.jsonl")
     meta = pd.read_parquet(data / SOURCE_FILES[tag], columns=["review_id", "conf", "year"]).set_index("review_id")
     current = current_source_panels(data, tag, set(meta.index))
     n_stale = 0
     rows = []
-    for panel_id, panel in tqdm(load_jsonl(data / f"clusters_{model}{tag}.jsonl", "panel_id").items(), desc=source):
+    for panel_id, panel in tqdm(clusters.items(), desc=source):
         if current.get(panel_id) != panel["review_ids"]:
             n_stale += 1
             continue
@@ -136,17 +149,13 @@ def source_panels(model, tag, data, out):
     print(table.groupby(["placebo", "conf", "year"]).hit_rate_strict.mean().mul(100).round(2).unstack(0).to_string())
 
 
-def panels(
-    model=settings.DEFAULT_MODEL,
-    tag="",
-    data=str(settings.DATA_DIR),
-    out=str(settings.ANALYSIS_DIR),
-):
-    Path(out).mkdir(parents=True, exist_ok=True)
-    if tag in SOURCE_FILES:
-        source_panels(model, tag, Path(data), Path(out))
-    else:
-        ml_panels(model, tag, Path(data), Path(out))
+def panels(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(settings.ANALYSIS_DIR)):
+    data, out = Path(data), Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    claims, clusters_by_tag = load_outputs(model, data)
+    for tag, clusters in clusters_by_tag.items():
+        build = source_panels if tag in SOURCE_FILES else ml_panels
+        build(model, tag, clusters, claims, data, out)
 
 
 def panel_pairs(df, review_ids):
@@ -168,15 +177,12 @@ def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(set
     main_reviews = main_sample_review_ids(data)
     n_dropped = n_stale = 0
     rows = []
+    claims, clusters_by_tag = load_outputs(model, data)
     for tag in ["", *SOURCE_FILES]:
-        clusters_path = data / f"clusters_{model}{tag}.jsonl"
-        if not clusters_path.exists():
-            continue
-        claims = load_claims(data / f"claims_{model}{tag}.jsonl")
         if tag:
             meta = pd.read_parquet(data / SOURCE_FILES[tag], columns=["review_id", "conf", "year"]).set_index("review_id")
             current = current_source_panels(data, tag, set(meta.index))
-        for panel_id, panel in tqdm(load_jsonl(clusters_path, "panel_id").items(), desc=f"pairs{tag}"):
+        for panel_id, panel in tqdm(clusters_by_tag[tag].items(), desc=f"pairs{tag}"):
             if tag and panel_id.startswith(("icml_", "other_")):
                 if current.get(panel_id) != panel["review_ids"]:
                     n_stale += 1

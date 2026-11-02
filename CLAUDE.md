@@ -12,8 +12,9 @@
 4. Run chains are `scripts/extract_all.sh` and `scripts/post.sh`. A new pass or post step goes there, not in a
    scratch script.
 5. Always UV: `uv run python -I src/<module>.py <command>`. Keep CPU use low (`nice -n 19`, `OMP_NUM_THREADS=2`).
-6. Model outputs are named by model short name (`claims_<model><tag>.jsonl`, `reports/<name>_<model>.csv`). A new
-   model or effort setting gets a new short name in `settings.OPENROUTER_ROUTES`; existing files are never overwritten.
+6. Model outputs are named by model short name (`claims_<model>.jsonl`, `clusters_<model>.jsonl`,
+   `reports/<name>_<model>.csv`). One model has one claims file and one clusters file. A new model or effort setting
+   gets a new short name in `settings.OPENROUTER_ROUTES`.
 
 
 ## Writing guide

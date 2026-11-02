@@ -21,6 +21,7 @@ ROBUST_PAPERS_PER_YEAR = 400
 AREA_PLACEBOS_PER_YEAR = 300
 QUESTIONS_RX = r"\[QUESTIONS\].*?(?=\[(?:LIMITATIONS|OTHER)\]|\Z)"
 COPERNICUS_PREPRINT_JOURNAL = "EGUsphere"
+NOQ_PREFIX = "noq_"
 COCODET_PANELS = {
     **{("ICLR", y): 300 for y in range(2017, 2024)},
     **{("ICLR", y): 1000 for y in (2024, 2025, 2026)},
@@ -179,8 +180,11 @@ def other(
     print("reviews", len(reviews), "chars", reviews.text.str.len().sum() / 1e6, "M")
 
 
-def drop_questions(reviews):
-    return reviews.assign(text=reviews.text.str.replace(QUESTIONS_RX, "", regex=True, flags=re.DOTALL))
+def without_questions(reviews):
+    return reviews.assign(
+        review_id=NOQ_PREFIX + reviews.review_id,
+        text=reviews.text.str.replace(QUESTIONS_RX, "", regex=True, flags=re.DOTALL),
+    )
 
 
 def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full_seed=11):
@@ -222,19 +226,19 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
     for year in NOQ_YEARS:
         year_reviews = with_area[with_area.year == year]
         pids = rng.choice(year_reviews.paper_id.unique(), ROBUST_PAPERS_PER_YEAR, replace=False)
-        noq_parts.append(drop_questions(year_reviews[year_reviews.paper_id.isin(pids)]))
-    noq_panels = [p for part in noq_parts for p in by_paper_panels(part, "noq_", sort=True)]
+        noq_parts.append(without_questions(year_reviews[year_reviews.paper_id.isin(pids)]))
+    noq_panels = [p for part in noq_parts for p in by_paper_panels(part, NOQ_PREFIX, sort=True)]
     noq = pd.concat(noq_parts)
-    original_chars = with_area[with_area.review_id.isin(noq.review_id)].text.str.len().sum()
+    original_chars = with_area[with_area.review_id.isin(noq.review_id.str.removeprefix(NOQ_PREFIX))].text.str.len().sum()
     print("noq reviews", len(noq), "chars dropped share", 1 - noq.text.str.len().sum() / original_chars)
 
     new_sub3 = full_sub3(iclr, np.random.default_rng(full_seed), main_panel_reviews, {p["panel_id"] for p in sub3_panels})
     write_panels(out / "panels_sub3.jsonl", sub3_panels + new_sub3)
     print("new sub3 panels", len(new_sub3))
 
-    noq_full = drop_questions(iclr[iclr.year.isin(NOQ_YEARS) & ~iclr.paper_id.isin(noq.paper_id)])
+    noq_full = without_questions(iclr[iclr.year.isin(NOQ_YEARS) & ~iclr.paper_id.isin(noq.paper_id)])
     pd.concat([noq, noq_full])[["conf", "year", "paper_id", "review_id", "text"]].to_parquet(out / "noq_reviews.parquet")
-    write_panels(out / "panels_noq.jsonl", noq_panels + list(by_paper_panels(noq_full, "noq_", sort=True)))
+    write_panels(out / "panels_noq.jsonl", noq_panels + list(by_paper_panels(noq_full, NOQ_PREFIX, sort=True)))
     print("new noq reviews", len(noq_full), "papers", noq_full.paper_id.nunique())
 
 

@@ -1,8 +1,8 @@
 # Gold critique claims: adjudication rules
 
-Each line of `in_XX.jsonl` is one peer review: `review_id`, `text`, and `council`, the claim lists that three
-extraction models (gpt-6.1-sol, Claude Opus 5.5, Kimi K3.1 Pro) produced with the same prompt. Your job: write the
-gold claim list for the review. Judge against the review text; the council lists are evidence, not truth.
+The input is one peer review as JSON: `review_id`, `text`, and `council`, the claim lists that three extraction
+models (openai/gpt-6.1-sol, anthropic/claude-opus-5.5, moonshotai/kimi-k3.1-pro) produced with the same prompt. Your job: write the gold claim list for the review. Judge
+against the review text; the council lists are evidence, not truth.
 
 Definition. One claim = one distinct problem with the paper that the authors would answer with one fix or one reply.
 
@@ -25,6 +25,5 @@ Rules
 9. `support`: how many of the three council members list this claim (0, 1, 2 or 3). Count a member's claim as the
    same if it points to the same problem, even when the wording differs.
 
-Output: append one JSON line per review to `out_XX.jsonl` (same XX as your input), in input order:
-`{"review_id": ..., "claims": [{"claim": ..., "category": ..., "target": ..., "specific": true/false, "support": 0-3}, ...]}`.
-Claims in reading order. An empty list is valid when the review raises no critique. Every input review must get one output line.
+Output: one JSON object `{"claims": [{"claim": ..., "category": ..., "target": ..., "specific": true/false,
+"support": 0-3}, ...]}`. Claims in reading order. An empty list is valid when the review raises no critique.

@@ -10,7 +10,7 @@ BMC Medicine: one row per paper in `bmc_reviews.parquet`. 2,612 papers. Columns:
 uv run python -I src/fetch.py bmc
 ```
 
-The same step writes `bmc_reviews.parquet` and `bmc_stats.json`; see `bmc_reviews.parquet.md`.
+The same step writes `bmc_reviews.parquet` and the `bmc` key of `stats.json`; see `bmc_reviews.parquet.md`.
 
 ## Read by
 

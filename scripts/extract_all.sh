@@ -52,6 +52,7 @@ p2() { run_pass pass2 "$@"; }
   echo "CHAIN small DONE $(date)" ) > "$LOG_DIR/small.log" 2>&1 &
 
 wait
+uv run python -I src/extract.py merge --model "$MODEL"
 echo "ALL DONE $(date)"
 if grep -l "Traceback\|budget cap\|PASS FAILED\|panels skipped\|items failed" "$LOG_DIR"/*.log; then
   echo "SOME CHAIN FAILED"

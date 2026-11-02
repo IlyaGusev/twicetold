@@ -25,8 +25,8 @@ Columns: `conf`, `field`, `journal`, `year`, `paper_id`, `review_id`, `reviewer`
 uv run python -I src/fetch.py f1000
 ```
 
-It writes `f1000_reviews.parquet`, `f1000_papers.parquet` and `f1000_stats.json` into `data/other/` (`--out`
-changes the folder). No script in `scripts/` runs it. It needs network for items that are not in the raw cache
+It writes `f1000_reviews.parquet`, `f1000_papers.parquet` and the `f1000` key of `stats.json` into `data/other/`
+(`--out` changes the folder). No script in `scripts/` runs it. It needs network for items that are not in the raw cache
 `RAW_JOURNAL_REVIEWS_DIR/f1000/`; it never downloads a cached item again.
 
 - For each year 2018–2026 it searches Europe PMC for the three journals and downloads the full-text XML of each hit.

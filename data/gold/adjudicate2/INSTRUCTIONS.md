@@ -1,13 +1,13 @@
 # Gold claim grouping: adjudication rules
 
-Each line of `in_XX.jsonl` is one panel: `panel_id`, `kind`, `year`, `n_reviews`, `claims` and `council`.
+The input is one panel as JSON: `panel_id`, `kind`, `year`, `n_reviews`, `claims` and `council`.
 - `claims`: the gold critique claims of the panel's reviews. Id `R2-5` means review 2, claim 5. Each claim has its
   category and specific flag.
 - `kind`: `same` means the reviews are of ONE paper. `cross` means each review is of a DIFFERENT paper (a placebo
   panel): claims from different reviews then concern different papers, and a merge across reviews is right only when
   the two critiques would be answered by the same fix even so (for example, two reviews that both name the same
   missing baseline method). Expect very few such merges.
-- `council`: the groupings that three models (gpt-6.1-sol, Claude Opus 5.5, Kimi K3.1 Pro) produced for these
+- `council`: the groupings that three models (openai/gpt-6.1-sol, anthropic/claude-opus-5.5, moonshotai/kimi-k3.1-pro) produced for these
   claims. Each group has a problem statement and the claim ids it holds. They are evidence, not truth.
 
 Your job: write the gold grouping of the claims into problems.
@@ -26,6 +26,5 @@ Rules
 6. Where the council members disagree, read the two claims and decide by rule 1. Where all three agree, follow them
    unless rule 1 clearly says otherwise.
 
-Output: append one JSON line per panel to `out_XX.jsonl` (same XX as your input), in input order:
-`{"panel_id": ..., "clusters": [{"problem": "<one short sentence>", "claim_ids": ["R0-3", "R2-1"]}, ...]}`.
+Output: one JSON object `{"clusters": [{"problem": "<one short sentence>", "claim_ids": ["R0-3", "R2-1"]}, ...]}`.
 Singleton groups are listed too. Every claim id of the panel must appear exactly once over all groups.

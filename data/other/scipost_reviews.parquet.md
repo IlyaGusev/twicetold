@@ -24,7 +24,7 @@ Columns: `conf`, `field`, `journal`, `year`, `paper_id`, `review_id`, `reviewer`
 uv run python -I src/fetch.py scipost
 ```
 
-It writes `scipost_reviews.parquet`, `scipost_papers.parquet` and `scipost_stats.json` into `data/other/`
+It writes `scipost_reviews.parquet`, `scipost_papers.parquet` and the `scipost` key of `stats.json` into `data/other/`
 (`--out` changes the folder). No script in `scripts/` runs it. It needs network for pages that are not in the raw
 cache `RAW_JOURNAL_REVIEWS_DIR/scipost/`; it never downloads a cached page again.
 

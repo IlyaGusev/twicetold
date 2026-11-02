@@ -35,13 +35,15 @@ sources live at `RAW_JOURNAL_REVIEWS_DIR`, both set in `src/settings.py`.
 4. Run `scripts/extract_all.sh gpt-6-luna-high` for extraction and grouping. This step calls paid APIs. Each pass
    has its own budget cap; inspect the script's argument and logs before starting it.
 
-Claims and groupings use model-named JSONL files in `data/`. Rows record the request settings. A different model or
-reasoning effort needs a different short name; do not overwrite model outputs. Git LFS stores the main
-`gpt-6-luna-high` files and their `_icml`, `_other`, `_noq` and `_wd` variants.
+Each model has one claims file and one clusters file in `data/` (`claims_<model>.jsonl`, `clusters_<model>.jsonl`).
+They hold every sample; the panel id prefix names the sample (`icml_`, `other_`, `otherplacebo_`, `noq_`, `wd_`,
+`placebo_`, `placeboA_`, `sub3_`, or a bare paper id). Rows record the request settings. A different model or
+reasoning effort needs a different short name. The extraction chains write part files and
+`extract.py merge` joins them. Git LFS stores both files.
 
-`data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs, sample reviews and panels, and LLM
-reference labels. `adjudicate/` holds claim judgments; `adjudicate2/` holds grouping judgments. JSONL and Parquet
-files use Git LFS. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new
+`data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs (`claims_council.jsonl`,
+`clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `adjudicate/` holds the claim judge
+input and output; `adjudicate2/` holds the grouping judge input and output. JSONL and Parquet files use Git LFS. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new
 folder (`src/gold.py`); it calls paid APIs and never writes into `data/gold/`. `tests/test_gold.py` checks that the
 steps without model calls rebuild `data/gold/` byte for byte.
 
