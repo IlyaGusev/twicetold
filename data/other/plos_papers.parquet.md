@@ -13,4 +13,4 @@ reviewer texts that the parser found in the decision letter.
 
 ## Read by
 
-`src/corpus.py other`, which merges all five sources into `data/other_papers.parquet`. It drops `n_split`.
+`src/corpus.py other`, which counts paper licences for `reports/other_inventory.txt`.

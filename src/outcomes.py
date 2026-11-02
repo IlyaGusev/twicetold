@@ -11,6 +11,7 @@ import fire
 import pandas as pd
 from tqdm import tqdm
 
+from extract import read_jsonl
 from metrics import assign, load_jsonl, panel_metrics
 from metrics import overlap as hit
 from settings import settings
@@ -110,17 +111,9 @@ def ml_panels(model, tag, clusters, claims, data, out):
             print(kind, len(rows), "panels,", dropped[kind], "dropped:", DROP_REASONS[kind])
 
 
-def panel_review_ids(data, names):
-    review_ids = {}
-    for name in names:
-        with open(data / name) as f:
-            review_ids.update((panel["panel_id"], panel["review_ids"]) for panel in map(json.loads, f))
-    return review_ids
-
-
 def current_source_panels(data, tag, source_reviews):
-    current = panel_review_ids(data, SOURCE_PANEL_FILES[tag])
-    return {panel_id: review_ids for panel_id, review_ids in current.items() if source_reviews.issuperset(review_ids)}
+    panels = (panel for name in SOURCE_PANEL_FILES[tag] for panel in read_jsonl(data / name))
+    return {panel["panel_id"]: panel["review_ids"] for panel in panels if source_reviews.issuperset(panel["review_ids"])}
 
 
 def source_panels(model, tag, clusters, claims, data, out):

@@ -67,11 +67,7 @@ def claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
                         "specific": claim["specific"],
                     }
                 )
-    return pd.DataFrame(rows)
-
-
-def write_claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
-    claims_table(model, data).to_parquet(Path(data) / f"claims_table_{model}.parquet", index=False)
+    pd.DataFrame(rows).to_parquet(data / f"claims_table_{model}.parquet", index=False)
 
 
 def normalize_rows(X):
@@ -158,4 +154,4 @@ def embed(model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.
 
 
 if __name__ == "__main__":
-    fire.Fire({"embed": embed, "claims_table": write_claims_table})
+    fire.Fire({"embed": embed, "claims_table": claims_table})

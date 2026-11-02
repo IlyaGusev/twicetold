@@ -12,4 +12,4 @@ paper's rows in `f1000_reviews.parquet`. `licence` is the article licence.
 
 ## Read by
 
-`src/corpus.py other`, which merges all five sources into `data/other_papers.parquet`.
+`src/corpus.py other`, which counts paper licences for `reports/other_inventory.txt`.

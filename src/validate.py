@@ -17,10 +17,6 @@ from settings import settings
 BATCH_ROWS = 20000
 
 
-def se(x):
-    return x.std(ddof=1) / np.sqrt(x.count())
-
-
 def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "robust.tex"):
     main = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
     pair_table = pd.read_parquet(
@@ -50,7 +46,7 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
                 "base": base.mean(),
                 "y2026": last.mean(),
                 "change": last.mean() - base.mean(),
-                "se": np.hypot(se(base), se(last)),
+                "se": np.hypot(base.sem(), last.sem()),
             }
         )
     out = pd.DataFrame(rows)

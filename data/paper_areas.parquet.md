@@ -9,7 +9,7 @@ paper: 44,406 rows.
 | `area` | Author-chosen ICLR 2026 primary area when the paper has one; otherwise `area_pred` |
 | `area_prob` | Classifier probability of `area_pred` |
 | `area_pred` | Area the classifier predicts from title and abstract |
-| `row` | Row of the paper in `abstract_emb.npy` (equal to the row number here) |
+| `row` | Row of the paper in the embedding matrix of `classify`, which the command does not save (equal to the row number here) |
 | `area_true` | Primary area from the `MlouisBE/iclr-rebuttal-analysis` files (ICLR 2023–2026); empty otherwise |
 | `area_final` | `area_true` when present; otherwise `area` |
 | `area_source` | `openreview` when `area_true` is present (29,249 rows); otherwise `predicted` (15,157 rows) |
@@ -41,7 +41,7 @@ uv run python -I src/areas.py labels --areas <dir>/paper_areas.parquet --out <di
 - `classify` reads `panels.jsonl` and `papers.parquet`. It takes the panel papers and the ICLR 2026 papers with a
   `primary_area`, and makes a document of title, a newline and abstract, cut to 6,000 characters. It drops documents
   of 50 characters or fewer. It embeds the documents with OpenAI `text-embedding-3-small` (paid API, needs
-  `OPENAI_API_KEY`) into `abstract_emb.npy`. It fits `LogisticRegression(max_iter=2000, C=3.0)` on the ICLR 2026
+  `OPENAI_API_KEY`); it does not save the vectors. It fits `LogisticRegression(max_iter=2000, C=3.0)` on the ICLR 2026
   labels and predicts every row. It writes the first five columns.
 - `labels` adds `area_true`, `area_final` and `area_source`. It reads `ICLR_AREAS_DIR/mlouis_<year>.parquet` (first
   `primary_area` per `forum`) and joins on `paper_id`. It is deterministic and makes no API call.

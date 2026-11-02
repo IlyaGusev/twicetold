@@ -1,7 +1,5 @@
 import json
 import sys
-import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -10,33 +8,15 @@ import fire
 import numpy as np
 import pandas as pd
 
+from between import openai_embed
 from settings import settings
 
 MAX_DOC_CHARS = 6000
 MIN_DOC_CHARS = 50
 EMBED_BATCH = 256
 EMBED_THREADS = 2
-RATE_LIMIT_WAIT_S = 10
 LABEL_YEAR = 2026
 AREA_YEARS = (2023, 2024, 2025, 2026)
-
-
-def embed(docs):
-    from openai import OpenAI, RateLimitError
-
-    client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
-
-    def embed_chunk(chunk):
-        while True:
-            try:
-                response = client.embeddings.create(model=settings.EMBED_MODEL, input=chunk)
-                return [item.embedding for item in response.data]
-            except RateLimitError:
-                time.sleep(RATE_LIMIT_WAIT_S)
-
-    chunks = [docs[i : i + EMBED_BATCH] for i in range(0, len(docs), EMBED_BATCH)]
-    with ThreadPoolExecutor(EMBED_THREADS) as pool:
-        return np.array([e for part in pool.map(embed_chunk, chunks) for e in part], dtype=np.float32)
 
 
 def classify(out, data=str(settings.DATA_DIR)):
@@ -50,8 +30,7 @@ def classify(out, data=str(settings.DATA_DIR)):
     need["doc"] = (need.title.fillna("") + "\n" + need.abstract.fillna("")).str.slice(0, MAX_DOC_CHARS)
     need = need[need.doc.str.len() > MIN_DOC_CHARS].reset_index(drop=True)
     print(len(need), "papers to embed")
-    emb = embed(need.doc.tolist())
-    np.save(out / "abstract_emb.npy", emb)
+    emb = openai_embed(need.doc.tolist(), settings.EMBED_MODEL, EMBED_BATCH, EMBED_THREADS, "embed abstracts")
 
     labelled = need.primary_area.notna().to_numpy()
     y = need.primary_area[labelled].to_numpy()

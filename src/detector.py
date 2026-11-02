@@ -46,7 +46,7 @@ def p_llm(clf, tfidf, texts):
     return np.concatenate([clf.predict_proba(tfidf.transform(features(chunk)))[:, 1] for chunk in chunks])
 
 
-def scores(out, by_cell, data=str(settings.DATA_DIR)):
+def scores(out, data=str(settings.DATA_DIR)):
     data = Path(data)
     intel = pd.read_parquet(data / "intel_reviews.parquet")
     train = intel[intel.year.isin(TRAIN_YEARS)]
@@ -69,8 +69,12 @@ def scores(out, by_cell, data=str(settings.DATA_DIR)):
     scored["llm_flag"] = scored.p_llm >= q99
     scored["llm_grade"] = np.select([scored.p_llm < q90, scored.p_llm < q99, scored.p_llm <= GRADE3_CUTOFF], [0, 1, 2], 3)
     print(f"pre-period thresholds: q90={q90:.3f}, q99={q99:.3f}")
-    cell_stats = dict(flag=("llm_flag", "mean"), p_mean=("p_llm", "mean"), g2plus=("llm_grade", lambda g: (g >= 2).mean()))
-    by_venue_year = scored.groupby(["conf", "year"]).agg(**cell_stats, g3=("llm_grade", lambda g: (g == 3).mean()))
+    by_venue_year = scored.groupby(["conf", "year"]).agg(
+        flag=("llm_flag", "mean"),
+        p_mean=("p_llm", "mean"),
+        g2plus=("llm_grade", lambda g: (g >= 2).mean()),
+        g3=("llm_grade", lambda g: (g == 3).mean()),
+    )
     print(by_venue_year.round(3).to_string())
 
     summary_strengths = scored.text.str.extractall(SUMMARY_STRENGTHS)[1].groupby(level=0).apply(" ".join)
@@ -80,7 +84,6 @@ def scores(out, by_cell, data=str(settings.DATA_DIR)):
     scored["llm_flag_ss"] = scored.p_llm_ss >= q99
     print("summary+strengths scored for", len(has), "reviews")
     scored[["review_id", "p_llm", "llm_flag", "llm_grade", "p_llm_ss", "llm_flag_ss"]].to_parquet(out)
-    scored.groupby(["conf", "year"]).agg(**cell_stats).round(4).to_csv(by_cell)
 
 
 if __name__ == "__main__":

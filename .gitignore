@@ -17,7 +17,6 @@ paper/*.fdb_latexmk
 paper/*.fls
 paper/*.synctex.gz
 data/other_reviews.parquet
-data/other_papers.parquet
 data/other_pass1.parquet
 data/icml2025_reviews.parquet
 data/icml2026_reviews.parquet

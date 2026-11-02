@@ -34,17 +34,13 @@ GOLD_GROUPS_SCHEMA = extract.strict_object(
 )
 
 
-def read_jsonl(path):
-    return list(extract.read_jsonl(path))
-
-
 def council_names(council):
     return ", ".join(settings.OPENROUTER_ROUTES[model] for model in council)
 
 
 def by_model(path, key, field):
     rows = {}
-    for row in read_jsonl(path):
+    for row in extract.read_jsonl(path):
         if field in row:
             rows.setdefault(row["model"], {})[row[key]] = row[field]
     return rows
@@ -61,7 +57,7 @@ def sample(out, seed=7, data=str(settings.DATA_DIR), gold=str(settings.GOLD_DIR)
     out, data = Path(out), Path(data)
     out.mkdir(parents=True, exist_ok=True)
     key = json.loads((Path(gold) / "blind_key.json").read_text())
-    placebo = {p["panel_id"]: p for p in read_jsonl(data / "panels_placebo.jsonl")}
+    placebo = {p["panel_id"]: p for p in extract.read_jsonl(data / "panels_placebo.jsonl")}
     rng = np.random.default_rng(seed)
     panels = [dict(panel_id=code, review_ids=v["review_ids"], kind="same", year=v["year"]) for code, v in sorted(key.items())]
     for year in CROSS_YEARS:
@@ -99,7 +95,7 @@ def claim_inputs(out, council=settings.GOLD_COUNCIL):
     folder.mkdir(exist_ok=True)
     texts = pd.read_parquet(out / "tune_reviews.parquet").set_index("review_id").text
     claims = by_model(out / "claims_council.jsonl", "review_id", "claims")
-    order = [r for p in read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]]
+    order = [r for p in extract.read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]]
     items = [dict(review_id=r, text=texts[r], council={model: claims[model][r] for model in council}) for r in order]
     extract.write_jsonl(folder / "in.jsonl", items)
     (folder / "INSTRUCTIONS.md").write_text(render("gold_claims", council=council_names(council)))
@@ -127,8 +123,8 @@ def judge(folder, schema, name, key, keys, valid, model, effort, threads, budget
                 return [{k: entry[k] for k in keys} for entry in reply[name]]
         return None
 
-    items = read_jsonl(folder / "in.jsonl")
-    done = {row[key]: row for row in read_jsonl(out_path)} if out_path.exists() else {}
+    items = list(extract.read_jsonl(folder / "in.jsonl"))
+    done = {row[key]: row for row in extract.read_jsonl(out_path)} if out_path.exists() else {}
     todo = [item for item in items if item[key] not in done]
     with ThreadPoolExecutor(threads) as pool:
         replies = list(pool.map(one, todo))
@@ -179,7 +175,7 @@ def group_inputs(out, council=settings.GOLD_COUNCIL):
     gold = extract.load_claims(out / "adjudicate" / "out.jsonl")
     clusters = by_model(out / "clusters_council.jsonl", "panel_id", "clusters")
     items = []
-    for panel in read_jsonl(out / "panels_tune.jsonl"):
+    for panel in extract.read_jsonl(out / "panels_tune.jsonl"):
         claims = [
             dict(id=f"R{j}-{k}", claim=c["claim"], category=c["category"], specific=c["specific"])
             for j, review_id in enumerate(panel["review_ids"])

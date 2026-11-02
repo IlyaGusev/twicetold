@@ -15,14 +15,13 @@ order as `sample_reviews.parquet` (ICLR 96,995; NeurIPS 19,852).
 ## Make
 
 ```
-uv run python -I src/detector.py scores --out <dir>/detector_scores.parquet --by_cell <dir>/detector_by_cell.csv
+uv run python -I src/detector.py scores --out <dir>/detector_scores.parquet
 ```
 
 The detector is a logistic regression (`C=4.0`, `max_iter=3000`) on TF-IDF (sublinear tf) of hashed word 1–2-grams
 and character 3–4-grams (`char_wb`), 2^18 features each, after removal of the seven ML section tags. It trains on
 `intel_reviews.parquet` years 2021–2023 and tests on 2024 (AUC 0.9939). Then it scores `sample_reviews.parquet` and
-sets the thresholds from ICLR 2017–2022 rows. The command also writes `detector_by_cell.csv`, the same as
-`reports/detector_by_cell.csv`. CPU only, about 12 minutes. Deterministic, no network, no paid API. No chain script
+sets the thresholds from ICLR 2017–2022 rows. CPU only, about 12 minutes. Deterministic, no network, no paid API. No chain script
 runs it.
 
 ## Notes

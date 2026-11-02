@@ -37,7 +37,7 @@ uv run python -I src/corpus.py other
 
 It reads `data/other/<source>_reviews.parquet` and `<source>_papers.parquet` for `scipost`, `f1000`, `bmc`, `plos`,
 `copernicus` (`--src` changes the folder). It unifies PLoS journal names, drops duplicate (paper, text) pairs and
-keeps papers with 2 or more reviews. It writes this file, `other_papers.parquet` and `reports/other_inventory.txt`.
+keeps papers with 2 or more reviews. It writes this file and `reports/other_inventory.txt`.
 It is deterministic and needs no network.
 
 ## Notes

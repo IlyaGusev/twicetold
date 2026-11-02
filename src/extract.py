@@ -59,14 +59,6 @@ PASS2_SCHEMA = strict_object(
 )
 
 
-def pass1_instructions(paper_kind="ml"):
-    return render("pass1", paper=PASS1_PAPER_WORDING[paper_kind])
-
-
-def pass2_instructions(paper_kind="ml"):
-    return render("pass2", paper=PASS2_PAPER_WORDING[paper_kind])
-
-
 JSON_TYPES = {"string": str, "integer": int, "boolean": bool}
 
 CLIENT_MAX_RETRIES = 6
@@ -295,7 +287,9 @@ def pass1(
 
     effort = reasoning_efforts(model).pass1
     items = pd.read_parquet(reviews, columns=["review_id", "text"]).to_dict("records")
-    worker = partial(pass1_worker, model=model, instructions=pass1_instructions(paper_kind), effort=effort)
+    worker = partial(
+        pass1_worker, model=model, instructions=render("pass1", paper=PASS1_PAPER_WORDING[paper_kind]), effort=effort
+    )
     data = Path(data)
     run(
         items,
@@ -338,7 +332,9 @@ def pass2(
     ]
     if len(items) < len(panel_rows):
         print(f"{len(panel_rows) - len(items)} panels skipped: a review has no claims (pass-1 error or not run)", flush=True)
-    worker = partial(pass2_worker, model=model, instructions=pass2_instructions(paper_kind), effort=effort)
+    worker = partial(
+        pass2_worker, model=model, instructions=render("pass2", paper=PASS2_PAPER_WORDING[paper_kind]), effort=effort
+    )
     run(
         items,
         worker,

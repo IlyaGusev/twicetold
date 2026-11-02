@@ -329,7 +329,6 @@ def other(src=settings.OTHER_REVIEWS_DIR, out=settings.DATA_DIR, report=REPORT):
     papers["n_reviews"] = papers.paper_id.map(kept_counts)
     papers = papers[PAPER_COLS].reset_index(drop=True)
     reviews.to_parquet(out / "other_reviews.parquet")
-    papers.to_parquet(out / "other_papers.parquet")
     text = inventory(reviews, papers, found_sources, n_dups, src)
     print(text)
     Path(report).write_text(text + "\n")

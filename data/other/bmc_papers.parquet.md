@@ -14,4 +14,4 @@ The same step writes `bmc_reviews.parquet` and the `bmc` key of `stats.json`; se
 
 ## Read by
 
-`src/corpus.py other`, which merges all five sources into `data/other_papers.parquet`.
+`src/corpus.py other`, which counts paper licences for `reports/other_inventory.txt`.

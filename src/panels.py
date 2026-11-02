@@ -1,4 +1,3 @@
-import json
 import re
 import sys
 from pathlib import Path
@@ -9,6 +8,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from extract import read_jsonl, write_jsonl
 from settings import settings
 
 QUOTA = {("ICLR", 2024): 3000, ("ICLR", 2025): 3000, ("ICLR", 2026): 6000, **{("NeurIPS", y): 1000 for y in range(2021, 2026)}}
@@ -28,16 +28,6 @@ COCODET_PANELS = {
     **{("NeurIPS", y): 300 for y in (2021, 2022, 2023)},
     **{("NeurIPS", y): 500 for y in (2024, 2025)},
 }
-
-
-def read_panels(path):
-    with open(path) as f:
-        return [json.loads(line) for line in f]
-
-
-def write_panels(path, panels):
-    with open(path, "w") as f:
-        f.writelines(json.dumps(p) + "\n" for p in panels)
 
 
 def by_paper_panels(reviews, prefix="", sort=False):
@@ -100,7 +90,7 @@ def ml(
     current_corpus_ids = pd.read_parquet(current_corpus / "reviews.parquet", columns=["review_id"]).review_id
     in_current_corpus = sample[sample.review_id.isin(current_corpus_ids)]
     panels = [p for p in by_paper_panels(in_current_corpus) if len(p["review_ids"]) >= MIN_REVIEWS]
-    write_panels(out / "panels.jsonl", panels)
+    write_jsonl(out / "panels.jsonl", panels)
 
     def placebo():
         for (conf, year), g in sample.groupby(["conf", "year"]):
@@ -110,7 +100,7 @@ def ml(
                 rids = one_review_per_paper(rng, by_paper, pids)
                 yield dict(panel_id=f"placebo_{conf}_{year}_{k}", review_ids=rids)
 
-    write_panels(out / "panels_placebo.jsonl", placebo())
+    write_jsonl(out / "panels_placebo.jsonl", placebo())
     print(sample.groupby(["conf", "year"]).agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")).to_string())
     print("total papers", sample.paper_id.nunique(), "reviews", len(sample), "chars", sample.text.str.len().sum() / 1e6, "M")
 
@@ -128,7 +118,7 @@ def icml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), per_year=1500,
         parts.append(shuffled.groupby("paper_id").head(MAX_REVIEWS))
     sample = pd.concat(parts)
     sample[["conf", "year", "paper_id", "review_id", "rating", "confidence", "text"]].to_parquet(out / "icml_sample.parquet")
-    write_panels(out / "panels_icml.jsonl", by_paper_panels(sample, "icml_", sort=True))
+    write_jsonl(out / "panels_icml.jsonl", by_paper_panels(sample, "icml_", sort=True))
     print(
         sample.groupby("year")
         .agg(
@@ -158,7 +148,7 @@ def other(
     reviews = cap_reviews_per_paper(rng, pd.read_parquet(data / "other_reviews.parquet"))
     reviews = reviews.sort_values(["conf", "year", "paper_id", "review_id"])
     reviews[["review_id", "text"]].to_parquet(out / "other_pass1.parquet")
-    write_panels(out / "panels_other.jsonl", by_paper_panels(reviews, "other_"))
+    write_jsonl(out / "panels_other.jsonl", by_paper_panels(reviews, "other_"))
 
     def placebo():
         for (conf, year), g in reviews.groupby(["conf", "year"]):
@@ -174,7 +164,7 @@ def other(
                 rids = one_review_per_paper(rng, by_paper.rids, pids)
                 yield dict(panel_id=f"otherplacebo_{conf}_{year}_{k}", review_ids=rids)
 
-    write_panels(out / "panels_other_placebo.jsonl", placebo())
+    write_jsonl(out / "panels_other_placebo.jsonl", placebo())
     preprint_shares(reviews).to_csv(reports / "other_placebo_preprints.csv", index=False)
     print(reviews.groupby(["conf", "year"]).agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")).to_string())
     print("reviews", len(reviews), "chars", reviews.text.str.len().sum() / 1e6, "M")
@@ -195,7 +185,7 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
     areas = pd.read_parquet(data / "paper_areas.parquet")[["paper_id", "area_pred"]]
     with_area = iclr.merge(areas, on="paper_id", how="left")
     with_area["area_pred"] = with_area.area_pred.fillna("other")
-    main_panel_reviews = {r for p in read_panels(data / "panels.jsonl") for r in p["review_ids"]}
+    main_panel_reviews = {r for p in read_jsonl(data / "panels.jsonl") for r in p["review_ids"]}
 
     def placebo_area():
         for year, g in with_area.groupby("year"):
@@ -219,7 +209,7 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
                 if main_panel_reviews.issuperset(panel["review_ids"]):
                     yield panel
 
-    write_panels(out / "panels_placebo_area.jsonl", placebo_area())
+    write_jsonl(out / "panels_placebo_area.jsonl", placebo_area())
     sub3_panels = list(sub3())
 
     noq_parts = []
@@ -233,12 +223,12 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
     print("noq reviews", len(noq), "chars dropped share", 1 - noq.text.str.len().sum() / original_chars)
 
     new_sub3 = full_sub3(iclr, np.random.default_rng(full_seed), main_panel_reviews, {p["panel_id"] for p in sub3_panels})
-    write_panels(out / "panels_sub3.jsonl", sub3_panels + new_sub3)
+    write_jsonl(out / "panels_sub3.jsonl", sub3_panels + new_sub3)
     print("new sub3 panels", len(new_sub3))
 
     noq_full = without_questions(iclr[iclr.year.isin(NOQ_YEARS) & ~iclr.paper_id.isin(noq.paper_id)])
     pd.concat([noq, noq_full])[["conf", "year", "paper_id", "review_id", "text"]].to_parquet(out / "noq_reviews.parquet")
-    write_panels(out / "panels_noq.jsonl", noq_panels + list(by_paper_panels(noq_full, NOQ_PREFIX, sort=True)))
+    write_jsonl(out / "panels_noq.jsonl", noq_panels + list(by_paper_panels(noq_full, NOQ_PREFIX, sort=True)))
     print("new noq reviews", len(noq_full), "papers", noq_full.paper_id.nunique())
 
 
@@ -259,7 +249,7 @@ def cocodet(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=7):
     rng = np.random.default_rng(seed)
     papers = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "conf", "year"]).set_index("paper_id")
     panels_by_cell = {}
-    for panel in read_panels(data / "panels.jsonl"):
+    for panel in read_jsonl(data / "panels.jsonl"):
         paper = papers.loc[panel["panel_id"]]
         panels_by_cell.setdefault((paper.conf, int(paper.year)), []).append(panel)
     review_ids = set()
@@ -273,7 +263,7 @@ def cocodet(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=7):
 
 def wd(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
     reviews = pd.read_parquet(Path(data) / "wd_reviews.parquet", columns=["paper_id", "review_id"])
-    write_panels(Path(out) / "panels_wd.jsonl", by_paper_panels(reviews, "wd_", sort=True))
+    write_jsonl(Path(out) / "panels_wd.jsonl", by_paper_panels(reviews, "wd_", sort=True))
 
 
 if __name__ == "__main__":

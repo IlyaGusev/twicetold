@@ -15,4 +15,4 @@ see `copernicus_reviews.parquet.md`.
 
 ## Read by
 
-`src/corpus.py other`, which merges all five sources into `data/other_papers.parquet`.
+`src/corpus.py other`, which counts paper licences for `reports/other_inventory.txt`.

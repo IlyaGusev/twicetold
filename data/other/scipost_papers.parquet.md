@@ -11,4 +11,4 @@ paper's rows in `scipost_reviews.parquet`. `licence` is CC BY 4.0 for every pape
 
 ## Read by
 
-`src/corpus.py other`, which merges all five sources into `data/other_papers.parquet`.
+`src/corpus.py other`, which counts paper licences for `reports/other_inventory.txt`.

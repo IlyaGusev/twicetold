@@ -339,18 +339,24 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     save(fig, figs, "fig3_categories.pdf", COLUMN_WIDTH)
 
 
+def journal_change(by_year, conf):
+    rows = by_year[by_year.conf == conf]
+    pre, last = rows[rows.year.between(2019, 2023)], rows[rows.year == rows.year.max()].iloc[0]
+    return dict(
+        overlap_change=last.match - pre.match.mean(),
+        ai_change=last.ai_wordshare - pre.ai_wordshare.mean(),
+        se=np.sqrt(last.match_se**2 + (pre.match_se**2).sum() / len(pre) ** 2),
+        papers=last.papers + pre.papers.sum(),
+    )
+
+
 def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     by_year_rows = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv")
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 2.0))
     fig.subplots_adjust(left=0.15, right=0.98, top=0.97, bottom=0.17)
     for conf, name in JOURNALS.items():
-        rows = by_year_rows[by_year_rows.conf == conf]
-        pre = rows[rows.year.between(2019, 2023)]
-        last = rows[rows.year == rows.year.max()].iloc[0]
-        dx = last.ai_wordshare - pre.ai_wordshare.mean()
-        dy = last.match - pre.match.mean()
-        se = np.sqrt(last.match_se**2 + (pre.match_se**2).sum() / len(pre) ** 2)
-        ci = Z95 * se
+        change = journal_change(by_year_rows, conf)
+        dx, dy, ci = change["ai_change"], change["overlap_change"], Z95 * change["se"]
         ax.errorbar(dx, dy, yerr=ci, fmt="o", ms=3.5, color=COLORS["ink"], elinewidth=1.0)
         anchor, offset, ha, va = FIELD_LABEL_PLACEMENT.get(conf, DEFAULT_FIELD_LABEL_PLACEMENT)
         label_y = {"above_bar": dy + ci, "below_bar": dy - ci, "at_point": dy}[anchor]
@@ -616,12 +622,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         ("BMC-Med", "Bmc"),
         ("Copernicus", "Copernicus"),
     ]:
-        source = by_year[by_year.conf == conf]
-        pre, last = source[source.year.between(2019, 2023)], source.sort_values("year").iloc[-1]
-        error = np.sqrt(last.match_se**2 + (pre.match_se**2).sum() / len(pre) ** 2)
-        change = last.match - pre.match.mean()
-        record(prefix + "Change", change, error, last.papers + pre.papers.sum())
-        shifts.append(dict(source=conf, overlap_change=change, ai_change=last.ai_wordshare - pre.ai_wordshare.mean(), se=error))
+        change = journal_change(by_year, conf)
+        record(prefix + "Change", change["overlap_change"], change["se"], change["papers"])
+        shifts.append(dict(source=conf, overlap_change=change["overlap_change"], ai_change=change["ai_change"], se=change["se"]))
     shifts = pd.DataFrame(shifts)
     shifts.to_csv(reports / f"journal_changes_{model}.csv", index=False)
     correlation = shifts.overlap_change.corr(shifts.ai_change)
