@@ -48,17 +48,17 @@ def review_groups(reviews, values, n_reviews):
 def overlap(groups_a, groups_b):
     groups_a, groups_b = set(groups_a), set(groups_b)
     denominator = min(len(groups_a), len(groups_b))
-    return len(groups_a & groups_b) / denominator if denominator else np.nan
+    return len(groups_a & groups_b) / denominator if denominator else 0.0
 
 
 def mean_overlap(groups):
-    rates = [overlap(a, b) for a, b in combinations([group for group in groups if group], 2)]
+    rates = [overlap(a, b) for a, b in combinations(groups, 2)]
     return sum(rates) / len(rates) if rates else np.nan
 
 
 def panel_metrics(df, n_reviews):
     def groups(column):
-        return [] if df.empty else review_groups(df.review, df[column], n_reviews)
+        return review_groups([], [], n_reviews) if df.empty else review_groups(df.review, df[column], n_reviews)
 
     return dict(
         n_reviews=n_reviews,

@@ -16,7 +16,8 @@ efforts. The paper uses `gpt-6-luna-high`, with high effort in both extraction p
 
 For each pair of reviews, count the distinct problem groups they share and divide by the smaller problem set.
 A score of 1 means that the smaller set adds no problem beyond the other review. Duplicate claims in one group
-count once. Empty reviews enter no pair. Average pairs within each paper, then average papers within each year.
+count once. A pair with an empty review scores 0. Average all pairs within each paper, then average papers within
+each year.
 Every paper has equal weight.
 
 `src/metrics.py` defines the measure. The same function scores panels, pair tables and cross-paper controls.

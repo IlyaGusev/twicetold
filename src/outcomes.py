@@ -159,8 +159,7 @@ def panel_pairs(df, review_ids):
         if claim.specific:
             specific[claim.review].add(claim.cluster)
     for a, b in combinations(range(len(review_ids)), 2):
-        if groups[a] and groups[b]:
-            yield dict(a=review_ids[a], b=review_ids[b], hit=hit(groups[a], groups[b]), hit_spec=hit(specific[a], specific[b]))
+        yield dict(a=review_ids[a], b=review_ids[b], hit=hit(groups[a], groups[b]), hit_spec=hit(specific[a], specific[b]))
 
 
 def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(settings.ANALYSIS_DIR)):
@@ -189,8 +188,6 @@ def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(set
             else:
                 continue
             df = assign(panel, claims)
-            if df.empty:
-                continue
             rows.extend(
                 dict(panel_id=panel_id, conf=conf, year=int(year), **pair) for pair in panel_pairs(df, panel["review_ids"])
             )
