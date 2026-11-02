@@ -7,27 +7,16 @@ from pathlib import Path
 import fire
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from outcomes import main_sample_review_ids
 from settings import settings
 
-K_TYPES = 300
-REF_PER_CELL = 10000
-SIM_BLOCK_ROWS = 4096
-KMEANS_FIT_SAMPLE = 300000
-PREDICT_CHUNK_ROWS = 200000
-HILL_SAMPLE = 20000
-TEMPLATE_QUANTILE = 0.75
-SHIFT_ROWS_SHOWN = 12
 AREA_PAIRS = 300
 CELL_PAIRS = 3000
 EMBED_ATTEMPTS = 40
 EMBED_MAX_BACKOFF_S = 30
-CLAIM_EMBED_CHARS = 400
-CLAIM_EMBED_DIMS = 512
 REVIEW_EMBED_CHARS = 12000
 
 
@@ -82,136 +71,12 @@ def claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
 
 
 def write_claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
-    path = Path(data) / f"claims_table_{model}.parquet"
-    table = claims_table(model, data)
-    if path.exists() and "emb_row" in pq.read_schema(path).names:
-        emb_rows = pd.read_parquet(path, columns=["review_id", "k", "claim", "emb_row"])
-        table = table.merge(emb_rows, on=["review_id", "k", "claim"], how="left")
-    table.to_parquet(path, index=False)
-
-
-def embed_claims(model, data):
-    T = claims_table(model, data)
-    E = openai_embed(
-        T.claim.str.slice(0, CLAIM_EMBED_CHARS).tolist(),
-        settings.CLAIM_EMBED_MODEL,
-        batch=512,
-        dtype=np.float16,
-        desc="embed claims",
-        dimensions=CLAIM_EMBED_DIMS,
-    )
-    np.save(data / f"claim_emb_{model}.npy", E)
-    T["emb_row"] = np.arange(len(T))
-    T.to_parquet(data / f"claims_table_{model}.parquet")
+    claims_table(model, data).to_parquet(Path(data) / f"claims_table_{model}.parquet", index=False)
 
 
 def normalize_rows(X):
     X /= np.linalg.norm(X, axis=1, keepdims=True) + 1e-9
     return X
-
-
-def load_claims(model, data):
-    T = pd.read_parquet(data / f"claims_table_{model}.parquet")
-    T = T[T.review_id.isin(main_sample_review_ids(data))].reset_index(drop=True)
-    E = np.load(data / f"claim_emb_{model}.npy", mmap_mode="r")[T.emb_row.astype(np.int64).to_numpy()].astype(np.float32)
-    return T, normalize_rows(E)
-
-
-def template_similarity(T, E, rng):
-    paper_ids = T.paper_id.to_numpy()
-    best_sim = np.full(len(T), np.nan)
-    for cell_rows in tqdm(T.groupby(["conf", "year"]).indices.values(), desc="template sim"):
-        ref_rows = rng.choice(cell_rows, min(REF_PER_CELL, len(cell_rows)), replace=False)
-        ref_emb = E[ref_rows].T
-        for start in range(0, len(cell_rows), SIM_BLOCK_ROWS):
-            block = cell_rows[start : start + SIM_BLOCK_ROWS]
-            sim = E[block] @ ref_emb
-            same_paper = paper_ids[block][:, None] == paper_ids[ref_rows][None, :]
-            sim[same_paper] = -1
-            best_sim[block] = sim.max(1)
-    return best_sim
-
-
-def fit_types(E, pre_rows, rng):
-    from sklearn.cluster import MiniBatchKMeans
-
-    fit_rows = rng.choice(pre_rows, min(KMEANS_FIT_SAMPLE, len(pre_rows)), replace=False)
-    km = MiniBatchKMeans(K_TYPES, random_state=0, batch_size=4096, n_init=3).fit(E[fit_rows])
-    chunk_starts = range(0, len(E), PREDICT_CHUNK_ROWS)
-    ctype = np.concatenate([km.predict(E[s : s + PREDICT_CHUNK_ROWS]) for s in chunk_starts])
-    return km, ctype
-
-
-def type_labels(km, pre, E):
-    unit_centers = km.cluster_centers_ / np.linalg.norm(km.cluster_centers_, axis=1, keepdims=True)
-    labels = {}
-    for c, members in pre.groupby("ctype").groups.items():
-        closest = members[np.argmax(E[members] @ unit_centers[c])]
-        labels[c] = pre.claim[closest]
-    return pd.Series(labels, name="label")
-
-
-def cell_summary(T, rng):
-    by_cell = T.groupby(["conf", "year"])
-    summary = by_cell.agg(
-        claims=("claim", "size"),
-        template_sim=("template_sim", "mean"),
-        template_share=("template", "mean"),
-        tail_share=("tail_type", "mean"),
-        specific=("specific", "mean"),
-    )
-    hill = {}
-    for key, cell_rows in by_cell.indices.items():
-        sample = rng.choice(cell_rows, min(HILL_SAMPLE, len(cell_rows)), replace=False)
-        type_share = T.ctype.iloc[sample].value_counts(normalize=True)
-        hill[key] = float(np.exp(-(type_share * np.log(type_share)).sum()))
-    summary["hill_types_20k"] = pd.Series(hill)
-    return summary
-
-
-def type_shift(T, labels):
-    iclr = T[T.conf == "ICLR"]
-    freq = pd.crosstab(iclr.ctype, iclr.year, normalize="columns")
-    delta = (freq[2026] - freq[2023]).sort_values()
-    shift = pd.DataFrame({"label": labels, "f2023": freq[2023], "f2026": freq[2026], "delta": delta})
-    return shift.reindex(delta.index)
-
-
-def templates(model=settings.DEFAULT_MODEL, reembed=False, data=settings.DATA_DIR, reports=settings.REPORTS_DIR):
-    data, reports = Path(data), Path(reports)
-    if reembed:
-        embed_claims(model, data)
-    T, E = load_claims(model, data)
-    rng = np.random.default_rng(0)
-
-    T["template_sim"] = template_similarity(T, E, rng)
-    is_pre = (T.conf == "ICLR") & T.year.between(2017, 2022)
-    tau = np.quantile(T.template_sim[is_pre], TEMPLATE_QUANTILE)
-    T["template"] = T.template_sim >= tau
-    print(f"template threshold tau={tau:.3f} (75th percentile of ICLR 2017-2022)")
-
-    km, ctype = fit_types(E, np.flatnonzero(is_pre), rng)
-    T["ctype"] = ctype
-    pre = T[is_pre]
-    freq_pre = pre.ctype.value_counts(normalize=True)
-    rank = freq_pre.rank(ascending=False)
-    tail_types = set(rank[rank > K_TYPES / 2].index)
-    T["tail_type"] = T.ctype.isin(tail_types)
-    labels = type_labels(km, pre, E)
-    critique_types = labels.to_frame()
-    critique_types["freq_pre"] = freq_pre
-    critique_types["tail"] = critique_types.index.isin(tail_types)
-    critique_types.to_csv(reports / f"critique_types_{model}.csv")
-    T.to_parquet(data / f"claims_table_{model}.parquet")
-
-    cells = cell_summary(T, rng)
-    cells.round(4).to_csv(reports / f"template_by_cell_{model}.csv")
-    print(cells.round(3).to_string())
-
-    shift = type_shift(T, labels)
-    shift.to_csv(reports / f"type_shift_{model}.csv")
-    print("\nBiggest falls 2023->2026:\n", shift.head(SHIFT_ROWS_SHOWN).round(4).to_string())
-    print("\nBiggest rises 2023->2026:\n", shift.tail(SHIFT_ROWS_SHOWN).round(4).to_string())
 
 
 def embed_reviews(data, threads):
@@ -317,4 +182,4 @@ def embed(model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.
 
 
 if __name__ == "__main__":
-    fire.Fire({"templates": templates, "embed": embed, "claims_table": write_claims_table})
+    fire.Fire({"embed": embed, "claims_table": write_claims_table})

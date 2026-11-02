@@ -41,41 +41,32 @@ class Settings(BaseSettings):
         return self.DATA_DIR / "other"
 
     DEFAULT_MODEL: str = "gpt-6-luna-high"
-    BLIND_SET_MODEL: str = "gpt-6-luna"
     AI_REFERENCE_MODEL: str = "gpt-6-luna"
     GOLD_COUNCIL: list[str] = ["sol-or", "opus-5.5", "kimi-k3.1-pro"]
     GOLD_JUDGE_MODEL: str = "opus-5.5"
     REVIEW_TEXT_MAX_CHARS: int = 14000
 
     EMBED_MODEL: str = "text-embedding-3-small"
-    CLAIM_EMBED_MODEL: str = "text-embedding-3-large"
     COCODET_BASE_MODEL: str = "answerdotai/ModernBERT-base"
     COCODET_REPO: str = "khaaaaaan/CoCoDet"
     COCODET_WEIGHTS_FILE: str = "CoCoDet.bin"
 
     PRICES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
-        "gpt-6.1-sol": (2.00, 10.00),
-        "gpt-6.1-terra": (1.00, 5.00),
         "gpt-6-luna": (0.10, 0.50),
         "gpt-6-luna-high": (0.10, 0.50),
-        "deepseek-v4.1-flash": (0.15, 0.60),
         "sol-or": (2.00, 10.00),
         "opus-5.5": (4.00, 20.00),
         "kimi-k3.1-pro": (2.00, 10.00),
     }
     REASONING_EFFORTS: dict[str, PassEfforts] = {
         "gpt-6-luna": PassEfforts(pass1="low", pass2="medium"),
-        "gpt-6.1-sol": PassEfforts(pass1="low", pass2="medium"),
-        "deepseek-v4.1-flash": PassEfforts(pass1="low", pass2="medium"),
         "gpt-6-luna-high": PassEfforts(pass1="high", pass2="high"),
-        "gpt-6.1-terra": PassEfforts(pass1="low", pass2="medium"),
         "sol-or": PassEfforts(pass1="medium", pass2="medium"),
         "opus-5.5": PassEfforts(pass1="medium", pass2="medium"),
         "kimi-k3.1-pro": PassEfforts(pass1="medium", pass2="medium"),
     }
     OPENROUTER_ROUTES: dict[str, OpenRouterRoute] = {
         "gpt-6-luna-high": OpenRouterRoute(id="openai/gpt-6-luna"),
-        "deepseek-v4.1-flash": OpenRouterRoute(id="deepseek/deepseek-v4.1-flash-1017"),
         "sol-or": OpenRouterRoute(id="openai/gpt-6.1-sol"),
         "opus-5.5": OpenRouterRoute(id="anthropic/claude-opus-5.5"),
         "kimi-k3.1-pro": OpenRouterRoute(id="moonshotai/kimi-k3.1-pro"),

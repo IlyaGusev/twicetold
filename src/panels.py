@@ -64,23 +64,6 @@ def texts_by_id(path, review_ids):
     return pd.concat(parts).set_index("review_id").text
 
 
-def sol(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), years=(2023, 2026), per_year=400, seed=5):
-    data, out = Path(data), Path(out)
-    done = {p["panel_id"] for p in read_panels(data / "panels_sol.jsonl")}
-    panels = {p["panel_id"]: p for p in read_panels(data / "panels.jsonl")}
-    outcomes = pd.read_parquet(
-        data / f"panel_outcomes_{settings.BLIND_SET_MODEL}.parquet", columns=["panel_id", "conf", "year", "n_claims"]
-    )
-    eligible = outcomes[(outcomes.conf == "ICLR") & outcomes.year.isin(np.atleast_1d(years)) & (outcomes.n_claims > 0)]
-    pool = eligible[~eligible.panel_id.isin(done)]
-    picked_ids = pool.groupby("year", group_keys=False).sample(n=per_year, random_state=seed).panel_id
-    chosen = [panels[p] for p in picked_ids]
-    write_panels(out / "panels_sol2.jsonl", chosen)
-    review_ids = {r for p in chosen for r in p["review_ids"]}
-    texts_by_id(data / "reviews.parquet", review_ids).reset_index().to_parquet(out / "sol2_reviews.parquet")
-    print(f"{len(chosen)} panels, {len(review_ids)} reviews")
-
-
 def ml(
     data=str(settings.DATA_DIR),
     out=str(settings.DATA_DIR),
@@ -265,4 +248,4 @@ def robust_full(iclr, out, rng, main_panel_reviews):
 
 
 if __name__ == "__main__":
-    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "sol": sol})
+    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust})
