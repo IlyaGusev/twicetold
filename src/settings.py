@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     def OTHER_REVIEWS_DIR(self):
         return self.DATA_DIR / "other"
 
+    @property
+    def INTEL_DIR(self):
+        return self.RAW_ML_REVIEWS_DIR / "intel"
+
+    @property
+    def ICLR_AREAS_DIR(self):
+        return self.RAW_ML_REVIEWS_DIR / "iclr_areas"
+
     DEFAULT_MODEL: str = "gpt-6-luna-high"
     AI_REFERENCE_MODEL: str = "gpt-6-luna"
     GOLD_COUNCIL: list[str] = ["sol-or", "opus-5.5", "kimi-k3.1-pro"]

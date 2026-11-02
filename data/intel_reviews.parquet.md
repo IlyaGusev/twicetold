@@ -23,7 +23,7 @@ No script in the repo makes this file.
 
 1. On 2026-10-28 at 23:31 UTC, Claude Code session `1e2ee420` (project `~/twicetold`) downloaded the files
    `test/<llm>/ICLR<year>.test.<model>.csv` for 2021–2024 from the Hugging Face dataset
-   `IntelLabs/AI-Peer-Review-Detection-Benchmark` with `hf_hub_download` into `/tmp/intel_dl`. The download
+   `IntelLabs/AI-Peer-Review-Detection-Benchmark` with `hf_hub_download` into `/tmp/intel_dl`; a copy is in `RAW_ML_REVIEWS_DIR/intel/`. The download
    metadata gives revision `b80f6524702eb2250139b744430a9a85478586bc`. The models are `claude-sonnet-3.5v2`,
    `gemini-1.5-pro-002`, `gpt-4o`, `llama-3.1-70b` and `qwen2.5-72b`.
 2. On 2026-10-28 at 23:36 UTC, an inline Python command in the same session made the file:
@@ -42,17 +42,20 @@ No script in the repo makes this file.
    review, but only 1,483 of the 1,992 keys have a `paper_id`.
 3. Last write: 2026-10-28 23:36:30 UTC (file time).
 
-The files in `/tmp/intel_dl` still exist (2026-11-02), but `/tmp` is not permanent.
+On 2026-11-02 we copied `/tmp/intel_dl` to `RAW_ML_REVIEWS_DIR/intel/` (byte-identical).
 
 ## Reproduce
 
-No command in the repo. The code of step 2 is in the transcript of session `1e2ee420` at 2026-10-28 23:36 UTC. It
-reads `/tmp/intel_dl/test/*/ICLR*.csv` and `data/reviews.parquet`.
+```
+uv run python -I src/external.py intel --out <dir>/intel_reviews.parquet
+```
+
+It reads `RAW_ML_REVIEWS_DIR/intel/test/*/ICLR*.csv` (the step-1 download) and `data/reviews.parquet`.
 
 ## Check
 
-On 2026-11-02 we ran the step-2 code with the files in `/tmp/intel_dl` and the current `reviews.parquet`, and wrote
-to a scratch folder. The output is identical to this file (`pandas.DataFrame.equals`), `paper_id` included.
+On 2026-11-02 we ran the "Reproduce" command with the current `reviews.parquet` into a scratch folder. The output is
+identical to this file (`pandas.DataFrame.equals`), `paper_id` included.
 
 ## Read by
 

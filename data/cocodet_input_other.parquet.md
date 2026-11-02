@@ -37,4 +37,4 @@ On 2026-11-02 we compared this file with the current tables:
 
 ## Read by
 
-`src/ai.py cocodet` (input). No analysis module reads it.
+`src/cocodet.py scores` (input). No analysis module reads it.

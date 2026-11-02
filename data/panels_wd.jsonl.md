@@ -16,14 +16,20 @@ No script in the repo makes this file.
    rewrote the file. The script removed from each panel the reviews whose (paper, text) pair repeats an earlier
    review. It removed 1 review (`zlaasankug`, a copy of `foBgDN8Ecm`) and printed `panels_wd.jsonl: 1 panels
    shortened, 0 dropped, 1000 left`. Before the run, the same command copied the old file to `data/backup_predup/`.
-   `src/dedup_panels.py` was never in git; its text is in the session transcript.
+   `src/dedup_panels.py` was never in git. `src/panels.py dedup` is its panel step without comments; the
+   original also removed the stale rows of the cluster files.
 3. Last write: 2026-10-29 12:19:18 UTC (file time).
 
 ## Reproduce
 
-Not possible with the current data (see `wd_reviews.parquet.md`). The panel step needs only `wd_reviews.parquet`:
-group it by `paper_id` in sorted order and drop each review whose (paper, text) pair repeats an earlier row.
-This drops only `zlaasankug`.
+Not possible with the current data (see `wd_reviews.parquet.md`): step 1 cannot be redone. Step 2 is
+
+```
+uv run python -I src/panels.py dedup --panels <step-1 panels file> --out <dir>/panels_wd.jsonl
+```
+
+On this file, `panels.py dedup` changes nothing: `0 panels shortened, 0 dropped, 1000 left`, and the output is
+byte-identical.
 
 ## Check
 

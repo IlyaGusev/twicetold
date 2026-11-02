@@ -24,15 +24,19 @@ order.
 ## Reproduce
 
 ```
-DATA_DIR=<dir> uv run python -I src/ai.py cocodet data/cocodet_input_icml.parquet --name icml
+uv run python -I src/cocodet.py scores --input data/cocodet_input_icml.parquet --out <dir>/cocodet_icml.jsonl
 ```
 
-The current `src/ai.py` also removes the ICML tags (`SECTION_TAGS`), so its input text differs from the input of
-this file. Its output can differ.
+`src/cocodet.py` is `src/detect_cocodet.py` (the script that made this file) without comments, with paths and model
+names from `src/settings.py`. It removes only the seven ML section tags, as the original did. The command appends to
+an existing output and skips ids that it holds. `src/ai.py cocodet` is a later version that removes 10 more tags.
 
 ## Check
 
-On 2026-11-02 we did not rerun the model. We checked the file against `cocodet_input_icml.parquet`:
+On 2026-11-02 `src/cocodet.py scores --limit 16` scored the first 16 rows of the input again. All 16 rows equal
+this file (largest difference 0.0).
+
+We did not rerun the full set. We checked the file against `cocodet_input_icml.parquet`:
 
 - 11,500 lines, 11,500 distinct ids; the id set equals the input id set.
 - No NaN. Each probability is in [3.9e-14, 1.0]; each row sums to 1.000000.

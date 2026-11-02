@@ -9,7 +9,7 @@ The text of each row is `title + "\n" + abstract`, cut to 6,000 characters. The 
 
 ## How we got it
 
-1. Script: `src/areas.py` (removed in commit `c57b0a8`; `src/corpus.py areas` now does the same steps). It embeds the
+1. Script: `src/areas.py` (removed in commit `c57b0a8`; restored on 2026-11-02 as `src/areas.py classify`, same logic). It embeds the
    texts in chunks of 256 with 2 threads, saves this file, then fits a logistic regression on the ICLR 2026 labels
    and writes `paper_areas.parquet`.
 2. Command, Claude Code session `1e2ee420` (project `~/twicetold`), 2026-10-28 23:04:21 UTC:
@@ -24,12 +24,11 @@ The text of each row is `title + "\n" + abstract`, cut to 6,000 characters. The 
 ## Reproduce
 
 ```
-uv run python -I src/corpus.py areas --out <dir>
+uv run python -I src/areas.py classify --out <dir>
 ```
 
-This calls the paid OpenAI API. It also needs `data/openreview_areas.parquet`, which does not exist now. With the
-current `panels.jsonl` it embeds 44,399 papers, not 44,406: 7 papers of this file are no longer panels. The other
-44,399 papers keep their relative order.
+This calls the paid OpenAI API. With the current `panels.jsonl` it embeds 44,399 papers, not 44,406: 7 papers of
+this file are no longer panels. The other 44,399 papers keep their relative order.
 
 ## Check
 

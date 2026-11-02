@@ -38,7 +38,8 @@ No row has an `error` field. No panel id occurs twice.
 3. At 17:51:11 UTC, `driver.sh` ran `reconcile.py` (log `logs/driver_gpt-6-luna-high.log`). It removed 8,504 rows
    whose panel no longer existed or had another set of reviews: 7,303 `sub3_…`, 1,198 `placeboA_…` and 3 paper
    panels. It first copied the old file (47,984 rows) to
-   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_outputs/`. Its guard then
+   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_outputs/`
+   (copy in `RAW_ML_REVIEWS_DIR/pre_reconcile_outputs/`). Its guard then
    stopped the driver (15,800 stale panels in all files, limit 12,000), but the removals stayed.
 4. Second run. At 17:55:20 UTC, `driver2.sh` (log `logs/driver2_gpt-6-luna-high.log`) ran
    `nice -n 19 scripts/extract_all.sh gpt-6-luna-high 700`. The code was the working tree between commits `362860d`

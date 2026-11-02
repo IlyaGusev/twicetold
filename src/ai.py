@@ -409,16 +409,6 @@ def style(out=settings.DATA_DIR / "detector_scores.parquet", by_cell=settings.RE
     print(scored[iclr_2024_on].groupby("year").llm_flag_ss.mean().round(3).to_dict())
     scored[["review_id", "p_llm", "llm_flag", "llm_grade", "p_llm_ss", "llm_flag_ss"]].to_parquet(out)
 
-    gptzero = pd.read_parquet(settings.DATA_DIR / "gptzero.parquet", columns=["review_id", "gz_ai", "gz_isAI"])
-    with_gptzero = scored.merge(gptzero, on="review_id")
-    for year in (2023, 2024):
-        g = with_gptzero[with_gptzero.year == year]
-        print(
-            f"ICLR {year}: GPTZero isAI {g.gz_isAI.mean():.3f}, ours flagged {g.llm_flag.mean():.3f}; "
-            f"AUC of p_llm for GPTZero isAI {roc_auc_score(g.gz_isAI, g.p_llm):.3f}; "
-            f"corr(p_llm, gz_ai) {np.corrcoef(g.p_llm, g.gz_ai)[0, 1]:.3f}; "
-            f"P(flag|isAI) {g[g.gz_isAI].llm_flag.mean():.3f}, P(isAI|flag) {g[g.llm_flag].gz_isAI.mean():.3f}"
-        )
     scored[in_sample].groupby(["conf", "year"]).agg(**cell_stats).round(4).to_csv(by_cell)
 
 

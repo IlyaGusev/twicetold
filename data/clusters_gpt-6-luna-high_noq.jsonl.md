@@ -30,7 +30,8 @@ run.
    rebuilt the noq inputs and panels. 153 reviews got a changed text, and their claims were extracted again.
 3. At 17:51:11 UTC, `driver.sh` ran `reconcile.py` (log `logs/driver_gpt-6-luna-high.log`). It removed 151 `noq_…`
    rows whose panel had another set of reviews or held a review with new claims. It first copied the old file to
-   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_outputs/`.
+   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_outputs/`
+   (copy in `RAW_ML_REVIEWS_DIR/pre_reconcile_outputs/`).
 4. Second run. At 17:55:20 UTC, `driver2.sh` (log `logs/driver2_gpt-6-luna-high.log`) ran
    `nice -n 19 scripts/extract_all.sh gpt-6-luna-high 700`. The code was the working tree between commits `362860d`
    and `6f9fa51`. Log `logs/extract_gpt-6-luna-high/noq.log`: `11849 done, 1 to do` (1 call, $0.00) and

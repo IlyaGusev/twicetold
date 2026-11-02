@@ -60,4 +60,4 @@ into a scratch folder. The output is identical to this file (`pandas.DataFrame.e
 
 ## Read by
 
-`src/ai.py cocodet` (input). No analysis module reads it.
+`src/cocodet.py scores` (input). No analysis module reads it.

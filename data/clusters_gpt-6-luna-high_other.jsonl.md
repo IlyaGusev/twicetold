@@ -40,7 +40,8 @@ these panels no review has a claim, so `extract.py` made no call. 5 rows are err
 3. At 17:51:11 UTC, `driver.sh` ran `reconcile.py` (log `logs/driver_gpt-6-luna-high.log`). It removed 7,145 rows
    (6,450 `otherplacebo_…`, 695 `other_…`) whose panel no longer existed, had another set of reviews or held a review
    with new claims. It first copied the old file (23,985 rows) to
-   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_outputs/`.
+   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_outputs/`
+   (copy in `RAW_ML_REVIEWS_DIR/pre_reconcile_outputs/`).
 4. Second run. At 17:55:20 UTC, `driver2.sh` (log `logs/driver2_gpt-6-luna-high.log`) ran
    `nice -n 19 scripts/extract_all.sh gpt-6-luna-high 700`. The code was the working tree between commits `362860d`
    and `6f9fa51`. Log `logs/extract_gpt-6-luna-high/other.log`: `16839 done, 681 to do` (682 calls, 1.05M in, 3.55M

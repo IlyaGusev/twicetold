@@ -29,9 +29,10 @@ of AI-written text, not a claim extraction.
 ## How we got it
 
 1. Claude Code session `881519d6` (project `~/ideas`) wrote `src/make_ai_reference.py` on 2026-10-29. The script was
-   deleted on 2026-10-30 at 00:01 UTC, after the run. A copy of it, taken at 22:16 UTC during the run, is at
-   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_fire/src/make_ai_reference.py`.
-   Its logic now lives in `src/ai.py` (`reference_sample`, `rewrite`, `reference`).
+   deleted on 2026-10-30 at 00:01 UTC, after the run.
+   `src/ai.py` (`reference_sample`, `rewrite`, `reference`) has the same logic: the same sample rule, prompts
+   (`src/prompts/ai_outline.j2`, `ai_write.j2`), schemas, venue names, 14,000-character cut, model `gpt-6-luna` and
+   effort `low`. We compared it with a copy of the script taken at 22:16 UTC during the run.
 2. Sample: reviews of `reviews.parquet` from 2018–2021 and of `other_reviews.parquet` up to 2021 (the builds of
    2026-10-29), shuffled with `random_state=0`, first 3,000 per source.
 3. For each review the script made two calls through `extract.call`: the OpenAI Responses API, model `gpt-6-luna`

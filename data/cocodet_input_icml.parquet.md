@@ -31,4 +31,4 @@ is identical to this file (`pandas.DataFrame.equals`).
 
 ## Read by
 
-`src/ai.py cocodet` (input). No analysis module reads it.
+`src/cocodet.py scores` (input). No analysis module reads it.

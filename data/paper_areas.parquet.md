@@ -31,7 +31,7 @@ There are 21 areas. Rows per venue and year (through the current `papers.parquet
 
 ## How we got it
 
-No script in the current repo makes this file. Two steps in Claude Code session `1e2ee420` (project `~/twicetold`)
+Two steps in Claude Code session `1e2ee420` (project `~/twicetold`)
 made it.
 
 1. On 2026-10-28, `uv run python -I src/areas.py` wrote the first five columns and `abstract_emb.npy`. The run that
@@ -44,23 +44,30 @@ made it.
    - embeds the documents with OpenAI `text-embedding-3-small` (a paid API) into `abstract_emb.npy`;
    - fits `LogisticRegression(max_iter=2000, C=3.0)` on the ICLR 2026 labels and predicts every row.
 2. On 2026-10-28 at 23:30 UTC, an inline Python command (the same command that wrote `review_cdates.parquet` and
-   `gptzero.parquet`) added three columns:
-   - `area_true`: from `/tmp/scout/pa/dl/mlouis_<year>.parquet` for 2023–2026 (first `primary_area` per `forum`),
+   `gptzero.parquet`, deleted on 2026-11-02) added three columns:
+   - `area_true`: from `/tmp/scout/pa/dl/mlouis_<year>.parquet` (copy in `RAW_ML_REVIEWS_DIR/iclr_areas/`) for 2023–2026 (first `primary_area` per `forum`),
      joined on `paper_id`;
    - `area_final = area_true.fillna(area)`;
    - `area_source`.
 3. Last write: 2026-10-28 23:30:35 UTC (file time).
 
-The `panels.jsonl` and `papers.parquet` of 2026-10-28 no longer exist. The files in `/tmp/scout/pa/dl/` still exist
-(2026-11-02), but `/tmp` is not permanent.
+The `panels.jsonl` and `papers.parquet` of 2026-10-28 no longer exist. On 2026-11-02 we copied
+`/tmp/scout/pa/dl/` to `RAW_ML_REVIEWS_DIR/iclr_areas/` (byte-identical).
 
+`src/areas.py classify` is the step-1 script without comments. `src/areas.py labels` is step 2.
 `src/corpus.py areas` is a later version of step 1. It cannot rebuild this file: it calls the paid embedding API, it
 reads `data/openreview_areas.parquet` (not present), and its `area_true` and `area_final` rules are different.
 
 ## Reproduce
 
-Not possible without paid API calls and the inputs of 2026-10-28. The nearest command is
-`uv run python -I src/corpus.py areas --out <dir>`, with the differences above.
+```
+uv run python -I src/areas.py classify --out <dir>
+uv run python -I src/areas.py labels --areas <dir>/paper_areas.parquet --out <dir>/paper_areas_labelled.parquet
+```
+
+`classify` calls the paid OpenAI embedding API and reads `panels.jsonl` and `papers.parquet`. Those inputs changed
+after 2026-10-28, so `classify` gives a different paper set now (44,399 papers, not 44,406). `labels` reads
+`RAW_ML_REVIEWS_DIR/iclr_areas/` and makes no API call.
 
 ## Check
 
@@ -74,8 +81,8 @@ A full rebuild is not possible. On 2026-11-02 we ran these checks, with no API c
 - We refit the step-1 classifier on the saved `abstract_emb.npy` with the current ICLR 2026 labels. `area_pred`
   agrees on 44,328 of 44,406 rows (99.82%). `area_prob` differs by at most 0.0101. We do not know the cause of the
   78 differences. The labels of 2026-10-28 no longer exist, so we cannot compare them with the current labels.
-- `area_true`, rebuilt from the files in `/tmp/scout/pa/dl/` by the step-2 rule, equals the column on all rows.
-- `area_final` and `area_source` follow the step-2 rules on all rows.
+- `src/areas.py labels` on the first five columns of this file gives a table identical to this file
+  (`pandas.DataFrame.equals`).
 
 ## Read by
 

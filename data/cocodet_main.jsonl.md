@@ -14,9 +14,8 @@ step 2), not the input order. A review counts as AI or mixed when `human` is not
    - Base model and tokenizer: `answerdotai/ModernBERT-base` (`settings.COCODET_BASE_MODEL`), cached revision
      `8949b909ec900327062f0ebf497f51aef5e6f0c8`.
    - Head: cosine between the CLS vector and three class vectors, times 30, then softmax.
-2. Script: `src/detect_cocodet.py` (never committed; deleted on 2026-10-30 at 00:32 UTC; a copy is in
-   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_fire/src/detect_cocodet.py`,
-   which is not permanent). It:
+2. Script: `src/detect_cocodet.py` (never committed; deleted on 2026-10-30 at 00:32 UTC). On 2026-11-02 we
+   rewrote it as `src/cocodet.py` from a saved copy, with the same logic. It:
    - removes the tags `[SUMMARY]`, `[MAIN]`, `[STRENGTHS]`, `[WEAKNESSES]`, `[QUESTIONS]`, `[LIMITATIONS]`,
      `[OTHER]`;
    - shuffles the rows (`random_state=0`), then sorts by text length inside chunks of 256 rows;
@@ -34,10 +33,12 @@ step 2), not the input order. A review counts as AI or mixed when `human` is not
 ## Reproduce
 
 ```
-DATA_DIR=<dir> uv run python -I src/ai.py cocodet data/cocodet_input.parquet --name main
+uv run python -I src/cocodet.py scores --input data/cocodet_input.parquet --out <dir>/cocodet_main.jsonl
 ```
 
-`DATA_DIR` sets where the output goes. The command appends to an existing output and skips ids that it holds.
+`src/cocodet.py` is `src/detect_cocodet.py` (the script that made this file) without comments, with paths and model
+names from `src/settings.py`. It removes only the seven ML section tags, as the original did. The command appends to
+an existing output and skips ids that it holds. `src/ai.py cocodet` is a later version that removes 10 more tags.
 
 ## Check
 

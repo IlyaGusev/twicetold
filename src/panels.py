@@ -247,5 +247,22 @@ def robust_full(iclr, out, rng, main_panel_reviews):
     print("new noq reviews", len(noq_full), "papers", noq_full.paper_id.nunique())
 
 
+def dedup(panels, out, data=str(settings.DATA_DIR)):
+    reviews = pd.read_parquet(Path(data) / "reviews.parquet", columns=["paper_id", "review_id", "text"])
+    copies = set(reviews[reviews.duplicated(["paper_id", "text"])].review_id)
+    kept, changed, dropped = [], 0, 0
+    for panel in read_panels(panels):
+        review_ids = [r for r in panel["review_ids"] if r not in copies]
+        if len(review_ids) == len(panel["review_ids"]):
+            kept.append(panel)
+        elif len(review_ids) >= MIN_REVIEWS:
+            kept.append(dict(panel, review_ids=review_ids))
+            changed += 1
+        else:
+            dropped += 1
+    write_panels(out, kept)
+    print(f"{changed} panels shortened, {dropped} dropped, {len(kept)} left")
+
+
 if __name__ == "__main__":
-    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust})
+    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "dedup": dedup})

@@ -12,12 +12,10 @@ Rows by year (through `reviews.parquet`): 2023: 14,327; 2024: 22,098; 2025: 34,9
 
 ## How we got it
 
-No script in the repo makes this file.
-
 1. On 2026-10-28 at 22:53 UTC, a subagent in Claude Code session `1e2ee420` (project `~/twicetold`) downloaded
    `iclr_{2023,2024,2025,2026}_reviews.parquet` from Hugging Face `MlouisBE/iclr-rebuttal-analysis`
    (`https://huggingface.co/datasets/MlouisBE/iclr-rebuttal-analysis/resolve/main/data/processed/parquet/iclr_<year>_reviews.parquet`)
-   into `/tmp/scout/pa/dl/mlouis_<year>.parquet`.
+   into `/tmp/scout/pa/dl/mlouis_<year>.parquet`. A copy is in `RAW_ML_REVIEWS_DIR/iclr_areas/`.
 2. On 2026-10-28 at 23:30 UTC, an inline Python command in the same session made the file:
    - reviewer label = `"Reviewer_" + reviewer_suffix`;
    - inner join with the ICLR rows of `reviews.parquet` (the version of that time) on `paper_id`, `reviewer` and
@@ -25,9 +23,22 @@ No script in the repo makes this file.
    - `review_cdate` converted from milliseconds;
    - columns `review_id`, `review_cdate`, `ext_rating_before`, `ext_rating_after` saved.
 
-   The same command also wrote `gptzero.parquet` and changed `paper_areas.parquet`.
+   The same command also wrote `gptzero.parquet` (deleted on 2026-11-02) and changed `paper_areas.parquet`.
 
-The files in `/tmp/scout/pa/dl/` still exist (2026-11-02), but `/tmp` is not permanent.
+On 2026-11-02 we copied `/tmp/scout/pa/dl/` to `RAW_ML_REVIEWS_DIR/iclr_areas/` (byte-identical).
+
+## Reproduce
+
+```
+uv run python -I src/external.py review_cdates --out <dir>/review_cdates.parquet
+```
+
+`src/external.py review_cdates` is the step-2 code without the GPTZero and area parts.
+
+## Check
+
+On 2026-11-02 we ran the "Reproduce" command with the current `reviews.parquet` into a scratch folder. The output is
+identical to this file (`pandas.DataFrame.equals`).
 
 ## Read by
 

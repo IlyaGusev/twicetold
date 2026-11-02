@@ -27,7 +27,8 @@ from the second run. 1,314 rows belong to reviews that the 2026-11-01 rebuild re
    reviews removed.
 3. At 17:51:11 UTC, `driver.sh` ran `reconcile.py` (log `logs/driver_gpt-6-luna-high.log`). It removed the 93 rows
    with changed text. It kept the rows of the 1,314 removed reviews. It first copied the old file to
-   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_outputs/`.
+   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_outputs/`
+   (copy in `RAW_ML_REVIEWS_DIR/pre_reconcile_outputs/`).
 4. Second run. At 17:55:20 UTC, `driver2.sh` (log `logs/driver2_gpt-6-luna-high.log`) ran
    `nice -n 19 scripts/extract_all.sh gpt-6-luna-high 700`. The code was the working tree between commits `362860d`
    and `6f9fa51`. The pass printed `40950 done, 1356 to do` and

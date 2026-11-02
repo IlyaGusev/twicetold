@@ -14,16 +14,15 @@ order as `sample_reviews.parquet` (ICLR 96,995; NeurIPS 19,852).
 
 ## How we got it
 
-1. Detector (`src/detector.py`, not committed in this form; a copy is in
-   `/tmp/claude-1000/-home-yallen-ideas/881519d6-0823-4954-a4c3-bf0b4f7ffed9/scratchpad/pre_fire/src/detector.py`,
-   which is not permanent):
+1. Detector: `src/detector.py` of that time (in git at `c57b0a8^`). `src/detector.py scores` is the same code
+   without comments, with paths from `src/settings.py` and without the GPTZero comparison print:
    - features: hashed word 1–2-grams and character 3–4-grams (`char_wb`), 2^18 features each, TF-IDF with
      sublinear tf, after removal of the seven ML section tags;
    - logistic regression, `C=4.0`, `max_iter=3000`;
    - training data: `intel_reviews.parquet` years 2021–2023 (57,692 texts); test: year 2024 (19,037 texts), AUC
      0.9939.
 2. It scores every row of `sample_reviews.parquet`, sets the thresholds from ICLR 2017–2022 rows, and writes this
-   file. It then prints a comparison with `gptzero.parquet`.
+   file.
 3. Command, Claude Code session `1e2ee420` (project `~/twicetold`), 2026-10-29 04:58:48 UTC:
 
    ```
@@ -35,26 +34,20 @@ order as `sample_reviews.parquet` (ICLR 96,995; NeurIPS 19,852).
 
 ## Reproduce
 
-No current command gives this exact file. The nearest is:
-
 ```
-uv run python -I src/ai.py style --out <dir>/detector_scores.parquet --by_cell <dir>/detector_by_cell.csv
+uv run python -I src/detector.py scores --out <dir>/detector_scores.parquet --by_cell <dir>/detector_by_cell.csv
 ```
 
-`src/ai.py style` uses the same features and model for `p_llm`, `llm_flag` and `llm_grade`. It sets `llm_flag_ss`
-with a separate threshold: the 99th percentile of `p_llm_ss` over ICLR 2017–2022 (0.376 on this file), and leaves it
-empty where `p_llm_ss` is NaN. On this file the two rules agree on 79.0% of the rows that have `p_llm_ss`.
+CPU only, about 12 minutes. `src/ai.py style` is a later version: it sets `llm_flag_ss` with a separate threshold
+(the 99th percentile of `p_llm_ss` over ICLR 2017–2022, 0.376 on this file) and leaves it empty where `p_llm_ss` is
+NaN. On this file the two rules agree on 79.0% of the rows that have `p_llm_ss`. No code that makes the paper reads
+`llm_flag_ss`.
 
 ## Check
 
-On 2026-11-02 we did not rerun the detector (the run takes about 12 minutes). We checked:
-
-- 116,847 rows; the `review_id` order equals the current `sample_reviews.parquet`.
-- No NaN except `p_llm_ss` (26,346). `p_llm` is in [5.1e-6, 0.99997].
-- With venue and year from the current `sample_reviews.parquet`: q90 = 0.0150, q99 = 0.0875, and `llm_flag` equals
-  `p_llm >= q99` on all rows.
-- `llm_flag_ss` equals `p_llm_ss >= q99` (full-text q99) on all rows. This matches the detector code of
-  2026-10-29, not the current `src/ai.py style`.
+On 2026-11-02 we ran the "Reproduce" command into a scratch folder (CPU, about 12 minutes). The output is identical
+to this file (`pandas.DataFrame.equals`), and `detector_by_cell.csv` is identical to `reports/detector_by_cell.csv`.
+The run printed the same test AUC (0.9939) and thresholds (q90 = 0.015, q99 = 0.087).
 
 ## Read by
 

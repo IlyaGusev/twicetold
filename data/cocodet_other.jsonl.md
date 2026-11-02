@@ -27,11 +27,12 @@ input order.
 ## Reproduce
 
 ```
-DATA_DIR=<dir> uv run python -I src/ai.py cocodet data/cocodet_input_other.parquet --name other
+uv run python -I src/cocodet.py scores --input data/cocodet_input_other.parquet --out <dir>/cocodet_other.jsonl
 ```
 
-The current `src/ai.py` also removes the `[REPORT]` and `[REQUESTED CHANGES]` tags, so its input text differs for
-1,990 rows. Its output can differ.
+`src/cocodet.py` is `src/detect_cocodet.py` (the script that made this file) without comments, with paths and model
+names from `src/settings.py`. It removes only the seven ML section tags, as the original did. The command appends to
+an existing output and skips ids that it holds. `src/ai.py cocodet` is a later version that removes 10 more tags.
 
 ## Check
 
