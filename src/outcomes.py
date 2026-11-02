@@ -17,9 +17,13 @@ from metrics import overlap as hit
 from settings import settings
 
 WITHDRAWN_TAG = "_wd"
-NOQ_TAG = "_noq"
-NOQ_PREFIX = "noq_"
-PANEL_PREFIXES = {"_icml": ("icml_",), "_other": ("other_", "otherplacebo_"), NOQ_TAG: (NOQ_PREFIX,), WITHDRAWN_TAG: ("wd_",)}
+REVIEW_PREFIXES = {"_noq": "noq_", "_nocq": "nocq_"}
+PANEL_PREFIXES = {
+    "_icml": ("icml_",),
+    "_other": ("other_", "otherplacebo_"),
+    **{tag: (prefix,) for tag, prefix in REVIEW_PREFIXES.items()},
+    WITHDRAWN_TAG: ("wd_",),
+}
 DROP_REASON = "a review of a withdrawn or desk-rejected paper, or a review not in reviews.parquet"
 MIN_PLACEBO_REVIEWS = 2
 PLACEBO_DROP_REASON = f"fewer than {MIN_PLACEBO_REVIEWS} reviews left after removing reviews of withdrawn or desk-rejected papers"
@@ -84,7 +88,7 @@ def ml_panels(model, tag, clusters, claims, data, out):
     dropped = Counter()
     for panel_id, panel in tqdm(clusters.items(), desc=f"panels{tag}"):
         kind = "placebo" if panel_id.startswith("placebo") else "sub3" if panel_id.startswith("sub3_") else "panel"
-        paper = re.sub(r"^(noq|wd|sub3)_", "", panel_id)
+        paper = re.sub(r"^(noq|nocq|wd|sub3)_", "", panel_id)
         if kind == "panel" and paper not in papers.index:
             continue
         if kind == "placebo":
@@ -92,7 +96,7 @@ def ml_panels(model, tag, clusters, claims, data, out):
             keep = len(review_ids) >= MIN_PLACEBO_REVIEWS
         else:
             review_ids = panel["review_ids"]
-            source_ids = [r.removeprefix(NOQ_PREFIX) for r in review_ids] if tag == NOQ_TAG else review_ids
+            source_ids = [r.removeprefix(REVIEW_PREFIXES.get(tag, "")) for r in review_ids]
             keep = corpus_reviews.issuperset(source_ids) and excluded.isdisjoint(source_ids)
         if not keep:
             dropped[kind] += 1

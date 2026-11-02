@@ -9,7 +9,7 @@ fi
 MODEL=$1
 LOG_DIR=logs/extract_$MODEL
 mkdir -p "$LOG_DIR"
-[ -f data/noq_reviews.parquet ] || scripts/inputs.sh || exit 1
+[ -f data/noq_reviews.parquet ] && [ -f data/nocq_reviews.parquet ] || scripts/inputs.sh || exit 1
 
 run_pass() {
   local pass=$1 threads=$2
@@ -42,6 +42,10 @@ p2() { run_pass pass2 "$@"; }
 ( p1 128 data/noq_reviews.parquet --tag _noq
   p2 128 data/panels_noq.jsonl --tag _noq
   echo "CHAIN noq DONE $(date)" ) > "$LOG_DIR/noq.log" 2>&1 &
+
+( p1 96 data/nocq_reviews.parquet --tag _nocq
+  p2 96 data/panels_nocq.jsonl --tag _nocq
+  echo "CHAIN nocq DONE $(date)" ) > "$LOG_DIR/nocq.log" 2>&1 &
 
 ( p1 64 data/icml_sample.parquet --tag _icml
   p2 64 data/panels_icml.jsonl --tag _icml

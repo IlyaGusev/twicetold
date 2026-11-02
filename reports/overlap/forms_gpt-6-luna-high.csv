@@ -1,0 +1,8 @@
+year,form,papers,removed_papers,hit,hit_removed,hit_without,hit_spec,form_share,removed_change,hit_se,hit_removed_se,hit_without_se,hit_spec_se,form_share_se,removed_change_se
+2020,review,2127,0,12.751,,11.546,10.586,40.007,,0.302,,0.335,0.295,0.994,
+2021,review,2594,0,11.312,,9.832,9.465,41.787,,0.196,,0.216,0.188,0.76,
+2022,main review+summary of the paper+summary of the review,2617,0,12.332,,10.722,10.422,41.083,,0.211,,0.234,0.204,0.734,
+2023,"clarity, quality, novelty and reproducibility+strength and weaknesses+summary of the paper+summary of the review",3789,3789,13.064,11.965,10.259,9.995,49.124,-1.099,0.186,0.193,0.2,0.174,0.633,0.16
+2024,questions+strengths+summary+weaknesses,3000,3000,11.355,11.191,10.525,9.47,37.69,-0.164,0.178,0.212,0.205,0.175,0.714,0.178
+2025,questions+strengths+summary+weaknesses,3000,3000,11.761,11.486,11.474,10.113,34.047,-0.275,0.175,0.205,0.207,0.173,0.644,0.167
+2026,questions+strengths+summary+weaknesses,4761,4761,14.478,13.986,14.598,13.389,26.091,-0.492,0.155,0.176,0.179,0.161,0.455,0.133

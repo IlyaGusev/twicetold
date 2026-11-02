@@ -1,4 +1,5 @@
 import sys
+from itertools import combinations
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -11,10 +12,25 @@ import pyarrow.compute as pc
 import pyarrow.parquet as pq
 from tqdm import tqdm
 
+from metrics import assign, load_jsonl, mean_overlap, review_groups
 from outcomes import ICLR_FROM, SOURCE_FILES, in_window
 from settings import settings
 
 BATCH_ROWS = 20000
+REMOVED_FIELD_TAGS = ("_nocq", "_noq")
+FORM_CATEGORIES = ("clarity/presentation", "novelty", "reproducibility/details")
+FIELD_LABELS = {
+    "summary": "summary",
+    "summary of the paper": "summary",
+    "review": "review",
+    "main review": "main review",
+    "strength and weaknesses": "strengths and weaknesses",
+    "strengths": "strengths",
+    "weaknesses": "weaknesses",
+    "questions": "questions",
+    "clarity, quality, novelty and reproducibility": r"\textbf{clarity, quality, novelty and reproducibility}",
+    "summary of the review": "review summary",
+}
 
 
 def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "robust.tex"):
@@ -56,6 +72,62 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     lines += [
         f"{r.check} & {r.base_year} & {r.base:.1f} & {r.y2026:.1f} & {r.change:+.1f} ({r.se:.1f}) \\\\" for r in out.itertuples()
     ]
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
+def form_panel(panel, claims, n_reviews):
+    df = assign(panel, claims)
+    kept = df[~df.category.isin(FORM_CATEGORIES)]
+    groups = review_groups(df.review, df.cluster, n_reviews)
+    shared = set().union(*(a & b for a, b in combinations(groups, 2)))
+    on_form = set(df.cluster[df.category.isin(FORM_CATEGORIES)])
+    return dict(
+        hit=mean_overlap(groups),
+        hit_without=mean_overlap(review_groups(kept.review, kept.cluster, n_reviews)),
+        form_share=len(shared & on_form) / len(shared) if shared else np.nan,
+    )
+
+
+def forms(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "forms.tex"):
+    data = Path(data)
+    main = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").query(
+        f"conf == 'ICLR' and year >= {ICLR_FROM} and n_claims > 0"
+    )
+    claims = {rid: row["claims"] for rid, row in load_jsonl(data / f"claims_{model}.jsonl", "review_id").items()}
+    clusters = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
+    panels = pd.DataFrame(
+        [dict(year=p.year, **form_panel(clusters[p.panel_id], claims, p.n_reviews)) for p in tqdm(main.itertuples(), total=len(main))],
+        index=main.panel_id,
+    )
+    pair_table = pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "hit_spec"])
+    panels["hit_spec"] = pair_table[pair_table.conf == "ICLR"].groupby("panel_id").hit_spec.mean().reindex(panels.index)
+    removed = pd.concat(
+        pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}{tag}.parquet").query("n_claims > 0")
+        for tag in REMOVED_FIELD_TAGS
+    )
+    panels["hit_removed"] = removed.set_index("paper_id").hit_rate_strict.reindex(panels.index)
+    panels["removed_change"] = panels.hit_removed - panels.hit
+    reviews = pd.read_parquet(data / "reviews.parquet", columns=["conf", "year", "form"]).query("conf == 'ICLR'")
+    form_of_year = reviews.groupby("year").form.agg(lambda f: f.mode()[0])
+    cols = ["hit", "hit_removed", "hit_without", "hit_spec", "form_share"]
+    by_year = panels.groupby("year")[cols + ["removed_change"]]
+    out = pd.concat([by_year.mean(), by_year.sem().add_suffix("_se")], axis=1) * 100
+    out.insert(0, "removed_papers", panels.groupby("year").hit_removed.count())
+    out.insert(0, "papers", panels.groupby("year").size())
+    out.insert(0, "form", form_of_year)
+    out = out.reset_index()
+    out.round(3).to_csv(Path(reports) / f"forms_{model}.csv", index=False)
+    print(out.round(2).to_string(index=False))
+    lines = [
+        r"\begin{tabular}{l>{\raggedright\arraybackslash}p{3.8cm}rrrrrr}",
+        r"\toprule",
+        r"Year & Text fields & Papers & Overlap & Field removed & No C/N/R & Specific & C/N/R shared \\",
+        r"\midrule",
+    ]
+    for r in out.itertuples():
+        fields = sorted(r.form.split("+"), key=list(FIELD_LABELS).index)
+        cells = ["--" if pd.isna(getattr(r, c)) else f"{getattr(r, c):.1f} ({getattr(r, c + '_se'):.1f})" for c in cols]
+        lines.append(f"{r.year} & {'; '.join(FIELD_LABELS[f] for f in fields)} & {r.papers:,} & {' & '.join(cells)} \\\\")
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
@@ -183,6 +255,7 @@ if __name__ == "__main__":
     fire.Fire(
         {
             "robust": robust,
+            "forms": forms,
             "detector_placebo": detector_placebo,
             "rq1_evidence": rq1_evidence,
         }

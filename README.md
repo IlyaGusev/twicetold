@@ -31,13 +31,13 @@ sources live at `RAW_JOURNAL_REVIEWS_DIR`, both set in `src/settings.py`.
 2. Build the ML review tables with `corpus.py ml`.
 3. Run `scripts/inputs.sh`. It builds the journal tables (`corpus.py other`), parses the ICML downloads
    (`fetch.py icml`), and builds the ICML, journal, robustness and CoCoDet inputs (`panels.py icml`, `other`,
-   `robust`, `cocodet`). Git does not store these inputs. `extract_all.sh` and `post.sh` run `inputs.sh` when the
+   `robust`, `nocq`, `cocodet`). Git does not store these inputs. `extract_all.sh` and `post.sh` run `inputs.sh` when the
    inputs are missing. No step calls a paid API.
 4. Run `scripts/extract_all.sh gpt-6-luna-high` for extraction and grouping. This step calls paid APIs. Each pass
    has its own budget cap; inspect the script's argument and logs before starting it.
 
 Each model has one claims file and one clusters file in `data/` (`claims_<model>.jsonl`, `clusters_<model>.jsonl`).
-They hold every sample; the panel id prefix names the sample (`icml_`, `other_`, `otherplacebo_`, `noq_`, `wd_`,
+They hold every sample; the panel id prefix names the sample (`icml_`, `other_`, `otherplacebo_`, `noq_`, `nocq_`, `wd_`,
 `placebo_`, `placeboA_`, `sub3_`, or a bare paper id). Rows record the request settings. A different model or
 reasoning effort needs a different short name. The extraction chains write part files and
 `extract.py merge` joins them. Git LFS stores both files.

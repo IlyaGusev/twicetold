@@ -13,5 +13,6 @@ step src/fetch.py icml --year 2026
 step src/panels.py icml
 step src/panels.py other
 step src/panels.py robust
+step src/panels.py nocq
 step src/panels.py cocodet
 echo "INPUTS DONE $(date)"

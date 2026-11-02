@@ -22,6 +22,9 @@ AREA_PLACEBOS_PER_YEAR = 300
 QUESTIONS_RX = r"\[QUESTIONS\].*?(?=\[(?:LIMITATIONS|OTHER)\]|\Z)"
 COPERNICUS_PREPRINT_JOURNAL = "EGUsphere"
 NOQ_PREFIX = "noq_"
+NOCQ_PREFIX = "nocq_"
+NOCQ_YEAR = 2023
+OTHER_TAG = "[OTHER]"
 COCODET_PANELS = {
     **{("ICLR", y): 300 for y in range(2017, 2024)},
     **{("ICLR", y): 1000 for y in (2024, 2025, 2026)},
@@ -261,10 +264,31 @@ def cocodet(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=7):
     print(len(review_ids), "reviews ->", out / "cocodet_input.parquet")
 
 
+def nocq(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
+    data, out = Path(data), Path(out)
+    reviews = pd.read_parquet(data / "sample_reviews.parquet")
+    reviews = reviews[(reviews.conf == "ICLR") & (reviews.year == NOCQ_YEAR)].set_index("review_id")
+    if not reviews.text.str.count(re.escape(OTHER_TAG)).eq(2).all():
+        raise SystemExit(f"every ICLR {NOCQ_YEAR} review must have two {OTHER_TAG} sections; the second is the clarity field")
+    ids = set(reviews.index)
+    panels = [p for p in read_jsonl(data / "panels.jsonl") if set(p["review_ids"]) <= ids]
+    review_ids = [r for p in panels for r in p["review_ids"]]
+    kept = reviews.loc[review_ids]
+    kept = kept.assign(text=kept.text.str.rsplit(OTHER_TAG, n=1).str[0].str.rstrip()).reset_index()
+    print("nocq reviews", len(kept), "chars dropped share", 1 - kept.text.str.len().sum() / reviews.loc[review_ids].text.str.len().sum())
+    kept["review_id"] = NOCQ_PREFIX + kept.review_id
+    kept[["conf", "year", "paper_id", "review_id", "text"]].to_parquet(out / "nocq_reviews.parquet")
+    write_jsonl(
+        out / "panels_nocq.jsonl",
+        (dict(panel_id=NOCQ_PREFIX + p["panel_id"], review_ids=[NOCQ_PREFIX + r for r in p["review_ids"]]) for p in panels),
+    )
+    print("nocq panels", len(panels))
+
+
 def wd(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
     reviews = pd.read_parquet(Path(data) / "wd_reviews.parquet", columns=["paper_id", "review_id"])
     write_jsonl(Path(out) / "panels_wd.jsonl", by_paper_panels(reviews, "wd_", sort=True))
 
 
 if __name__ == "__main__":
-    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "cocodet": cocodet, "wd": wd})
+    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "cocodet": cocodet, "nocq": nocq, "wd": wd})

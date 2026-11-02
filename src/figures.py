@@ -620,6 +620,15 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
             np.hypot(last.match_se, base.match_se),
             base.rate_papers + last.rate_papers,
         )
+    forms = pd.read_csv(reports / f"forms_{model}.csv").set_index("year")
+    for year, suffix in [(2022, "Prev"), (2023, "Base"), (2024, "Next")]:
+        row = forms.loc[year]
+        record("FormWithout" + suffix, row.hit_without, row.hit_without_se, row.papers)
+        record("FormShared" + suffix, row.form_share, row.form_share_se, row.papers, digits=0)
+    for year, prefix in [(2023, "FieldRemoved"), (2024, "QuestionsRemoved")]:
+        row = forms.loc[year]
+        record(prefix, row.hit_removed, row.hit_removed_se, row.removed_papers)
+        record(prefix + "Change", row.removed_change, row.removed_change_se, row.removed_papers)
     for label, prefix in [
         ("ICLR 2024–26", "FlagGap"),
         ("+ length and claim count", "ControlGap"),
