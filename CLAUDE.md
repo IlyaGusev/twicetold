@@ -15,10 +15,6 @@
 6. Model outputs are named by model short name (`claims_<model><tag>.jsonl`, `reports/<name>_<model>.csv`). A new
    model or effort setting gets a new short name in `settings.OPENROUTER_ROUTES`; existing files are never overwritten.
 
-## Writing rules
-
-1. Reference annotations from Claude Opus or an LLM council are named as such in the paper, never as human.
-2. Numbers in the paper come from files in `reports/` or `paper/tables/`; none are typed by hand.
 
 ## Writing guide
 
@@ -29,14 +25,11 @@ Sources:
 - [NN] Nanda. *Highly Opinionated Advice on How to Write ML Papers.* Alignment Forum, 2025.
 - [CL] Pechmann, after Widom. *Tips for Writing Technical Papers (Checklist).* Hochschule Emden/Leer.
 
-Each rule cites its source. For figures, see the Figure guide below; this guide does not repeat it.
-
 ### 1. Core claims first
 
 - Write the 1–3 claims before any prose. Everything else serves them; cut a sentence if it serves none [NN, SPJ: "one ping"].
-- Give each claim a confidence level: systematic ("across all settings we checked"), hedged ("suggestive"), or narrow ("in these three settings") [NN]. Do not turn a hedged claim into a systematic one in the abstract.
+- Give each claim a confidence level: systematic ("across all settings we checked"), hedged ("suggestive"), or narrow ("in these three settings") [NN]. Do not turn a hedged claim into a systematic one anywhere.
 - Give each claim 1–3 key experiments; put the rest in the appendix [NN].
-- Red-team before writing: assume there is a hole, find it, close it [NN].
 
 ### 2. Abstract
 
@@ -49,8 +42,6 @@ Each rule cites its source. For figures, see the Figure guide below; this guide 
 - Open with the problem, not the field. Use a concrete example rather than "X is important [1–6]" [SPJ: molehills, not mountains].
 - CL's six questions, in this order: what the problem is; why it matters; why it is hard; what prior work missed; what we did and its limits; our contributions [CL].
 - Write contributions as a bullet list of refutable claims, each with a forward reference: "A is X% higher than B (§4, Fig. 1)", not "we study A" [SPJ].
-- Do not write "The rest of this paper is organized as follows" [SPJ]. CL allows a structure paragraph; this guide follows SPJ, because the forward references do that job.
-- Say what is new and what is not [NN].
 - Budget: about half a page in a short paper.
 
 ### 4. Calibrated language
@@ -60,8 +51,6 @@ Each rule cites its source. For figures, see the Figure guide below; this guide 
 - No suggestive terms. A proxy is not the thing it proxies: a detector's flag is not ground truth. Say so once, then never drift [LS §3.4.1]. Define each new term once, with one example.
 - No overloaded terms: words such as "collapse" or "bias" carry other meanings. Use a neutral word and give its formula [LS §3.4.2–3].
 - No mathiness: equations only where they make a definition exact; no theorem or notation you use only once [LS §3.3].
-- Inform, do not persuade. If a check weakens a claim, say so in the main text, not only in an appendix [NN].
-- Credit prior work warmly; a competitor's weakness does not make your work stronger [SPJ].
 
 ### 5. Experiments as evidence
 
@@ -134,6 +123,7 @@ Each rule cites its source. For figures, see the Figure guide below; this guide 
 18. Figures pass the Figure guide checklist.
 19. Spell checked; printed and read once.
 20. Within the page limit plus references and appendix; submitted before the deadline [SPJ].
+21. Numbers in the paper come from files in `reports/` or `paper/tables/`; none are typed by hand.
 
 ## Figure guide
 
