@@ -68,7 +68,7 @@ uv run python -I src/corpus.py ml --out <dir>
 
 ## Check
 
-`corpus.py ml` rebuild in progress (2026-11-02); this section will hold its result.
+On 2026-11-02 we ran the "Reproduce" command with the current code and the raw dumps in `RAW_ML_REVIEWS_DIR` into a scratch folder. The output is identical to this file (`pandas.DataFrame.equals`).
 
 ## Read by
 

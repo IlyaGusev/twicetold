@@ -13,7 +13,8 @@ rebuild the same steps. `tests/test_gold.py` checks that the steps without model
 
 On 2026-10-31 between 15:05 and 15:11 UTC, the session started 12 Claude Code subagents (`general-purpose`, model
 Opus 5.5), one per input file. Each read `INSTRUCTIONS.md` and its `in_XX.jsonl`, wrote `out_XX.jsonl` with a Python
-script and ran the check in step 5 of its prompt. Prompt of the agent for `in_00` (the others differ only in the
+script and ran the check in step 5 of its prompt. Each check passed on the first run; no agent ran its writer again and no
+file was edited by hand afterwards (last write 15:10:52, merge at 15:11:19). Prompt of the agent for `in_00` (the others differ only in the
 file number):
 
 ```

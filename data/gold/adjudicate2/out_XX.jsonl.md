@@ -11,8 +11,9 @@ All `data/gold/` files except `blind_key.json` come from Claude Code session `88
 `d63b8e0` (2026-11-01) moved them to `data/gold/` without changes. `src/gold.py` and `scripts/gold.sh` (2026-11-02)
 rebuild the same steps. `tests/test_gold.py` checks that the steps without model calls give byte-identical files.
 
-On 2026-10-31 between 15:26 and 15:30 UTC, the session started 6 Claude Code subagents (`general-purpose`, model Opus
-5.5), one per input file. Prompt of the agent for `in_00` (the others differ only in the file number):
+On 2026-10-31 between 15:26:51 and 15:29:47 UTC, the session ran 6 Claude Code subagents (`general-purpose`, model Opus
+5.5), one per input file. They wrote the files between 15:28:57 and 15:29:41; no file was run again or edited by hand.
+Prompt of the agent for `in_00` (the others differ only in the file number):
 
 ```
 You build gold groupings of critique claims for a peer-review study. Work only inside /home/yallen/twicetold/data/tune/adjudicate2/.

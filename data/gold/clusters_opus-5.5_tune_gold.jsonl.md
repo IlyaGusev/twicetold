@@ -2,7 +2,7 @@
 
 Council grouping of the reference claims by `opus-5.5` (OpenRouter `anthropic/claude-opus-5.5`). One line per panel: `panel_id`,
 `model`, `review_ids`, `targets`, `clusters` (each cluster: `target_id`, `problem`, `claim_ids` such as `R2-5`).
-61 lines: 2 error rows and 59 grouped panels. One panel has no Opus grouping; a retry did not fix it.
+61 lines: 2 error rows and 59 grouped panels. Panel `B34` has no Opus grouping: it failed in the run and in one retry, so its grouping-judge input has no Opus entry.
 
 ## How we got it
 
