@@ -184,47 +184,52 @@ def rates(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     save(fig, figs, "figA_rates.pdf", COLUMN_WIDTH)
 
 
-def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
+PAIR_TYPE_STYLES = {
+    "HH": ("Neither flagged", COLORS["grey"], COLORS["grey"], "o"),
+    "HL": ("One flagged", COLORS["flag_light"], COLORS["flag"], "s"),
+    "LL": ("Both flagged", COLORS["flag"], COLORS["flag"], "D"),
+    "WW": ("Both AI-written", COLORS["ink"], COLORS["ink"], "^"),
+}
+
+
+def pair_type_means(model):
     flags = meld_flags().set_index("review_id")
     pairs = pd.read_parquet(
         settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
     )
+    pairs = pairs[pairs.conf.isin(ML_VENUES) & (pairs.year >= 2024)].copy()
     n_flagged = pairs.a.map(flags.flag).astype(int) + pairs.b.map(flags.flag).astype(int)
     n_written = pairs.a.map(flags.written).astype(int) + pairs.b.map(flags.written).astype(int)
     pairs["pair_type"] = n_flagged.map({0: "HH", 1: "HL", 2: "LL"})
     pairs.loc[n_written == 2, "pair_type"] = "WW"
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.9))
-    fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.14)
-    iclr = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)]
-    styles = {
-        "HH": ("neither flagged", COLORS["grey"], "o"),
-        "HL": ("one flagged", COLORS["flag_light"], "s"),
-        "LL": ("both flagged", COLORS["flag"], "D"),
-        "WW": ("both AI-written", COLORS["ink"], "^"),
-    }
-    ends = []
-    for k, (pair_type, (_, color, marker)) in enumerate(styles.items()):
-        per_year = iclr[iclr.pair_type == pair_type].groupby(["year", "panel_id"]).hit.mean().groupby("year")
-        mean = per_year.mean() * 100
-        ci = 100 * Z95 * per_year.std() / np.sqrt(per_year.count())
+    per_paper = pairs.groupby(["conf", "pair_type", "panel_id"]).hit.mean() * 100
+    means = per_paper.groupby(["conf", "pair_type"]).agg(["mean", "std", "count"]).reset_index()
+    years = pairs.groupby("conf").year.agg(["min", "max"])
+    means["venue"] = means.conf.map(lambda c: f"{c}\n{years.loc[c, 'min']}–{years.loc[c, 'max'] % 100:02d}")
+    means["ci"] = Z95 * means["std"] / np.sqrt(means["count"])
+    return means
+
+
+def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
+    means = pair_type_means(model)
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 2.0))
+    for k, (pair_type, (label, face, edge, marker)) in enumerate(PAIR_TYPE_STYLES.items()):
+        rows = means[means.pair_type == pair_type].set_index("conf").loc[ML_VENUES]
+        x = np.arange(len(ML_VENUES)) + (k - 1.5) * 0.17
         ax.errorbar(
-            mean.index + (k - 1.5) * 0.14,
-            mean,
-            yerr=ci,
-            fmt=marker,
-            ms=3.5,
-            color=color,
-            elinewidth=1.0,
-            label=styles[pair_type][0],
+            x, rows["mean"], yerr=rows.ci, fmt=marker, ms=3.5, mfc=face, mec=edge, mew=0.6,
+            ecolor=edge, elinewidth=0.9, label=label,
         )
-        ends.append((mean.iloc[-1], styles[pair_type][0], color))
-    for (y, text, color), label_y in zip(ends, spread_labels([y for y, _, _ in ends], 1.9)):
-        end_label(ax, 2026.32, label_y, text, color=COLORS["ink"])
-    few_ticks(ax)
-    ax.set_xlim(2023.6, 2027.6)
+    ax.set_xlim(-0.5, len(ML_VENUES) - 0.5)
+    ax.set_xticks(range(len(ML_VENUES)), rows.venue)
+    ax.tick_params(axis="x", length=0)
     ax.set_ylim(0, 30)
-    year_ticks(ax, (2024, 2025, 2026))
+    ax.set_yticks([0, 10, 20, 30])
     ax.set_ylabel("Critique overlap (%)")
+    ax.legend(
+        loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, columnspacing=1.2, handletextpad=0.3,
+        handlelength=1.2, borderaxespad=0.2,
+    )
     save(fig, figs, "fig2_ai.pdf", COLUMN_WIDTH)
 
 
@@ -663,6 +668,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     baseline = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024) & (pairs.nflag == 0)].groupby("panel_id").hit.mean() * 100
     record("FlagBaseline", baseline.mean(), baseline.sem(), len(baseline))
     record("FlagRelative", evidence.loc["ICLR 2024–26"].est / baseline.mean() * 100, digits=0)
+    written = pair_type_means(model).query("pair_type == 'WW'").set_index("conf")["count"]
+    for conf in ML_VENUES:
+        values[f"PairWritten{conf.title()}N"] = f"{int(written[conf]):,}"
     placebo = pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet")
     for year, prefix in [(2023, "CrossBase"), (2026, "CrossLast")]:
         sample = (
