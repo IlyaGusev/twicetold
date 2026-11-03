@@ -52,7 +52,7 @@ Sources:
 
 - Separate what you measured from why you think it happened. A measured change is a finding; a mechanism you did not test is speculation. Label speculation as such and keep it in one paragraph [LS §3.1].
 - Test: "Would I rely on this explanation to predict new data?" If not, it is speculation [LS §5.1].
-- No suggestive terms. A proxy is not the thing it proxies: a detector's flag is not ground truth. Say so once, then never drift [LS §3.4.1]. Define each new term once, with one example.
+- No suggestive terms. A proxy is not the thing it proxies: a detector's flag is not ground truth [LS §3.4.1]. Define each new term once, with one example.
 - No overloaded terms: words such as "collapse" or "bias" carry other meanings. Use a neutral word and give its formula [LS §3.4.2–3].
 - No mathiness: equations only where they make a definition exact; no theorem or notation you use only once [LS §3.3].
 
@@ -112,22 +112,20 @@ Sources:
 3. The abstract names the genre, the data size and one number per claim.
 4. Every claim in the introduction has evidence in the body.
 5. Every speculation is labeled and sits in one marked paragraph.
-6. Proxies are named as proxies and never used as the thing they proxy.
-7. Each term is defined once; no synonyms for one object.
-8. Every estimate has n and a 95% CI from the correct unit.
-9. Each main result has a strong baseline next to it.
-10. Robustness checks are listed in one sentence in the main text and tabled in the appendix.
-11. Post hoc analyses are marked.
-12. Limitations appear in the main text.
-13. Prompts, model versions, thresholds and data dates are in the appendix; the code link works.
-14. No passive voice in results sentences; no bare "this"; no "etc."; no "various reasons".
-15. No roadmap paragraph.
-16. Related work says how each cited line of work differs.
-17. At least two readers outside the project read the introduction and said where they got lost.
-18. Figures pass the Figure guide checklist.
-19. Spell checked; printed and read once.
-20. Within the page limit plus references and appendix; submitted before the deadline [SPJ].
-21. Numbers in the paper come from files in `reports/` or `paper/tables/`; none are typed by hand.
+6. Each term is defined once; no synonyms for one object.
+7. Every estimate has n and a 95% CI from the correct unit.
+8. Each main result has a strong baseline next to it.
+9. Robustness checks are listed in one sentence in the main text and tabled in the appendix.
+10. Limitations appear in the main text.
+11. Prompts, model versions, thresholds and data dates are in the appendix; the code link works.
+12. No passive voice in results sentences; no bare "this"; no "etc."; no "various reasons".
+13. No roadmap paragraph.
+14. Related work says how each cited line of work differs.
+15. At least two readers outside the project read the introduction and said where they got lost.
+16. Figures pass the Figure guide checklist.
+17. Spell checked; printed and read once.
+18. Within the page limit plus references and appendix; submitted before the deadline [SPJ].
+19. Numbers in the paper come from files in `reports/` or `paper/tables/`; none are typed by hand.
 
 ## Figure guide
 
