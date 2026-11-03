@@ -49,6 +49,15 @@ Our contributions are:
 \item In five journal sources, two AI-flagged reports of one paper overlap \JournalGap{} points more than two unflagged ones (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).
 \end{itemize}
 
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{LLM use in peer review.} Word-frequency estimates and detectors measure how much AI text reviews contain \citep{liang2024monitoring,russo2025lottery,emi2025pangram}. At ICLR and NeurIPS, reviews became longer after ChatGPT, and LLM-assisted reviews mention originality and clarity less \citep{wu2026impact}. At one management journal, AI-written reports cover a narrower range of topics \citep{gartenberg2026more}. These studies describe single reviews. We measure which problems two reviews of one paper share. Our fall in clarity critiques agrees with the aspect counts of \citet{wu2026impact}, but our unit is a critique, not a sentence that mentions an aspect.
+
+\paragraph{AI reviewers.} LLM reviewers agree with each other more than humans do, within and across papers \citep{baumann2026stop,hou2026converge,kim2026limits}. These studies generate reviews; we observe reviews that venues received.
+
+\paragraph{Homogenization.} Writing with an LLM makes the content of different writers more alike \citep{padmakumar2024writing,anderson2024homogenization,doshi2024generative}. LLM outputs are narrower than their training data \citep{wu2025monoculture}, and \citet{sourati2026homogenizing} review the evidence for language and thought. These studies use creative or open-ended tasks. We measure the same question in expert critiques, where independent readings are the purpose of the process.
+
 \section{Data and Measure}
 \label{sec:data}
 
@@ -119,7 +128,7 @@ Clarity critiques fell from \ClarityBase\% of ICLR claims in 2020--2022 to \Clar
 \label{sec:journals}
 Journal overlap rose most at F1000 and PLOS. Against the 2019--2023 mean, F1000 rose by \FResearchChange{} points, and PLOS by \PlosChange{}; the other changes are smaller (Figure~\ref{fig:journals}). Flag rates rose in all five sources (Figure~\ref{fig:rates}). Within a paper, two flagged reports overlap \JournalGap{} points more than two unflagged reports (\JournalGapN{} papers from 2024 on, \JournalGapBothN{} with a flagged pair). The gap is positive in each source; only the F1000 interval excludes zero (Figure~\ref{fig:fields}). This test is post hoc: we chose it after a source-level correlation with five points proved uninformative. Cross-paper journal overlap remains much lower than same-paper overlap (Figure~\ref{fig:journals_cross}).
 
-\begin{figure}[!b]
+\begin{figure}[t]
 \centering
 \includegraphics{figs/fig4_fields.pdf}
 \caption{The within-paper flagged-pair gap is positive in every journal source. Difference in overlap between pairs with two flagged and with no flagged report, with paper fixed effects; papers from 2024 on. In parentheses: papers with a flagged pair. Diamond: all five sources. Dotted line: the ICLR estimate. Bars: 95\% intervals, clustered by paper.}
@@ -133,15 +142,6 @@ Same-paper critique overlap rose in the latest cycles of three ML venues, and AI
 Higher overlap means that a larger share of the smaller critique set adds no new problem beyond the other review. More reviewers therefore need not provide more distinct readings. Venues that assess review diversity should count distinct problems, rather than rely on differences in wording.
 
 \emph{Speculation.} Two mechanisms could produce the within-paper gap; we tested neither. Different LLMs give similar answers to open questions \citep{jiang2025hivemind}, and LLM reviews repeat the limitations that authors state 4.5 times more often than human reviews do \citep{ye2024are}. Both would make two AI-written reviews draw on the same source, as the component-sharing hypothesis predicts for decision makers who share one model \citep{bommasani2022picking}.
-
-\section{Related Work}
-\label{sec:related}
-
-\paragraph{LLM use in peer review.} Word-frequency estimates and detectors measure how much AI text reviews contain \citep{liang2024monitoring,russo2025lottery,emi2025pangram}. At ICLR and NeurIPS, reviews became longer after ChatGPT, and LLM-assisted reviews mention originality and clarity less \citep{wu2026impact}. At one management journal, AI-written reports cover a narrower range of topics \citep{gartenberg2026more}. These studies describe single reviews. We measure which problems two reviews of one paper share. Our fall in clarity critiques agrees with the aspect counts of \citet{wu2026impact}, but our unit is a critique, not a sentence that mentions an aspect.
-
-\paragraph{AI reviewers.} LLM reviewers agree with each other more than humans do, within and across papers \citep{baumann2026stop,hou2026converge,kim2026limits}. These studies generate reviews; we observe reviews that venues received.
-
-\paragraph{Homogenization.} Writing with an LLM makes the content of different writers more alike \citep{padmakumar2024writing,anderson2024homogenization,doshi2024generative}. LLM outputs are narrower than their training data \citep{wu2025monoculture}, and \citet{sourati2026homogenizing} review the evidence for language and thought. These studies use creative or open-ended tasks. We measure the same question in expert critiques, where independent readings are the purpose of the process.
 
 \section*{Limitations}
 \textbf{LLM measurement.} An LLM extracts and groups claims. The council reference also uses LLMs, not humans, and does not rule out shared model errors (Appendix~\ref{app:reference}). Extraction and grouping errors can affect measured levels and changes over time. The reference set is too small to rule out a measurement drift as large as the ICLR rise: from the earlier years to 2026, the Luna-minus-reference difference changes by $\RefChangeOverlapBias$ points. \textbf{Containment, not identity.} Full overlap means that the smaller critique set is contained in the other set, not that the two reviews are identical. We measure repeated problems, not correctness or overall review quality. \textbf{Final review texts.} Discussion can import a co-reviewer's point into a review; public data do not recover independent first drafts. Herding trials test the effect of discussion on decisions \citep{stelmakh2023herding}, not on critique content. \textbf{AI labels.} Detector labels describe text, not people. MELD trained on peer reviews from sources it does not name; if these include our pre-2023 reviews, the threshold is too low and later flag rates too high. Only MELD supplies the AI-written label, and we checked that label on benchmark texts only. Detectors label part of LLM-polished reviews as AI-generated \citep{saha2026policies}, so some AI-written reviews can be only polished. We chose the 99.9th percentile threshold and the AI-written label after we compared several thresholds on these data. Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates; their labels must not support action against an individual reviewer. \textbf{Other changes.} ICLR changed its reviewing rules in 2026 and its review form in 2022, 2023 and 2024; ICML changed its review form. In 2025, ICLR sent optional LLM feedback on vague comments to more than 20,000 randomly selected reviews \citep{thakkar2026feedback}. The 2023 base year had its own form and a high level (Appendix~\ref{app:forms}). Authors' LLM use can also change the problems reviewers find. \textbf{Selection and scope.} NeurIPS and most journals publish accepted-paper reviews only. All texts are in English, and most come from ML.
