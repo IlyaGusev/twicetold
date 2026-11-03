@@ -18,6 +18,7 @@ from outcomes import ICLR_FROM, SOURCE_FILES, in_window
 from settings import settings
 
 BATCH_ROWS = 20000
+ML_VENUES = ["ICLR", "NeurIPS", "ICML"]
 REMOVED_FIELD_TAGS = ("_nocq", "_noq")
 FORM_CATEGORIES = ("clarity/presentation", "novelty", "reproducibility/details")
 FIELD_LABELS = {
@@ -158,36 +159,37 @@ def fe_gap(design, flag, controls=()):
     }
 
 
+def meld_flags(data):
+    return pd.read_parquet(
+        Path(data) / "meld_flags.parquet", columns=["review_id", "year", "score", "flag", "written"]
+    ).set_index("review_id")
+
+
+def meld_flag_at(meld, quantile):
+    threshold = meld[meld.year <= settings.MELD_CALIBRATION_LAST_YEAR].score.quantile(quantile)
+    return (meld.score > threshold).astype(int)
+
+
 def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    data, reports = Path(data), Path(reports)
     iclr_pairs = pd.read_parquet(
         settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
     )
     iclr_pairs = iclr_pairs[iclr_pairs.conf == "ICLR"]
-    scores = pd.read_parquet(data / "detector_scores.parquet", columns=["review_id", "p_llm", "llm_flag"]).set_index("review_id")
-    trained = set(pd.read_parquet(data / "intel_reviews.parquet", columns=["paper_id", "year"]).query("year <= 2023").paper_id)
+    scores = meld_flags(data)
     periods = {
         str(ICLR_FROM): (ICLR_FROM, ICLR_FROM),
         "2021-2022": (2021, 2022),
         "2023": (2023, 2023),
-        "2024-2026 (real flags)": (2024, 2026),
     }
-    both_scored = iclr_pairs.a.isin(scores.index) & iclr_pairs.b.isin(scores.index)
     rows = []
     for name, (lo, hi) in tqdm(periods.items(), desc="periods"):
-        period_pairs = iclr_pairs[iclr_pairs.year.between(lo, hi) & both_scored]
-        has_real_flags = lo >= 2024
-        if has_real_flags:
-            flag = scores.llm_flag.astype(int)
-        else:
-            reviews = pd.Index(np.union1d(period_pairs.a, period_pairs.b))
-            score = scores.p_llm.reindex(reviews)
-            flag = (score >= score.quantile(1 - share)).astype(int)
-        untrained = period_pairs[~period_pairs.panel_id.isin(trained)]
-        for subset, subset_pairs in [("all", period_pairs), ("without detector-training papers", untrained)]:
-            rows.append(dict(period=name, subset=subset, papers=subset_pairs.panel_id.nunique(), **fe_gap(subset_pairs, flag)))
+        period_pairs = iclr_pairs[iclr_pairs.year.between(lo, hi)]
+        reviews = pd.Index(np.union1d(period_pairs.a, period_pairs.b))
+        score = scores.score.reindex(reviews)
+        flag = (score >= score.quantile(1 - share)).astype(int)
+        rows.append(dict(period=name, papers=period_pairs.panel_id.nunique(), **fe_gap(period_pairs, flag)))
     out = pd.DataFrame(rows)
-    out.to_csv(reports / f"detector_placebo_{model}.csv", index=False)
+    out.to_csv(Path(reports) / f"detector_placebo_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
 
 
@@ -226,16 +228,12 @@ def pair_design(model, data):
 
 def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     data, reports = Path(data), Path(reports)
-    flag = pd.read_parquet(data / "detector_scores.parquet", columns=["review_id", "llm_flag"]).set_index("review_id").llm_flag
-    flag = flag.astype(int)
+    meld = meld_flags(data)
+    flag, written = meld.flag.astype(int), meld.written.astype(int)
     design = pair_design(model, data)
     claim_counts = pd.read_parquet(data / f"claims_table_{model}.parquet", columns=["review_id"]).groupby("review_id").size()
     design["claims_short"], design["claims_long"] = short_long_logs(claim_counts, design)
     iclr = design[(design.conf == "ICLR") & (design.year >= 2024)].dropna()
-    coco_raw = pd.concat([pd.read_json(f, lines=True) for f in [data / "cocodet_main.jsonl", data / "cocodet_icml.jsonl"]])
-    coco_flag = (coco_raw.set_index("review_id")[["human", "mix", "ai"]].idxmax(axis=1) != "human").astype(int)
-    coco_flag = coco_flag[~coco_flag.index.duplicated()]
-    both_coco = iclr[iclr.a.isin(coco_flag.index) & iclr.b.isin(coco_flag.index)]
     rows = []
 
     def add(group, label, est, err, papers):
@@ -246,15 +244,42 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
         ("ICLR 2024–26", iclr, flag, ()),
         ("+ length and claim count", iclr, flag, ("log_short", "log_long", "claims_short", "claims_long")),
         ("NeurIPS 2024–25", design[(design.conf == "NeurIPS") & (design.year >= 2024)], flag, ()),
-        ("CoCoDet labels, ICLR", both_coco, coco_flag, ()),
+        ("ICML 2025–26", design[design.conf == "ICML"], flag, ()),
+        ("AI-written, ICLR", iclr, written, ()),
+        ("99th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.99), ()),
+        ("99.5th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.995), ()),
     ]:
         gap = fe_gap(subset_pairs, pair_flags, controls)
         add(pipe, label, gap["two"], gap["two_se"], subset_pairs.panel_id.nunique())
-    placebo = pd.read_csv(reports / f"detector_placebo_{model}.csv").query("subset == 'all' and not period.str.contains('real')")
+    placebo = pd.read_csv(reports / f"detector_placebo_{model}.csv")
     for r in placebo.itertuples():
         add("Placebo before ChatGPT", f"Top-45% scores, ICLR {r.period}", r.two, r.two_se, r.papers)
     out = pd.DataFrame(rows)
     out.to_csv(reports / f"rq1_evidence_{model}.csv", index=False)
+    print(out.round(2).to_string(index=False))
+
+
+def journal_gaps(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR, first_year=2024):
+    flag = meld_flags(data).flag.astype(int)
+    pairs = in_window(
+        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+    )
+    journals = pairs[~pairs.conf.isin(ML_VENUES) & (pairs.year >= first_year)]
+    rows = []
+    for source, source_pairs in [*journals.groupby("conf"), ("All journals", journals)]:
+        n_flagged = source_pairs.a.map(flag) + source_pairs.b.map(flag)
+        gap = fe_gap(source_pairs, flag)
+        rows.append(
+            dict(
+                source=source,
+                est=gap["two"],
+                se=gap["two_se"],
+                papers=source_pairs.panel_id.nunique(),
+                both_papers=source_pairs[n_flagged == 2].panel_id.nunique(),
+            )
+        )
+    out = pd.DataFrame(rows)
+    out.to_csv(Path(reports) / f"journal_gaps_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
 
 
@@ -265,5 +290,6 @@ if __name__ == "__main__":
             "forms": forms,
             "detector_placebo": detector_placebo,
             "rq1_evidence": rq1_evidence,
+            "journal_gaps": journal_gaps,
         }
     )

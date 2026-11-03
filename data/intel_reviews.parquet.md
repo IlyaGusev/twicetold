@@ -39,5 +39,4 @@ text. The CSVs are a saved download of the Hugging Face dataset `IntelLabs/AI-Pe
 
 ## Read by
 
-`src/detector.py scores` (training on 2021–2023, test on 2024), `src/validate.py detector_placebo` (papers of 2023
-and earlier), `src/ai.py wordshare` (LLM reviews).
+`src/meld.py input` (1,000 LLM reviews per LLM, the `intel_ai` recall set).

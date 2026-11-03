@@ -47,4 +47,4 @@ Git does not track this file. `scripts/post.sh` runs `scripts/inputs.sh` when th
 ## Read by
 
 `src/panels.py other`, `src/outcomes.py` (`SOURCE_FILES`, tag `_other`), `src/validate.py` (`review_chars`),
-`src/ai.py` (`reference_sample`, `wordshare_fields`), `src/figures.py` (`by_year`).
+`src/ai.py` (`reference_sample`), `src/meld.py input`, `src/figures.py` (`by_year`).

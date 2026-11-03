@@ -1,6 +1,6 @@
 # data/ai_reference_gpt-6-luna.jsonl
 
-AI-written reference reviews for the word-use estimate. For each sampled human review from 2018–2021, `gpt-6-luna`
+LLM rewrites of human reviews, the `rewrite` recall set of the MELD check. For each sampled human review from 2018–2021, `gpt-6-luna`
 wrote an outline of its points, then a new review from the outline only. One line per review: 19,194 rows.
 
 | Field | Meaning |
@@ -43,5 +43,4 @@ chain script runs it. Without `--out` it appends to this file and skips the ids 
 
 ## Read by
 
-`src/ai.py wordshare_fields` (default `reference` argument), which writes `reports/llm_share_all.csv`. It joins the
-rows to the current reviews on `review_id`, so the 598 rows above drop out.
+`src/meld.py input`, which keeps the journal rows (not ICLR or NeurIPS) as the `rewrite` set.

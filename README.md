@@ -30,10 +30,11 @@ sources live at `RAW_JOURNAL_REVIEWS_DIR`, both set in `src/settings.py`.
 1. Fetch source data with `fetch.py`.
 2. Build the ML review tables with `corpus.py ml`.
 3. Run `scripts/inputs.sh`. It builds the journal tables (`corpus.py other`), parses the ICML downloads
-   (`fetch.py icml`), and builds the ICML, journal, robustness and CoCoDet inputs (`panels.py icml`, `other`,
-   `robust`, `nocq`, `cocodet`). Git does not store these inputs. `extract_all.sh` and `post.sh` run `inputs.sh` when the
+   (`fetch.py icml`), and builds the ICML, journal and robustness inputs (`panels.py icml`, `other`,
+   `robust`, `nocq`) and the MELD input (`meld.py input`). Git does not store these inputs. `extract_all.sh` and `post.sh` run `inputs.sh` when the
    inputs are missing. No step calls a paid API.
-4. Run `scripts/extract_all.sh gpt-6-luna-high` for extraction and grouping. This step calls paid APIs. Each pass
+4. Score the MELD input on a GPU with `meld.py scores`. It writes `data/meld_scores.jsonl`; no chain script runs it.
+5. Run `scripts/extract_all.sh gpt-6-luna-high` for extraction and grouping. This step calls paid APIs. Each pass
    has its own budget cap; inspect the script's argument and logs before starting it.
 
 Each model has one claims file and one clusters file in `data/` (`claims_<model>.jsonl`, `clusters_<model>.jsonl`).
@@ -51,7 +52,7 @@ steps without model calls rebuild `data/gold/` byte for byte.
 Each data file has a `<file>.md` next to it that says what it holds, how to make it and what reads it.
 
 `sample_reviews.parquet` and `panels.jsonl` are the fixed sample; `panels.py ml` cannot redraw them from the current
-`reviews.parquet`. Claim and review embeddings, detector scores and reference annotations are saved model outputs,
+`reviews.parquet`. Claim and review embeddings, MELD scores and reference annotations are saved model outputs,
 not analysis estimates.
 
 ## Analysis
@@ -61,7 +62,7 @@ scripts/post.sh gpt-6-luna-high
 ```
 
 Each run recomputes the analysis from saved model outputs. It does not reuse earlier analysis estimates or make
-model calls. The stages rebuild panel and pair scores, detector comparisons, robustness checks, yearly tables,
+model calls. The stages rebuild MELD flags, panel and pair scores, the detector placebo, robustness checks, yearly tables,
 paper numbers and figures.
 
 - `data/overlap/`: recomputed panel and pair tables.

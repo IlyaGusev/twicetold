@@ -29,6 +29,4 @@ reviews (`random_state=0`) and keeps at most 5 reviews per paper.
 - `scripts/extract_all.sh`: pass-1 input, tag `_icml`.
 - `src/outcomes.py` (`SOURCE_FILES`): `panels` (tag `_icml`) and `pairs`.
 - `src/validate.py review_chars` (through `SOURCE_FILES`).
-- `src/figures.py by_year` (`REVIEW_FILES`).
-- `src/ai.py wordshare`.
-- `src/cocodet.py scores --input data/icml_sample.parquet`.
+- `src/meld.py input`.

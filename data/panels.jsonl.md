@@ -20,5 +20,5 @@ sample.
 
 ## Read by
 
-`scripts/extract_all.sh` (pass-2 input of the main chain), `src/panels.py` (`robust`, `cocodet`), `src/areas.py`
+`scripts/extract_all.sh` (pass-2 input of the main chain), `src/panels.py` (`robust`), `src/areas.py`
 (`classify`).

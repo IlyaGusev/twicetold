@@ -42,4 +42,4 @@ The same run writes `reviews.parquet`; see `reviews.parquet.md` for the raw inpu
 
 ## Read by
 
-`src/panels.py` (`ml`, `cocodet`), `src/outcomes.py` (`ml_panels`, `pairs`), `src/areas.py` (`classify`).
+`src/panels.py` (`ml`), `src/outcomes.py` (`ml_panels`, `pairs`), `src/areas.py` (`classify`).

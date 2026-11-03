@@ -43,5 +43,5 @@ The sample rules (`ml` in `src/panels.py`, seed 2026):
 
 ## Read by
 
-`scripts/extract_all.sh` (pass-1 input of the main chain), `src/panels.py` (`robust`, `cocodet`), `src/between.py`
-(`embed_reviews`, `load_reviews`), `src/detector.py` (`scores`), `src/gold.py` (`sample`).
+`scripts/extract_all.sh` (pass-1 input of the main chain), `src/panels.py` (`robust`), `src/between.py`
+(`embed_reviews`, `load_reviews`), `src/meld.py` (`input`), `src/gold.py` (`sample`).

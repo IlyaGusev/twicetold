@@ -25,12 +25,6 @@ NOQ_PREFIX = "noq_"
 NOCQ_PREFIX = "nocq_"
 NOCQ_YEAR = 2023
 OTHER_TAG = "[OTHER]"
-COCODET_PANELS = {
-    **{("ICLR", y): 300 for y in range(2017, 2024)},
-    **{("ICLR", y): 1000 for y in (2024, 2025, 2026)},
-    **{("NeurIPS", y): 300 for y in (2021, 2022, 2023)},
-    **{("NeurIPS", y): 500 for y in (2024, 2025)},
-}
 
 
 def by_paper_panels(reviews, prefix="", sort=False):
@@ -247,23 +241,6 @@ def full_sub3(iclr, rng, main_panel_reviews, done_sub3):
     return new_sub3
 
 
-def cocodet(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=7):
-    data, out = Path(data), Path(out)
-    rng = np.random.default_rng(seed)
-    papers = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "conf", "year"]).set_index("paper_id")
-    panels_by_cell = {}
-    for panel in read_jsonl(data / "panels.jsonl"):
-        paper = papers.loc[panel["panel_id"]]
-        panels_by_cell.setdefault((paper.conf, int(paper.year)), []).append(panel)
-    review_ids = set()
-    for cell, cell_panels in panels_by_cell.items():
-        for i in rng.choice(len(cell_panels), min(COCODET_PANELS[cell], len(cell_panels)), replace=False):
-            review_ids.update(cell_panels[i]["review_ids"])
-    reviews = pd.read_parquet(data / "sample_reviews.parquet", columns=["review_id", "text"])
-    reviews[reviews.review_id.isin(review_ids)].to_parquet(out / "cocodet_input.parquet")
-    print(len(review_ids), "reviews ->", out / "cocodet_input.parquet")
-
-
 def nocq(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
     data, out = Path(data), Path(out)
     reviews = pd.read_parquet(data / "sample_reviews.parquet")
@@ -296,4 +273,4 @@ def wd(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
 
 
 if __name__ == "__main__":
-    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "cocodet": cocodet, "nocq": nocq, "wd": wd})
+    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "nocq": nocq, "wd": wd})

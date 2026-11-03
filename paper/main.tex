@@ -23,7 +23,7 @@
 \maketitle
 
 \begin{abstract}
-Peer review relies on several readers finding different problems. We measure critique overlap in 115k conference reviews and 39k journal reports. At ICLR, overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2026 ($+\IclrChange$ percentage points), with year-on-year rises at NeurIPS and ICML. Within a paper, two AI-flagged reviews overlap \FlagGap{} points more than two unflagged reviews. Clarity critiques fell from \ClarityBase\% to \ClarityLast\% while requests for more experiments rose. Across five journal sources, overlap rose most where AI-likeness rose most ($+\FResearchChange$ points for F1000). These results provide evidence of claim-level homogenization in the LLM era: reviewers of one paper increasingly repeat the same problems.
+Peer review relies on several readers finding different problems. We measure critique overlap in 115k conference reviews and 39k journal reports. At ICLR, overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2026 ($+\IclrChange$ percentage points), with year-on-year rises at NeurIPS and ICML. Within a paper, two reviews that an AI-text detector flags overlap \FlagGap{} points more than two unflagged reviews, and two reviews it labels AI-written overlap \WrittenGap{} points more. Clarity critiques fell from \ClarityBase\% to \ClarityLast\% while requests for more experiments rose. In five journal sources, two flagged reports of one paper overlap \JournalGap{} points more than two unflagged reports. These results provide evidence of claim-level homogenization in the LLM era: reviewers of one paper increasingly repeat the same problems.
 \end{abstract}
 
 \begin{figure}[t]
@@ -43,10 +43,10 @@ Our contributions are:
 
 \begin{itemize}[nosep]
 \item Same-paper overlap rose at ICLR and ICML in 2026 and at NeurIPS in 2025 (Section~\ref{sec:trends}, Figure~\ref{fig:overlap}).
-\item Within a paper, two AI-flagged reviews overlap \FlagGap{} points more than two unflagged ones (Section~\ref{sec:ai}, Figure~\ref{fig:ai}).
+\item Within a paper, two AI-flagged reviews overlap \FlagGap{} points more than two unflagged ones, and two AI-written reviews \WrittenGap{} points more (Section~\ref{sec:ai}, Figure~\ref{fig:ai}).
 \item Cross-paper overlap did not rise at ICLR or NeurIPS (Section~\ref{sec:cross}, Figure~\ref{fig:cross}).
 \item Clarity and typo critiques fell while requests for more experiments rose (Section~\ref{sec:categories}, Figure~\ref{fig:categories}).
-\item In five journal sources, the largest rises coincide with the largest increases in AI-likeness (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).
+\item In five journal sources, two AI-flagged reports of one paper overlap \JournalGap{} points more than two unflagged ones (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).
 \end{itemize}
 
 \section{Data and Measure}
@@ -78,8 +78,8 @@ which is IntraSim \citep{baumann2026stop} with $o$ in place of embedding similar
 
 \input{tables/match_example}
 
-\paragraph{AI-flagged.}
-The style detector is a logistic regression on word 1--2-gram and character 3--4-gram TF-IDF features. We trained it on human and LLM reviews of ICLR 2021--2023 papers from the benchmark of \citet{yu2026reviewed}, never on 2024--2026 reviews. A review is \emph{AI-flagged} if its score exceeds the 99th percentile of scores on pre-2023 reviews. As a second detector, CoCoDet \citep{chen2025coconuts}, a ModernBERT classifier, labels each review human, mixed or AI from its first 512 tokens. A word-use index measures AI-likeness at source-year level \citep{liang2024monitoring}; Appendix~\ref{app:ai} defines it.
+\paragraph{AI-flagged and AI-written.}
+MELD \citep{li2026meld}, an open classifier, scores each review for AI-generated or AI-edited text. One threshold applies to all sources: the 99.9th percentile of scores on the \MeldCalibrationReviews{} reviews and reports from 2022 and earlier. A review above it is \emph{AI-flagged}. Before 2023, at most \MeldPreSourceMax\% of any source's reviews are flagged, and MELD flags \MeldIntelAiRecall\% of \MeldIntelAiReviews{} LLM reviews of ICLR papers \citep{yu2026reviewed}. MELD also labels the operation that made a text, for example generation or polishing. A flagged review with the generation label is \emph{AI-written}; the other flagged reviews are AI-edited. Both labels are detector outputs, not records of authorship (Appendix~\ref{app:ai}).
 
 \paragraph{Reference labels.}
 An LLM council supplies reference claims and problem groups from Sol 6.1, Claude Opus 5.5 and Kimi K3.1 Pro proposals, followed by LLM judgments (Appendix~\ref{app:reference}).
@@ -93,12 +93,12 @@ ICLR overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2026: $+\IclrChange
 
 \paragraph{RQ2: Do AI-flagged reviews repeat more critiques?}
 \label{sec:ai}
-Within a paper, two flagged reviews overlap \FlagGap{} points more than two unflagged reviews (95\% CI \FlagGapLow--\FlagGapHigh; \FlagGapN{} ICLR papers). The unflagged-pair baseline is \FlagBaseline\%. Figure~\ref{fig:ai} shows the pair-type means; the gap compares pairs within the same paper. It also appears at NeurIPS, with CoCoDet labels, and with length and claim-count controls (Figure~\ref{fig:checks}).
+Within a paper, two flagged reviews overlap \FlagGap{} points more than two unflagged reviews (95\% CI \FlagGapLow--\FlagGapHigh; \FlagGapN{} ICLR papers, 2024--2026). The unflagged-pair baseline is \FlagBaseline\%. Two AI-written reviews overlap \WrittenGap{} points more than two reviews that are not AI-written (95\% CI \WrittenGapLow--\WrittenGapHigh). Figure~\ref{fig:ai} shows the pair-type means; the gaps compare pairs within the same paper. The flagged-pair gap also appears at NeurIPS (\NeuripsFlagGap{} points) and ICML (\IcmlFlagGap{}), at the 99th and 99.5th percentile thresholds, and with length and claim-count controls. Before ChatGPT, pairs of reviews with the top 45\% of MELD scores show no gap (Figure~\ref{fig:checks}).
 
 \begin{figure}[t]
 \centering
 \includegraphics{figs/fig2_ai.pdf}
-\caption{Two AI-flagged reviews overlap more than two unflagged reviews of the same paper. ICLR, 2024--2026; \FlagGapN{} papers. Each point averages pair overlap within papers, then over papers with that pair type. Shapes and labels identify the number of flagged reviews. Bars: 95\% confidence intervals over papers.}
+\caption{Two AI-flagged reviews overlap more than two unflagged reviews of the same paper, and two AI-written reviews overlap most. ICLR, 2024--2026; \FlagGapN{} papers. Each point averages pair overlap within papers, then over papers with that pair type. Shapes and labels identify the pair type; AI-written pairs are a subset of flagged pairs. Bars: 95\% confidence intervals over papers.}
 \label{fig:ai}
 \end{figure}
 
@@ -117,25 +117,25 @@ Clarity critiques fell from \ClarityBase\% of ICLR claims in 2020--2022 to \Clar
 \label{fig:categories}
 \end{figure}
 
-\paragraph{RQ5: Does the journal rise track AI-likeness?}
+\paragraph{RQ5: Do AI-flagged journal reports also repeat more critiques?}
 \label{sec:journals}
-F1000 and PLOS have the largest increases in the word-use AI-likeness index and in critique overlap. Against the 2019--2023 mean, F1000 rose by \FResearchChange{} points (95\% CI \FResearchChangeLow--\FResearchChangeHigh), and PLOS by \PlosChange{} (\PlosChangeLow--\PlosChangeHigh). The other source changes are smaller (Figures~\ref{fig:fields} and~\ref{fig:journals}). Across five sources, the correlation is \JournalCorrelation{} (95\% CI \JournalCorrelationLow--\JournalCorrelationHigh). This extension is exploratory: five sources and one extraction pipeline. Cross-paper journal overlap remains much lower than same-paper overlap (Figure~\ref{fig:journals_cross}).
+Journal overlap rose most at F1000 and PLOS. Against the 2019--2023 mean, F1000 rose by \FResearchChange{} points (95\% CI \FResearchChangeLow--\FResearchChangeHigh), and PLOS by \PlosChange{} (\PlosChangeLow--\PlosChangeHigh); the other changes are smaller (Figure~\ref{fig:journals}). Flag rates rose in all five sources (Figure~\ref{fig:rates}). Within a paper, two flagged reports overlap \JournalGap{} points more than two unflagged reports (95\% CI \JournalGapLow--\JournalGapHigh; \JournalGapN{} papers from 2024 on, \JournalGapBothN{} with a flagged pair). The gap is positive in each source; only the F1000 interval excludes zero (Figure~\ref{fig:fields}). This test is post hoc: we chose it after a source-level correlation with five points proved uninformative. Cross-paper journal overlap remains much lower than same-paper overlap (Figure~\ref{fig:journals_cross}).
 
 \begin{figure}[!b]
 \centering
 \includegraphics{figs/fig4_fields.pdf}
-\caption{The journal sources with the largest increases in AI-likeness also have the largest increases in overlap. Last year minus the 2019--2023 mean; last year is 2026 except BMC Medicine (2025). Each point is one source. Vertical bars: 95\% confidence intervals for the overlap change, from paper-level means; 100--500 papers per source-year.}
+\caption{The within-paper flagged-pair gap is positive in every journal source. Difference in overlap between pairs with two flagged and with no flagged report, with paper fixed effects; papers from 2024 on. In parentheses: papers with a flagged pair. Diamond: all five sources. Dotted line: the ICLR estimate. Bars: 95\% intervals, clustered by paper.}
 \label{fig:fields}
 \end{figure}
 
 \section{Discussion}
 
-Same-paper critique overlap rose in the latest cycles of three ML venues, and AI-flagged pairs overlap more within a paper. Across journals, the largest rises coincide with the largest increases in AI-likeness. Together, the results provide evidence of claim-level homogenization within review panels, rather than a general convergence of critiques across unrelated papers.
+Same-paper critique overlap rose in the latest cycles of three ML venues, and AI-flagged pairs overlap more within a paper, most of all AI-written pairs. Journal reports show the same within-paper gap. Together, the results provide evidence of claim-level homogenization within review panels, rather than a general convergence of critiques across unrelated papers.
 
 Higher overlap means that a larger share of the smaller critique set adds no new problem beyond the other review. More reviewers therefore need not provide more distinct readings. Venues that assess review diversity should count distinct problems, rather than rely on differences in wording.
 
 \section*{Limitations}
-\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference also uses LLMs, not humans, and does not rule out shared model errors (Appendix~\ref{app:reference}). Extraction and grouping errors can affect measured levels and changes over time. \textbf{Containment, not identity.} Full overlap means that the smaller critique set is contained in the other set, not that the two reviews are identical. We measure repeated problems, not correctness or overall review quality. \textbf{Final review texts.} Discussion can import a co-reviewer's point into a review; public data do not recover independent first drafts. \textbf{AI labels.} Detector labels describe text, not people. Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates; their labels must not support action against an individual reviewer. \textbf{Other changes.} ICLR changed its reviewing rules in 2026 and its review form in 2022, 2023 and 2024; ICML changed its review form. The 2023 base year had its own form and a high level (Appendix~\ref{app:forms}). Authors' LLM use can also change the problems reviewers find. \textbf{Selection and scope.} NeurIPS and most journals publish accepted-paper reviews only. All texts are in English, and most come from ML.
+\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference also uses LLMs, not humans, and does not rule out shared model errors (Appendix~\ref{app:reference}). Extraction and grouping errors can affect measured levels and changes over time. \textbf{Containment, not identity.} Full overlap means that the smaller critique set is contained in the other set, not that the two reviews are identical. We measure repeated problems, not correctness or overall review quality. \textbf{Final review texts.} Discussion can import a co-reviewer's point into a review; public data do not recover independent first drafts. \textbf{AI labels.} Detector labels describe text, not people. MELD trained on peer reviews from sources it does not name; if these include our pre-2023 reviews, the threshold is too low and later flag rates too high. Only MELD supplies the AI-written label, and we checked that label on benchmark texts only. We chose the 99.9th percentile threshold and the AI-written label after we compared several thresholds on these data. Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates; their labels must not support action against an individual reviewer. \textbf{Other changes.} ICLR changed its reviewing rules in 2026 and its review form in 2022, 2023 and 2024; ICML changed its review form. The 2023 base year had its own form and a high level (Appendix~\ref{app:forms}). Authors' LLM use can also change the problems reviewers find. \textbf{Selection and scope.} NeurIPS and most journals publish accepted-paper reviews only. All texts are in English, and most come from ML.
 
 \bibliography{refs}
 \appendix
@@ -155,14 +155,14 @@ We join all review-form text fields. ICML changed its form between 2025 and 2026
 \begin{table*}[t]
 \centering\small
 \resizebox{\textwidth}{!}{\input{tables/by_year_ml}}
-\caption{Conference source-years. Overlap: mean overlap coefficient across papers, with SE. Other papers: mean across sampled cross-paper panels. AI-likeness: word-use index. Flagged: share of reviews flagged by the style detector. CoCoDet: share labeled AI or mixed. --: not computed.}
+\caption{Conference source-years. Overlap: mean overlap coefficient across papers, with SE. Other papers: mean across sampled cross-paper panels. AI-flagged: share of reviews above the MELD threshold. AI-written: share flagged and labeled as generated. --: not computed.}
 \label{tab:byyear}
 \end{table*}
 
 \begin{table*}[t]
 \centering\small
 \resizebox{\textwidth}{!}{\input{tables/by_year_journals}}
-\caption{Journal source-years. Columns as in Table~\ref{tab:byyear}; AI-likeness uses a source-matched reference. CoCoDet samples 100 papers per source-year.}
+\caption{Journal source-years. Columns as in Table~\ref{tab:byyear}.}
 \label{tab:byyear2}
 \end{table*}
 
@@ -201,7 +201,7 @@ Table~\ref{tab:robust} repeats the trend comparison with specific claims only, l
 \begin{figure*}[t]
 \centering
 \includegraphics{figs/figA_checks.pdf}
-\caption{The within-paper flagged-pair gap persists across detectors and controls. Difference in overlap between two flagged and two unflagged reviews, in percentage points. Filled circles: pipeline estimates with paper fixed effects. Open circles: pre-ChatGPT checks that flag the top 45\% of detector scores. Dotted line: the main estimate. Bars: 95\% intervals, clustered by paper.}
+\caption{The within-paper flagged-pair gap persists across venues, thresholds and controls. Difference in overlap between two flagged and two unflagged reviews, in percentage points. Filled circles: estimates with paper fixed effects; AI-written compares two AI-written reviews with two reviews that are not. Open circles: pre-ChatGPT checks that flag the top 45\% of MELD scores. Dotted line: the main estimate. Bars: 95\% intervals, clustered by paper.}
 \label{fig:checks}
 \end{figure*}
 
@@ -223,20 +223,26 @@ ICLR changed the free-text fields of its review form in 2022, 2023 and 2024 (Tab
 \label{tab:forms}
 \end{table*}
 
-\section{AI-Text Measures}
+\section{AI Detector}
 \label{app:ai}
 
-\paragraph{Word-use index.}
-Following \citet{liang2024monitoring}, each review is a binary vector of word occurrences. Human and AI reference distributions define a fitted mixture weight for each source-year. For conferences, the human reference is ICLR and NeurIPS reviews from 2018--2022 \citep{arcade2025dataset}, and the AI reference is the LLM reviews of \citet{yu2026reviewed}. Journal references pair pre-2022 reports with length-matched LLM rewrites of their content. Half of the reference papers train the distributions; the other half supports recovery checks. A rewrite preserves human critique content, unlike a review generated from the paper, so we compare the journal indices with each other rather than directly with conference levels. The index measures resemblance to whole-review word distributions, not the fraction of words written by an LLM.
+\paragraph{Scoring.}
+We run MELD \citep{li2026meld} from Hugging Face (\texttt{anon-review-meld-2026/meld}, revision \texttt{ddfc9c7}) in fp32 on one GPU, after we remove section tags. MELD scores each token over 2,048-token windows; a text's score is the mean of its top 25\% of token scores, as in MELD's own scorer. The operation label is the operation with the highest pooled score.
+
+\paragraph{Threshold.}
+The threshold, \MeldThreshold, is the 99.9th percentile of the scores of all \MeldCalibrationReviews{} reviews and reports from 2022 and earlier. ICLR supplies most of them. Pooled over the years before 2023, no source has more than \MeldPreSourceMax\% of its reviews flagged; the highest single source-year is \MeldPreYearMax\%. The flagged-pair gap is the same at the 99th and 99.5th percentiles (Figure~\ref{fig:checks}).
+
+\paragraph{Recall.}
+MELD flags \MeldIntelAiRecall\% of \MeldIntelAiReviews{} LLM reviews of ICLR 2021--2024 papers \citep{yu2026reviewed}, 1,000 from each of five LLMs, and at least \MeldRewriteRecallMin\% in each source-year of \MeldRewriteReviews{} LLM rewrites of pre-2022 journal reports. A rewrite keeps the human critique content, and MELD labels most rewrites as edited rather than generated. MELD lists \texttt{gpt-6-luna}, our rewrite model, among its training generators, so the rewrite check is an easy case.
 
 \paragraph{Rates.}
-Figure~\ref{fig:likeness} gives the word-use index and flag rate; Tables~\ref{tab:byyear} and~\ref{tab:byyear2} give all source-years.
+Figure~\ref{fig:rates} gives flag rates by source-year; Tables~\ref{tab:byyear} and~\ref{tab:byyear2} give both labels for all source-years. In 2026, MELD flags \IclrFlaggedLast\% of ICLR reviews, and \IclrWrittenLast\% are AI-written.
 
 \begin{figure}[t]
 \centering
-\includegraphics{figs/figA_likeness.pdf}
-\caption{AI-likeness of ICLR review text rose from 2024 on. Word-use index and share of reviews flagged by the style detector. The two indices have different reference distributions. Grey band: review cycles from 2023 on.}
-\label{fig:likeness}
+\includegraphics{figs/figA_rates.pdf}
+\caption{AI flag rates stayed near zero through 2022 and rose in every source from 2023 on. Share of reviews above the MELD threshold. Shaded bands: 95\% intervals over reviews. Grey background: review cycles from 2023 on. The 2026 data cover January--October.}
+\label{fig:rates}
 \end{figure}
 
 \section{Additional Figures}

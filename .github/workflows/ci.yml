@@ -15,6 +15,6 @@ jobs:
       - run: uv run python -I scripts/check_no_comments.py
       - run: uv run python -I -m pytest
       - run: |
-          for module in extract ai outcomes validate figures between corpus panels fetch gold detector cocodet areas external; do
+          for module in extract ai outcomes validate figures between corpus panels fetch gold meld areas external; do
             uv run python -I "src/$module.py" --help > /dev/null
           done

@@ -19,12 +19,14 @@ step() {
   fi
 }
 
+step src/meld.py flags
 step src/outcomes.py panels --model "$MODEL"
 step src/outcomes.py pairs --model "$MODEL"
 step src/between.py claims_table --model "$MODEL"
 step src/between.py embed --model "$MODEL"
 step src/validate.py detector_placebo --model "$MODEL"
 step src/validate.py rq1_evidence --model "$MODEL"
+step src/validate.py journal_gaps --model "$MODEL"
 if [ -z "$OUT_DIR" ]; then
   step src/validate.py robust --model "$MODEL"
   step src/validate.py forms --model "$MODEL"

@@ -63,5 +63,4 @@ Steps (`from_arcade`, `from_iclr26`, `merge_ml` in `src/corpus.py`):
 ## Read by
 
 `src/panels.py` (`ml`), `src/outcomes.py` (`review_status`), `src/validate.py` (`review_chars`),
-`src/between.py` (`claims_table`), `src/external.py` (`intel`), `src/ai.py` (`load_ml_reviews`, `reference_sample`),
-`src/figures.py` (`likeness`, `by_year`).
+`src/between.py` (`claims_table`), `src/external.py` (`intel`), `src/ai.py` (`reference_sample`).

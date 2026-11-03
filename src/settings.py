@@ -49,9 +49,10 @@ class Settings(BaseSettings):
     REVIEW_TEXT_MAX_CHARS: int = 14000
 
     EMBED_MODEL: str = "text-embedding-3-small"
-    COCODET_BASE_MODEL: str = "answerdotai/ModernBERT-base"
-    COCODET_REPO: str = "khaaaaaan/CoCoDet"
-    COCODET_WEIGHTS_FILE: str = "CoCoDet.bin"
+    MELD_REPO: str = "anon-review-meld-2026/meld"
+    MELD_REVISION: str = "ddfc9c789b8c8d0f92d3774265316d418c96dc67"
+    MELD_FLAG_QUANTILE: float = 0.999
+    MELD_CALIBRATION_LAST_YEAR: int = 2022
 
     PRICES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
         "gpt-6-luna": (0.10, 0.50),
