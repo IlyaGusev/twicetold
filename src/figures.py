@@ -347,51 +347,66 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     save(fig, figs, "figA_cross.pdf", COLUMN_WIDTH)
 
 
+def category_share_by_year(claims, year):
+    counts = pd.crosstab(claims[claims.year == year].paper_id, claims.category[claims.year == year]) * 100
+    claims_per_paper = counts.sum(axis=1) / 100
+    share = counts.sum() / claims_per_paper.sum()
+    residuals = counts - np.outer(claims_per_paper, share)
+    n = len(counts)
+    variance = (residuals**2).sum() / claims_per_paper.sum() ** 2 * n / (n - 1)
+    return share, variance
+
+
 def category_shifts(model):
     claims = pd.read_parquet(
-        settings.DATA_DIR / f"claims_table_{model}.parquet", columns=["review_id", "conf", "year", "category"]
+        settings.DATA_DIR / f"claims_table_{model}.parquet", columns=["review_id", "paper_id", "conf", "year", "category"]
     )
     main_sample_reviews = main_sample_review_ids(settings.DATA_DIR)
     claims = claims[(claims.conf == "ICLR") & claims.review_id.isin(main_sample_reviews) & (claims.category != "other")]
-    share = pd.crosstab(claims.category, claims.year, normalize="columns") * 100
-    shift = pd.DataFrame({"pre": share[list(range(ICLR_FROM, 2023))].mean(axis=1), "post": share[2026]})
-    shift["change"] = shift.post - shift.pre
+    pre_years = list(range(ICLR_FROM, 2023))
+    by_year = {year: category_share_by_year(claims, year) for year in pre_years + [2026]}
+    pre = sum(by_year[year][0] for year in pre_years) / len(pre_years)
+    pre_variance = sum(by_year[year][1] for year in pre_years) / len(pre_years) ** 2
+    post, post_variance = by_year[2026]
+    shift = pd.DataFrame({"pre": pre, "post": post, "change": post - pre, "se": np.sqrt(pre_variance + post_variance)})
     return shift.sort_values("change")
 
 
 def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     shift = category_shifts(model)
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.33, 2.35))
-    y = np.arange(len(shift))
-    ax.hlines(y, shift.pre, shift.post, color=COLORS["light"], lw=1.4, zorder=1)
-    ax.plot(shift.post, y, "o", ms=3.5, color=COLORS["ink"], zorder=2)
-    ax.plot(shift.pre, y, "o", ms=3.5, mfc="white", color=COLORS["grey"], zorder=3)
-    change_x = 27.5
-    for yi, change in zip(y, shift.change):
-        ax.text(change_x, yi, f"{change:+.1f}".replace("-", "−"), ha="right", va="center", fontsize=7, color=COLORS["ink"])
-    top = len(shift) - 1
-    handles = [
-        plt.Line2D([], [], ls="", marker="o", ms=3.5, mfc="white", color=COLORS["grey"]),
-        plt.Line2D([], [], ls="", marker="o", ms=3.5, color=COLORS["ink"]),
-    ]
-    ax.legend(
-        handles,
-        [f"{ICLR_FROM}–2022 (mean of years)", "2026"],
-        loc="lower left",
-        bbox_to_anchor=(0, 1.0),
-        ncol=2,
-        handletextpad=0.3,
-        columnspacing=1.2,
-        borderaxespad=0.0,
+    fig, (levels, changes) = plt.subplots(
+        1, 2, sharey=True, figsize=(COLUMN_WIDTH - 0.1, 2.45), gridspec_kw=dict(width_ratios=[1.3, 1], wspace=0.1)
     )
-    ax.text(change_x, top + 0.9, "change", ha="right", va="center", fontsize=7, color=COLORS["grey"])
-    few_ticks(ax, "x")
-    ax.set_yticks(y, [CATEGORY_NAMES.get(c, c) for c in shift.index])
-    ax.tick_params(axis="y", length=0, pad=2)
-    ax.spines["left"].set_visible(False)
-    ax.set_xlim(0, 28)
-    ax.set_ylim(-0.7, top + 1.4)
-    ax.set_xlabel("Share of ICLR critique claims (%)")
+    fig.subplots_adjust(left=0.37, right=0.97, top=0.92, bottom=0.15)
+    y = np.arange(len(shift))
+    levels.hlines(y, shift.pre, shift.post, color=COLORS["light"], lw=1.4, zorder=1)
+    levels.plot(shift.post, y, "o", ms=3, color=COLORS["ink"], zorder=2)
+    levels.plot(shift.pre, y, "o", ms=3, mfc="white", mew=0.8, color=COLORS["grey"], zorder=3)
+    handles = [
+        plt.Line2D([], [], ls="", marker="o", ms=3, mfc="white", mew=0.8, color=COLORS["grey"]),
+        plt.Line2D([], [], ls="", marker="o", ms=3, color=COLORS["ink"]),
+    ]
+    levels.legend(
+        handles, [f"{ICLR_FROM}–22", "2026"], loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2,
+        handletextpad=0.2, columnspacing=1.0, borderaxespad=0.0,
+    )
+    levels.set_xlim(-1.5, 25)
+    levels.set_xticks([0, 10, 20])
+    levels.spines["bottom"].set_bounds(0, 20)
+    levels.set_xlabel("Share of claims (%)")
+    changes.axvline(0, color=COLORS["grey"], lw=0.6, zorder=0)
+    changes.hlines(y, 0, shift.change, color=COLORS["light"], lw=1.4, zorder=1)
+    changes.errorbar(shift.change, y, xerr=Z95 * shift.se, fmt="o", ms=3, color=COLORS["ink"], elinewidth=1.0, zorder=2)
+    changes.set_xlim(-10.5, 6.5)
+    changes.set_xticks([-10, -5, 0, 5])
+    changes.spines["bottom"].set_bounds(-10, 5)
+    changes.set_xlabel("Change (points)")
+    changes.tick_params(axis="y", left=False)
+    changes.spines["left"].set_visible(False)
+    levels.set_yticks(y, [CATEGORY_NAMES.get(c, c) for c in shift.index])
+    levels.tick_params(axis="y", length=0, pad=2)
+    levels.spines["left"].set_visible(False)
+    levels.set_ylim(-0.7, len(shift) - 0.3)
     save(fig, figs, "fig3_categories.pdf", COLUMN_WIDTH)
 
 
@@ -408,34 +423,30 @@ def journal_change(by_year, conf):
 def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     gaps = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"journal_gaps_{model}.csv")
     iclr = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv").iloc[0]
-    rows = [(JOURNALS[r.source], r.est, r.se, r.both_papers, False) for r in gaps.iloc[:-1].sort_values("est").itertuples()]
+    sources = gaps.iloc[:-1].sort_values("est", ascending=False)
     pooled = gaps.iloc[-1]
-    rows += [("All journals", pooled.est, pooled.se, pooled.both_papers, True)]
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.9))
-    fig.subplots_adjust(left=0.27, right=0.98, top=0.97, bottom=0.2)
-    y = np.arange(len(rows))[::-1]
-    for yi, (name, est, se, both, is_pooled) in zip(y, rows):
-        ax.errorbar(est, yi, xerr=Z95 * se, fmt="D" if is_pooled else "o", ms=3.5, color=COLORS["ink"], elinewidth=1.0)
-    ax.axvline(0, color=COLORS["light"], lw=0.6, zorder=0)
-    ax.axvline(iclr.est, color=COLORS["ICLR"], lw=0.8, ls=":", zorder=0)
-    ax.annotate(
-        "ICLR",
-        (iclr.est, y[0] + 0.45),
-        xytext=(2, 0),
-        textcoords="offset points",
-        fontsize=6.5,
-        color=COLORS["ICLR"],
-        va="center",
-    )
-    ax.set_yticks(y, [f"{name} ({both:,})" for name, _, _, both, _ in rows])
-    for tick, (*_, is_pooled) in zip(ax.get_yticklabels(), rows):
-        tick.set_fontweight("bold" if is_pooled else "normal")
+    fig.subplots_adjust(left=0.31, right=0.97, top=0.9, bottom=0.2)
+    ax.axvspan(iclr.est - Z95 * iclr.se, iclr.est + Z95 * iclr.se, color="#D9E8F3", lw=0, zorder=0)
+    ax.axvline(iclr.est, color=COLORS["ICLR"], lw=0.8, zorder=0)
+    ax.axvline(0, color=COLORS["grey"], lw=0.6, ls=(0, (2, 2)), zorder=0)
+    rows = pd.concat([sources, pooled.to_frame().T])
+    y = np.arange(len(rows) - 1, -1, -1)
+    for yi, row in zip(y, rows.itertuples()):
+        ax.errorbar(row.est, yi, xerr=Z95 * row.se, fmt="o", ms=3.5, color=COLORS["ink"], elinewidth=1.0, zorder=3)
+    ax.axhline(0.55, color=COLORS["light"], lw=0.5)
+    ax.annotate("ICLR", (iclr.est, len(sources) + 0.8), xytext=(0, 1), textcoords="offset points",
+                fontsize=7, color=COLORS["ICLR"], ha="center", va="bottom", annotation_clip=False)
+    labels = [f"{JOURNALS[r.source]} ({r.both_papers:,})" for r in sources.itertuples()]
+    ax.set_yticks(y, [*labels, f"All journals ({int(pooled.both_papers):,})"])
+    ax.get_yticklabels()[-1].set_fontweight("bold")
     ax.tick_params(axis="y", length=0, pad=2)
     ax.spines["left"].set_visible(False)
-    ax.set_ylim(-0.6, len(rows) - 0.1)
+    ax.set_ylim(-0.6, len(sources) + 0.8)
     ax.set_xlim(-12, 20)
-    few_ticks(ax, "x", n=5)
-    ax.set_xlabel("Difference in overlap (percentage points)")
+    ax.set_xticks([-10, 0, 10, 20])
+    ax.spines["bottom"].set_bounds(-10, 20)
+    ax.set_xlabel("Difference in overlap (points)")
     save(fig, figs, "fig4_fields.pdf", COLUMN_WIDTH)
 
 
@@ -682,6 +693,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(prefix, sample.mean(), sample.sem(), len(sample))
     categories = category_shifts(model)
     categories.to_csv(reports / f"category_shift_{model}.csv")
+    values["CategoryMaxInterval"] = f"{(Z95 * categories.se).max():.1f}"
     for category, prefix in [
         ("clarity/presentation", "Clarity"),
         ("typo/formatting", "Typos"),
