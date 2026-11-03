@@ -29,3 +29,5 @@ reads `data/gold/blind_key.json`, `data/panels_placebo.jsonl` and `data/sample_r
 ## Read by
 
 `src/gold.py claim_inputs`, `council_groups` (as the `src/extract.py pass2` input) and `group_inputs`.
+
+`src/gold.py match_claims` (review order); `src/validate.py reference` (panels, kind, year, split).

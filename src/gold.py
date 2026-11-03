@@ -216,6 +216,28 @@ def judge_groups(out, model=settings.GOLD_JUDGE_MODEL, threads=8, budget=15.0):
     )
 
 
+def match_claims(
+    model=settings.DEFAULT_MODEL,
+    matcher=settings.GOLD_JUDGE_MODEL,
+    threads=12,
+    budget=15.0,
+    data=str(settings.DATA_DIR),
+    gold=str(settings.GOLD_DIR),
+):
+    gold = Path(gold)
+    folder = Path(data) / f"match_{model}"
+    folder.mkdir(exist_ok=True)
+    reference = extract.load_claims(gold / "adjudicate" / "out.jsonl")
+    ours = extract.load_claims(Path(data) / f"claims_{model}.jsonl")
+    order = [r for p in extract.read_jsonl(gold / "panels_tune.jsonl") for r in p["review_ids"]]
+    claims = [dict(review_id=f"ref_{r}", claims=reference[r]) for r in order] + [dict(review_id=r, claims=ours[r]) for r in order]
+    extract.write_jsonl(folder / "claims.jsonl", claims)
+    extract.write_jsonl(folder / "panels.jsonl", [dict(panel_id=r, review_ids=[f"ref_{r}", r]) for r in order])
+    extract.pass2(
+        str(folder / "panels.jsonl"), model=matcher, claims_file="claims.jsonl", threads=threads, budget=budget, data=folder
+    )
+
+
 if __name__ == "__main__":
     fire.Fire(
         dict(
@@ -226,5 +248,6 @@ if __name__ == "__main__":
             council_groups=council_groups,
             group_inputs=group_inputs,
             judge_groups=judge_groups,
+            match_claims=match_claims,
         )
     )

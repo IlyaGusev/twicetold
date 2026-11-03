@@ -688,6 +688,23 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(prefix + "Change", change["overlap_change"], change["se"], change["papers"])
         shifts.append(dict(source=conf, **change))
     pd.DataFrame(shifts).to_csv(reports / f"journal_changes_{model}.csv", index=False)
+    ref = pd.read_csv(reports / f"reference_{model}.csv").set_index(["kind", "years", "split"])
+    same, cross = ref.loc[("same", "all", "all")], ref.loc[("cross", "all", "all")]
+    change = ref.loc[("same", "2026 minus earlier", "all")]
+    values["RefPanels"] = f"{int(same.panels)}"
+    values["RefCrossPanels"] = f"{int(cross.panels)}"
+    values["RefReviews"] = f"{int(same.reviews + cross.reviews)}"
+    values["RefMatchedReviews"] = f"{int(same.matched_reviews + cross.matched_reviews)}"
+    values["RefOverlap"] = f"{same.overlap_ref:.1f}"
+    values["RefOverlapLuna"] = f"{same.overlap_model:.1f}"
+    values["RefOverlapRho"] = f"{same.overlap_rho:.2f}"
+    values["RefCrossLuna"] = f"{cross.overlap_model:.1f}"
+    values["RefClaims"] = f"{same.claims_ref:.1f}"
+    values["RefClaimsLuna"] = f"{same.claims_model:.1f}"
+    for row, prefix in [(same, "Ref"), (change, "RefChange")]:
+        for name, digits in [("claims_bias", 2), ("overlap_bias", 1), ("recall", 1), ("precision", 1)]:
+            for suffix in ("", "_low", "_high"):
+                values[prefix + name.title().replace("_", "") + suffix.title()[1:]] = f"{row[name + suffix]:.{digits}f}"
     pd.DataFrame(rows).to_csv(reports / f"paper_numbers_{model}.csv", index=False)
     Path(tables, "numbers.tex").write_text(
         "\n".join(f"\\newcommand{{\\{name}}}{{{value}}}" for name, value in values.items()) + "\n"

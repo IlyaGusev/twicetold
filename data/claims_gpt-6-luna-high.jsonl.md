@@ -62,3 +62,4 @@ error row (`extract.merge_rows`). All files are in the `--data` folder (default 
   are not in `reviews.parquet`, so it keeps only main and withdrawn rows.
 - `src/extract.py pass2`: claims of each panel's reviews, from this file and the part file of the same tag.
 - `src/extract.py pass1` (ids to skip) and `merge`.
+- `src/gold.py match_claims` (Luna side of the claim match) and `src/validate.py reference`.

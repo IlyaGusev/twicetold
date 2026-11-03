@@ -29,3 +29,5 @@ retries missing reviews on a rerun. Its labels differ from this file.
 
 `src/gold.py council_groups` (as `--claims_file` of `src/extract.py pass2`), `group_inputs` and `judge_claims` (skips
 reviews that it holds); `tests/test_gold.py` (copies it as an input of `group_inputs`).
+
+`src/gold.py match_claims` (reference side of the claim match); `src/validate.py reference` (reference claims).

@@ -104,3 +104,4 @@ last row without `error`, else the last error row (`extract.merge_rows`). All fi
   and `_other`. All use `metrics.assign`. `source_panels` and `pairs` skip a journal or ICML row whose `review_ids`
   differ from the current panel file. `ml_panels` and `pairs` skip the `B…` rows, because these ids are not papers.
 - `src/extract.py pass2` (panels to skip) and `merge`.
+- `src/validate.py reference`: the 60 rows of the reference panels (`B…` and 20 `placebo_ICLR_…` rows).

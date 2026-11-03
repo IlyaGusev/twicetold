@@ -11,8 +11,10 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 import statsmodels.api as sm
+from scipy import stats
 from tqdm import tqdm
 
+from extract import read_jsonl
 from metrics import assign, load_jsonl, mean_overlap, review_groups
 from outcomes import ICLR_FROM, SOURCE_FILES, in_window
 from settings import settings
@@ -283,6 +285,148 @@ def journal_gaps(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
     print(out.round(2).to_string(index=False))
 
 
+def strict_overlap(review_ids, claims, clusters):
+    group_of = {}
+    for g, cluster in enumerate(clusters):
+        for cid in cluster["claim_ids"]:
+            group_of.setdefault(cid, g)
+    groups = [{group_of.get(f"R{j}-{k}", f"R{j}-{k}") for k in range(len(claims[rid]))} for j, rid in enumerate(review_ids)]
+    return mean_overlap(groups)
+
+
+def matched_claims(clusters, n_ref, n_ours):
+    valid = {f"R0-{k}" for k in range(n_ref)} | {f"R1-{k}" for k in range(n_ours)}
+    hit = set()
+    for cluster in clusters:
+        ids = valid.intersection(cluster["claim_ids"])
+        if {cid[:2] for cid in ids} == {"R0", "R1"}:
+            hit |= ids
+    return sum(cid.startswith("R0") for cid in hit), sum(cid.startswith("R1") for cid in hit)
+
+
+def mean_interval(values, name):
+    values = values.dropna()
+    half = stats.t.ppf(0.975, len(values) - 1) * values.sem()
+    return {
+        name: values.mean(),
+        f"{name}_se": values.sem(),
+        f"{name}_low": values.mean() - half,
+        f"{name}_high": values.mean() + half,
+    }
+
+
+def welch_interval(late, early, name):
+    result = stats.ttest_ind(late.dropna(), early.dropna(), equal_var=False)
+    low, high = result.confidence_interval(0.95)
+    return {
+        name: (low + high) / 2,
+        f"{name}_se": (high - low) / 2 / stats.t.ppf(0.975, result.df),
+        f"{name}_low": low,
+        f"{name}_high": high,
+    }
+
+
+def paired_summary(df, label):
+    row = dict(
+        kind=label[0],
+        years=label[1],
+        split=label[2],
+        panels=len(df),
+        reviews=df.reviews.sum(),
+        matched_reviews=df.matched_reviews.sum(),
+    )
+    for name in ("claims", "overlap"):
+        ref, ours = df[f"{name}_ref"], df[f"{name}_model"]
+        row.update({f"{name}_ref": ref.mean(), f"{name}_model": ours.mean()})
+        row.update(mean_interval(ours - ref, f"{name}_bias"))
+        row[f"{name}_rho"] = stats.spearmanr(ref, ours).statistic if ref.nunique() > 1 else np.nan
+    for name in ("recall", "precision"):
+        row.update(mean_interval(df[name], name))
+    return row
+
+
+def bias_change(late, early, label):
+    row = dict(kind=label[0], years=label[1], split="all", panels=len(late) + len(early))
+    for name in ("claims", "overlap"):
+        bias = [df[f"{name}_model"] - df[f"{name}_ref"] for df in (late, early)]
+        row.update(welch_interval(*bias, f"{name}_bias"))
+    for name in ("recall", "precision"):
+        row.update(welch_interval(late[name], early[name], name))
+    return row
+
+
+def reference(
+    model=settings.DEFAULT_MODEL,
+    data=settings.DATA_DIR,
+    gold=settings.GOLD_DIR,
+    reports=settings.ANALYSIS_REPORTS_DIR,
+    tex=settings.TABLES_DIR / "reference.tex",
+    matcher=settings.GOLD_JUDGE_MODEL,
+):
+    data, gold = Path(data), Path(gold)
+    matches = load_jsonl(data / f"match_{model}" / f"clusters_{matcher}.jsonl", "panel_id")
+    ref_claims = {rid: row["claims"] for rid, row in load_jsonl(gold / "adjudicate" / "out.jsonl", "review_id").items()}
+    ref_clusters = load_jsonl(gold / "adjudicate2" / "out.jsonl", "panel_id")
+    model_claims = {rid: row["claims"] for rid, row in load_jsonl(data / f"claims_{model}.jsonl", "review_id").items()}
+    model_clusters = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
+    rows = []
+    for panel in read_jsonl(gold / "panels_tune.jsonl"):
+        ids, ours = panel["review_ids"], model_clusters[panel["panel_id"]]
+        assert sorted(ours["review_ids"]) == sorted(ids), panel["panel_id"]
+        matched_ids = [r for r in ids if r in matches]
+        matched = [matched_claims(matches[r]["clusters"], len(ref_claims[r]), len(model_claims[r])) for r in matched_ids]
+        n_ref = sum(len(ref_claims[r]) for r in matched_ids)
+        n_ours = sum(len(model_claims[r]) for r in matched_ids)
+        rows.append(
+            dict(
+                kind=panel["kind"],
+                year=panel["year"],
+                split=panel["split"],
+                claims_ref=np.mean([len(ref_claims[r]) for r in ids]),
+                claims_model=np.mean([len(model_claims[r]) for r in ids]),
+                overlap_ref=100 * strict_overlap(ids, ref_claims, ref_clusters[panel["panel_id"]]["clusters"]),
+                overlap_model=100 * strict_overlap(ours["review_ids"], model_claims, ours["clusters"]),
+                recall=100 * sum(m[0] for m in matched) / n_ref if n_ref else np.nan,
+                precision=100 * sum(m[1] for m in matched) / n_ours if n_ours else np.nan,
+                reviews=len(ids),
+                matched_reviews=len(matched_ids),
+            )
+        )
+    panels = pd.DataFrame(rows)
+    summary = []
+    for kind, by_kind in panels.groupby("kind", sort=False):
+        summary += [paired_summary(cell, (kind, str(year), "all")) for year, cell in by_kind.groupby("year")]
+        summary.append(paired_summary(by_kind, (kind, "all", "all")))
+        summary.append(paired_summary(by_kind[by_kind.split == "test"], (kind, "all", "test")))
+        last = by_kind.year.max()
+        summary.append(bias_change(by_kind[by_kind.year == last], by_kind[by_kind.year < last], (kind, f"{last} minus earlier")))
+    out = pd.DataFrame(summary)
+    out.round(3).to_csv(Path(reports) / f"reference_{model}.csv", index=False)
+    print(out.round(2).to_string(index=False))
+    lines = [
+        r"\begin{tabular}{llrrrrrrrrr}",
+        r"\toprule",
+        r" & & & \multicolumn{3}{c}{Claims per review} & \multicolumn{3}{c}{Overlap (\%)} & \multicolumn{2}{c}{Matched (\%)} \\",
+        r"\cmidrule(lr){4-6}\cmidrule(lr){7-9}\cmidrule(lr){10-11}",
+        r"Panels & Years & $n$ & Ref. & Luna & Diff. (SE) & Ref. & Luna & Diff. (SE) & Recall & Precision \\",
+        r"\midrule",
+    ]
+    names = {"same": "Same-paper", "cross": "Cross-paper"}
+    for r in out[out.split == "all"].itertuples():
+        years = r.years.replace(" minus earlier", r" $-$ earlier").replace("all", "All")
+        if "earlier" in years:
+            cells = f"& & {r.claims_bias:+.2f} ({r.claims_bias_se:.2f}) & & & {r.overlap_bias:+.1f} ({r.overlap_bias_se:.1f})"
+            matched = f"{r.recall:+.1f} ({r.recall_se:.1f}) & {r.precision:+.1f} ({r.precision_se:.1f})"
+        else:
+            cells = (
+                f"{r.claims_ref:.1f} & {r.claims_model:.1f} & {r.claims_bias:+.2f} ({r.claims_bias_se:.2f}) & "
+                f"{r.overlap_ref:.1f} & {r.overlap_model:.1f} & {r.overlap_bias:+.1f} ({r.overlap_bias_se:.1f})"
+            )
+            matched = f"{r.recall:.1f} ({r.recall_se:.1f}) & {r.precision:.1f} ({r.precision_se:.1f})"
+        lines.append(f"{names[r.kind]} & {years} & {r.panels} & {cells} & {matched} \\\\")
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
 if __name__ == "__main__":
     fire.Fire(
         {
@@ -291,5 +435,6 @@ if __name__ == "__main__":
             "detector_placebo": detector_placebo,
             "rq1_evidence": rq1_evidence,
             "journal_gaps": journal_gaps,
+            "reference": reference,
         }
     )

@@ -24,3 +24,5 @@ API; needs network and the OpenRouter key. `scripts/gold.sh` does not write into
 ## Read by
 
 `src/gold.py judge_groups` (skips panels that it holds). The paper appendix (`app:reference`) describes it.
+
+`src/validate.py reference` (reference overlap per panel).
