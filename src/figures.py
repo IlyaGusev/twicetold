@@ -327,26 +327,6 @@ def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     save(fig, figs, "fig1_trends.pdf", COLUMN_WIDTH)
 
 
-def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    placebo = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet"))
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.7))
-    fig.subplots_adjust(left=0.13, right=0.98, top=0.97, bottom=0.14)
-    shade_chatgpt_period(ax)
-    rate_by_conf = {}
-    for conf in ["ICLR", "NeurIPS"]:
-        rows = placebo[(placebo.conf == conf) & (placebo.placebo_kind == SAME_VENUE_PLACEBO)]
-        rate_by_conf[conf] = mean_line(ax, rows, "hit_rate_strict", COLORS[conf])
-    iclr, neurips = rate_by_conf["ICLR"], rate_by_conf["NeurIPS"]
-    end_label(ax, 2025, neurips.loc[2025, "mean"], "NeurIPS", COLORS["NeurIPS"], dx=0, dy=-8, ha="center", va="top")
-    end_label(ax, ICLR_FROM, iclr.loc[ICLR_FROM, "bar_top"], "ICLR", COLORS["ICLR"], dx=-2, dy=2, ha="left", va="bottom")
-    ax.set_ylim(-0.3, 3.5)
-    ax.set_xlim(2019.6, 2026.5)
-    few_ticks(ax)
-    year_ticks(ax)
-    ax.set_ylabel("Overlap (%)")
-    save(fig, figs, "figA_cross.pdf", COLUMN_WIDTH)
-
-
 def category_share_by_year(claims, year):
     counts = pd.crosstab(claims[claims.year == year].paper_id, claims.category[claims.year == year]) * 100
     claims_per_paper = counts.sum(axis=1) / 100
@@ -450,58 +430,47 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     save(fig, figs, "fig4_fields.pdf", COLUMN_WIDTH)
 
 
-def journal_grid(figs, name, ylabel, ylim, draw):
-    fig, grid = plt.subplots(2, 3, figsize=(PAGE_WIDTH - 0.1, 2.45))
-    fig.subplots_adjust(left=0.075, right=0.995, top=0.92, bottom=0.13, wspace=0.28, hspace=0.65)
-    axes = grid.ravel()
-    for ax, (conf, title) in zip(axes, JOURNALS.items(), strict=False):
-        shade_chatgpt_period(ax)
-        draw(ax, conf)
-        ax.set_ylim(*ylim)
-        ax.set_xlim(2018.4, 2026.6)
-        few_ticks(ax, n=4)
-        year_ticks(ax, (2019, 2022, 2026))
-        ax.set_title(title)
-    for ax in (axes[0], axes[3]):
-        ax.set_ylabel(ylabel)
-    axes[5].remove()
-    save(fig, figs, name, PAGE_WIDTH)
-
-
-def journals(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    by_year = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv")
-
-    def draw(ax, conf):
-        overlap_line(ax, by_year, conf, COLORS["ink"])
-
-    journal_grid(figs, "figA_journals.pdf", "Overlap (%)", (0, 30), draw)
-
-
-def journals_cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    other = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"other_panel_outcomes_{model}.parquet"))
-
-    def draw(ax, conf):
-        mean_line(ax, other[(other.conf == conf) & other.placebo], "hit_rate_strict", COLORS["ink"])
-
-    journal_grid(figs, "figA_journals_cross.pdf", "Overlap (%)", (-0.4, 5.5), draw)
-
-
-def area(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
+def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     placebo = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet"))
+    other = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"other_panel_outcomes_{model}.parquet"))
+    venue = placebo[placebo.placebo_kind == SAME_VENUE_PLACEBO]
     iclr = placebo[placebo.conf == "ICLR"]
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.7))
-    fig.subplots_adjust(left=0.13, right=0.99, top=0.97, bottom=0.14)
-    shade_chatgpt_period(ax)
-    same_venue = mean_line(ax, iclr[iclr.placebo_kind == SAME_VENUE_PLACEBO], "hit_rate_strict", COLORS["ink"])
-    same_area = mean_line(ax, iclr[iclr.placebo_kind == "same_area3"], "hit_rate_strict", COLORS["ink"], ls="--", mfc="white")
-    end_label(ax, 2023, same_area.loc[2023, "bar_top"], "same research area", dx=0, dy=2, ha="center", va="bottom")
-    end_label(ax, 2022, same_venue.loc[2022, "mean"], "same venue and year", dx=0, dy=-9, ha="center", va="top")
-    ax.set_xlim(2019.6, 2026.4)
-    ax.set_ylim(-0.3, 7.5)
-    few_ticks(ax)
-    year_ticks(ax)
-    ax.set_ylabel("Overlap (%)")
-    save(fig, figs, "figA_area.pdf", COLUMN_WIDTH)
+    fig = plt.figure(figsize=(PAGE_WIDTH - 0.1, 3.0))
+    grid = fig.add_gridspec(2, 10, left=0.07, right=0.92, top=0.93, bottom=0.08, hspace=0.75, wspace=1.6)
+    venues_ax, area_ax = fig.add_subplot(grid[0, :5]), fig.add_subplot(grid[0, 5:])
+    journal_axes = [fig.add_subplot(grid[1, 2 * k : 2 * k + 2]) for k in range(len(JOURNALS))]
+
+    iclr_venue = mean_line(venues_ax, venue[venue.conf == "ICLR"], "hit_rate_strict", COLORS["ICLR"])
+    neurips_venue = mean_line(venues_ax, venue[venue.conf == "NeurIPS"], "hit_rate_strict", COLORS["NeurIPS"])
+    end_label(venues_ax, 2026, iclr_venue.loc[2026, "mean"], "ICLR", COLORS["ICLR"], dx=5)
+    end_label(venues_ax, 2025, neurips_venue.loc[2025, "mean"], "NeurIPS", COLORS["NeurIPS"], 0, -8, "center", "top")
+    venues_ax.set_title("a  Different papers, one venue-year", fontweight="bold")
+
+    same_venue = mean_line(area_ax, iclr[iclr.placebo_kind == SAME_VENUE_PLACEBO], "hit_rate_strict", COLORS["ink"])
+    area_rows = iclr[iclr.placebo_kind == "same_area3"]
+    same_area = mean_line(area_ax, area_rows, "hit_rate_strict", COLORS["ink"], ls="--", mfc="white")
+    end_label(area_ax, 2026, same_area.loc[2026, "mean"], "same area", dx=5)
+    end_label(area_ax, 2026, same_venue.loc[2026, "mean"], "same venue", dx=5)
+    area_ax.set_title("b  ICLR: same venue-year vs. same research area", fontweight="bold")
+
+    for ax, (conf, title) in zip(journal_axes, JOURNALS.items(), strict=True):
+        mean_line(ax, other[(other.conf == conf) & other.placebo], "hit_rate_strict", COLORS["ink"])
+        ax.set_title(title)
+    fig.text(0.01, 0.47, "c  Journals: different papers, one source-year", fontweight="bold", fontsize=8, ha="left")
+
+    for ax in [venues_ax, area_ax, *journal_axes]:
+        shade_chatgpt_period(ax)
+        ax.set_ylim(-0.3, 4)
+        ax.set_yticks([0, 2, 4])
+    for ax in [venues_ax, area_ax]:
+        ax.set_xlim(2019.6, 2026.4)
+        year_ticks(ax)
+    for ax in journal_axes:
+        ax.set_xlim(2018.4, 2026.6)
+        year_ticks(ax, (2019, 2022, 2026))
+    for ax in [venues_ax, journal_axes[0]]:
+        ax.set_ylabel("Overlap (%)")
+    save(fig, figs, "figA_cross.pdf", PAGE_WIDTH)
 
 
 def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
@@ -525,7 +494,7 @@ def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def all_figures(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    for draw in [overlap, ai, ai_checks, categories, fields, cross, area, journals, journals_cross, embedding, rates]:
+    for draw in [overlap, ai, ai_checks, categories, fields, cross, embedding, rates]:
         draw(figs, model)
 
 
@@ -691,6 +660,11 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
             * 100
         )
         record(prefix, sample.mean(), sample.sem(), len(sample))
+    embed = pd.read_csv(reports / f"embed_{model}.csv").set_index(["conf", "year"])
+    for year, suffix in [(2020, "Base"), (2023, "Mid"), (2026, "Last")]:
+        row = embed.loc[("ICLR", year)]
+        record("EmbedSame" + suffix, row.intra, row.intra_se, row.papers, digits=2)
+        record("EmbedArea" + suffix, row.inter_area, digits=2)
     categories = category_shifts(model)
     categories.to_csv(reports / f"category_shift_{model}.csv")
     values["CategoryMaxInterval"] = f"{(Z95 * categories.se).max():.1f}"
@@ -742,11 +716,8 @@ if __name__ == "__main__":
             "categories": categories,
             "fields": fields,
             "embedding": embedding,
-            "area": area,
             "rates": rates,
             "cross": cross,
-            "journals": journals,
-            "journals_cross": journals_cross,
             "table": table,
             "numbers": numbers,
         }
