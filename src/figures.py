@@ -21,7 +21,7 @@ from settings import settings
 COLUMN_WIDTH = 3.03
 PAGE_WIDTH = 6.3
 Z95 = 1.96
-LABEL_SIZE = 8
+LABEL_SIZE = 9
 REWRITE_MACROS = [
     ("outline", "Rw", "rewrite_panel"),
     ("polish", "Pl", "polish_panel"),
@@ -37,12 +37,12 @@ plt.rcParams.update(
         "font.family": "serif",
         "font.serif": ["Times New Roman", "Nimbus Roman", "DejaVu Serif"],
         "mathtext.fontset": "stix",
-        "font.size": 8,
-        "axes.titlesize": 8,
-        "axes.labelsize": 8,
-        "xtick.labelsize": 8,
-        "ytick.labelsize": 8,
-        "legend.fontsize": 8,
+        "font.size": 9,
+        "axes.titlesize": 9,
+        "axes.labelsize": 9,
+        "xtick.labelsize": 9,
+        "ytick.labelsize": 9,
+        "legend.fontsize": 9,
         "legend.frameon": False,
         "axes.titlelocation": "left",
         "axes.titlepad": 4,
@@ -73,7 +73,7 @@ COLORS = {
     "band": "#EFEFEF",
 }
 ML_VENUES = ["ICLR", "NeurIPS", "ICML"]
-JOURNALS = {"SciPost": "SciPost", "F1000": "F1000", "PLOS": "PLOS", "BMC-Med": "BMC Medicine", "Copernicus": "Copernicus"}
+JOURNALS = {"SciPost": "SciPost", "F1000": "F1000", "PLOS": "PLOS", "BMC-Med": "BMC", "Copernicus": "Copernicus"}
 ORDER = ML_VENUES + list(JOURNALS)
 JOURNAL_PREFIX = {"F1000": "FResearch", "PLOS": "Plos", "SciPost": "Scipost", "BMC-Med": "Bmc", "Copernicus": "Copernicus"}
 SHORT = {
@@ -114,7 +114,7 @@ JOURNAL_STYLES = {
     "PLOS": ("PLOS", COLORS["PLOS"], "s", 0),
     "Copernicus": ("Copernicus", COLORS["grey"], "^", 0),
     "SciPost": ("SciPost", COLORS["grey"], "v", 0),
-    "BMC-Med": ("BMC Medicine", COLORS["grey"], "D", 0),
+    "BMC-Med": ("BMC", COLORS["grey"], "D", 0),
 }
 
 
@@ -187,7 +187,7 @@ def rates(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     fig.subplots_adjust(left=0.13, right=0.76, top=0.93, bottom=0.11, hspace=0.42)
     for ax, styles, title in [(top, CONFERENCE_STYLES, "a  ML conferences"), (bottom, JOURNAL_STYLES, "b  Journals")]:
         shade_chatgpt_period(ax)
-        overlap_panel(ax, by_source, styles, 2026.65, 7)
+        overlap_panel(ax, by_source, styles, 2026.65, 10)
         ax.set_ylim(-2, 70)
         ax.set_yticks([0, 20, 40, 60])
         ax.set_ylabel("AI-flagged (%)")
@@ -202,7 +202,7 @@ def rates(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 PAIR_TYPE_STYLES = {
     "HH": ("Neither flagged", COLORS["grey"], COLORS["grey"], "o"),
     "HL": ("One flagged", COLORS["flag_light"], COLORS["flag"], "s"),
-    "LL": ("Both flagged, not both AI-written", COLORS["flag"], COLORS["flag"], "D"),
+    "LL": ("Both flagged,\nnot both AI-written", COLORS["flag"], COLORS["flag"], "D"),
     "WW": ("Both AI-written", COLORS["ink"], COLORS["ink"], "^"),
 }
 
@@ -229,7 +229,7 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     means = pair_type_means(model)
     contrasts = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"pair_types_{model}.csv")
     fig, (top, bottom) = plt.subplots(
-        2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.1, 3.6), gridspec_kw=dict(height_ratios=[1.2, 1], hspace=0.32)
+        2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.35, 3.9), gridspec_kw=dict(height_ratios=[1.2, 1], hspace=0.38)
     )
     for k, (pair_type, (label, face, edge, marker)) in enumerate(PAIR_TYPE_STYLES.items()):
         x = np.arange(len(ML_VENUES)) + (k - 1.5) * 0.17
@@ -253,13 +253,13 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     bottom.set_ylim(-2, 14)
     bottom.set_yticks([0, 5, 10])
     bottom.set_ylabel("Difference (points)")
-    bottom.set_title("b  Same-paper difference from neither flagged", fontweight="bold")
+    bottom.set_title("b  Difference from neither flagged", fontweight="bold")
     fig.align_ylabels([top, bottom])
     top.legend(
         loc="lower center",
         bbox_to_anchor=(0.5, 1.13),
         ncol=2,
-        columnspacing=1.2,
+        columnspacing=0.7,
         handletextpad=0.3,
         handlelength=1.2,
         borderaxespad=0.2,
@@ -392,7 +392,7 @@ def category_shifts(model):
 def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     shift = category_shifts(model)
     fig, (levels, changes) = plt.subplots(
-        1, 2, sharey=True, figsize=(COLUMN_WIDTH - 0.1, 3.0), gridspec_kw=dict(width_ratios=[1.3, 1], wspace=0.1)
+        1, 2, sharey=True, figsize=(COLUMN_WIDTH - 0.2, 3.2), gridspec_kw=dict(width_ratios=[1.3, 1], wspace=0.1)
     )
     fig.subplots_adjust(left=0.37, right=0.97, top=0.93, bottom=0.12)
     y = np.arange(len(shift))
@@ -416,7 +416,7 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     levels.set_xlim(-1.5, 25)
     levels.set_xticks([0, 10, 20])
     levels.spines["bottom"].set_bounds(0, 20)
-    levels.set_xlabel("Share of claims (%)")
+    levels.set_xlabel("Share (%)")
     changes.axvline(0, color=COLORS["grey"], lw=0.6, zorder=0)
     changes.hlines(y, 0, shift.change, color=COLORS["light"], lw=1.4, zorder=1)
     changes.errorbar(shift.change, y, xerr=Z95 * shift.se, fmt="o", ms=3, color=COLORS["ink"], elinewidth=1.0, zorder=2)
@@ -446,9 +446,11 @@ def journal_change(by_year, conf):
 def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     gaps = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"journal_gaps_{model}.csv")
     iclr = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv").iloc[0]
+    ident = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"identification_{model}.csv")
+    identifying = ident.set_index(ident.label.str.rsplit(" ", n=1).str[0]).varying
     sources = gaps.iloc[:-1].sort_values("est", ascending=False)
     pooled = gaps.iloc[-1]
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.6))
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.35, 1.95))
     fig.subplots_adjust(left=0.31, right=0.97, top=0.9, bottom=0.2)
     ax.axvspan(iclr.est - Z95 * iclr.se, iclr.est + Z95 * iclr.se, color="#D9E8F3", lw=0, zorder=0)
     ax.axvline(iclr.est, color=COLORS["ICLR"], lw=0.8, zorder=0)
@@ -469,8 +471,8 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         va="bottom",
         annotation_clip=False,
     )
-    labels = [f"{JOURNALS[r.source]} ({r.both_papers:,})" for r in sources.itertuples()]
-    ax.set_yticks(y, [*labels, f"All journals ({int(pooled.both_papers):,})"])
+    labels = [f"{JOURNALS[r.source]} ({identifying[r.source]:,})" for r in sources.itertuples()]
+    ax.set_yticks(y, [*labels, f"All journals ({identifying['All journals']:,})"])
     ax.get_yticklabels()[-1].set_fontweight("bold")
     ax.tick_params(axis="y", length=0, pad=2)
     ax.spines["left"].set_visible(False)
@@ -494,7 +496,7 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
     iclr_venue = mean_line(venues_ax, venue[venue.conf == "ICLR"], "hit_rate_strict", COLORS["ICLR"])
     neurips_venue = mean_line(venues_ax, venue[venue.conf == "NeurIPS"], "hit_rate_strict", COLORS["NeurIPS"])
-    end_label(venues_ax, 2026, iclr_venue.loc[2026, "mean"], "ICLR", COLORS["ICLR"], dx=5)
+    end_label(venues_ax, 2026, iclr_venue.loc[2026, "mean"], "ICLR", COLORS["ICLR"], dx=-2, dy=7, ha="right", va="bottom")
     end_label(venues_ax, 2021, neurips_venue.loc[2021, "bar_top"], "NeurIPS", COLORS["NeurIPS"], 0, 3, "center", "bottom")
     venues_ax.set_title("a  Different papers, one venue-year", fontweight="bold")
 
@@ -527,7 +529,7 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     embed = in_window(pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"embed_{model}.csv"))
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.7, 1.9))
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.9, 2.0))
     shade_chatgpt_period(ax)
     by_conf = {conf: embed[embed.conf == conf].set_index("year") for conf in ["ICLR", "NeurIPS"]}
     for conf, rows in by_conf.items():
@@ -758,6 +760,8 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for label, prefix in [
         ("ICLR 2024–26", "IdIclr"),
         ("ICLR 2024–26, AI-written", "IdWritten"),
+        ("NeurIPS 2024–25", "IdNeurips"),
+        ("ICML 2025–26", "IdIcml"),
         ("All journals 2024–26", "IdJournal"),
     ]:
         row = ident.loc[label]
@@ -774,6 +778,8 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
             values[prefix + label] = f"{row[name]:.2f}" if pair_type == "HH" else f"{row[name]:+.2f}"
             if pair_type != "HH":
                 values[prefix + label + "SE"] = f"{row[name + '_se']:.2f}"
+                values[prefix + label + "Low"] = f"{row[name] - Z95 * row[name + '_se']:+.2f}"
+                values[prefix + label + "High"] = f"{row[name] + Z95 * row[name + '_se']:+.2f}"
     types = pd.read_csv(reports / f"pair_types_{model}.csv").set_index(["conf", "pair_type"])
     for (conf, pair_type), row in types.iterrows():
         record(f"Type{pair_type.title()}{conf.title()}", row.est, row.se, row.papers)

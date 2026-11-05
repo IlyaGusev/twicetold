@@ -395,9 +395,9 @@ def pair_type_sizes(
     out.to_csv(Path(reports) / f"pair_type_sizes_{model}.csv", index=False)
     print(out.round(3).to_string(index=False))
     lines = [
-        r"\begin{tabular}{lrrrrrr}",
+        r"\begin{tabular}{>{\raggedright\arraybackslash}p{2.7cm}rrrrrr}",
         r"\toprule",
-        r"Pair type & Pairs & Overlap (pp) & Shared & Smaller set & Union & Shared, adj. \\",
+        r"Pair type & Pairs & \shortstack{Overlap\\(points)} & Shared & \shortstack{Smaller\\set} & Union & \shortstack{Shared,\\size-adj.} \\",
         r"\midrule",
     ]
     for r in out.itertuples():
@@ -745,7 +745,7 @@ def standalone_change(clusters, claims, papers, panel_prefix):
     return pd.DataFrame(rows)
 
 
-REWRITE_LABELS = {"outline": "From outline", "polish": "Polished", "outline_second": "From outline", "polish_second": "Polished"}
+REWRITE_LABELS = {"outline": "Outline", "polish": "Polished", "outline_second": "Outline", "polish_second": "Polished"}
 REWRITE_TABLE_ORDER = ["outline", "outline_second", "polish", "polish_second"]
 WRITER_LABELS = {settings.AI_REFERENCE_MODEL: "Luna", settings.REWRITE_SECOND_WRITER: "Kimi"}
 
@@ -813,7 +813,7 @@ def rewrite_test(
         r"\toprule",
         r" & & & & \multicolumn{3}{c}{Both changed} & & \\",
         r"\cmidrule(lr){5-7}",
-        r"Condition & Writer & Sources & Pairs & Before & After & Change [95\% CI] & FE (SE) & Alone [95\% CI] \\",
+        r"Condition & Writer & Source & Pairs & Before & After & \shortstack{Change\\{[95\% CI]}} & \shortstack{FE\\(SE)} & \shortstack{Alone\\{[95\% CI]}} \\",
         r"\midrule",
     ]
     groups = table.groupby("condition").group.nunique()
