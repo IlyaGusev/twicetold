@@ -11,6 +11,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.colors import to_rgb
 from matplotlib.ticker import MaxNLocator
 from matplotlib.transforms import Bbox
 
@@ -20,19 +21,28 @@ from settings import settings
 COLUMN_WIDTH = 3.03
 PAGE_WIDTH = 6.3
 Z95 = 1.96
+LABEL_SIZE = 8
+REWRITE_MACROS = [
+    ("outline", "Rw", "rewrite_panel"),
+    ("polish", "Pl", "polish_panel"),
+    ("outline_second", "Rk", "rewrite_panel_second"),
+    ("polish_second", "Pk", "polish_panel_second"),
+]
+TEXT_DARKEN = 0.35
 CHATGPT_BAND = (2022.6, 2026.5)
+PRE_CHATGPT_POINTS = {("ICLR", 2023)}
 SAME_VENUE_PLACEBO = "shuffled4"
 plt.rcParams.update(
     {
         "font.family": "serif",
         "font.serif": ["Times New Roman", "Nimbus Roman", "DejaVu Serif"],
         "mathtext.fontset": "stix",
-        "font.size": 7.5,
+        "font.size": 8,
         "axes.titlesize": 8,
-        "axes.labelsize": 7.5,
-        "xtick.labelsize": 7,
-        "ytick.labelsize": 7,
-        "legend.fontsize": 7,
+        "axes.labelsize": 8,
+        "xtick.labelsize": 8,
+        "ytick.labelsize": 8,
+        "legend.fontsize": 8,
         "legend.frameon": False,
         "axes.titlelocation": "left",
         "axes.titlepad": 4,
@@ -130,8 +140,14 @@ def overlap_line(ax, by_year, conf, color, dx=0.0):
     return rows.set_index("year")["match"]
 
 
+def text_color(color):
+    return tuple(c * (1 - TEXT_DARKEN) for c in to_rgb(color))
+
+
 def end_label(ax, x, y, text, color=COLORS["ink"], dx=3, dy=0, ha="left", va="center"):
-    ax.annotate(text, (x, y), xytext=(dx, dy), textcoords="offset points", ha=ha, va=va, color=color, fontsize=7)
+    ax.annotate(
+        text, (x, y), xytext=(dx, dy), textcoords="offset points", ha=ha, va=va, color=text_color(color), fontsize=LABEL_SIZE
+    )
 
 
 def few_ticks(ax, axis="y", n=4):
@@ -171,14 +187,13 @@ def rates(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     fig.subplots_adjust(left=0.13, right=0.76, top=0.93, bottom=0.11, hspace=0.42)
     for ax, styles, title in [(top, CONFERENCE_STYLES, "a  ML conferences"), (bottom, JOURNAL_STYLES, "b  Journals")]:
         shade_chatgpt_period(ax)
-        overlap_panel(ax, by_source, styles, 2026.65, 5)
+        overlap_panel(ax, by_source, styles, 2026.65, 7)
         ax.set_ylim(-2, 70)
         ax.set_yticks([0, 20, 40, 60])
         ax.set_ylabel("AI-flagged (%)")
         ax.set_title(title, fontweight="bold")
-        ax.tick_params(axis="x", labelsize=6)
     bottom.set_xlim(2018.6, CHATGPT_BAND[1])
-    bottom.set_xticks(range(2019, 2027))
+    bottom.set_xticks(range(2019, 2027), [f"'{year % 100}" for year in range(2019, 2027)])
     top.tick_params(labelbottom=True)
     bottom.set_xlabel("Review year")
     save(fig, figs, "figA_rates.pdf", COLUMN_WIDTH)
@@ -187,7 +202,7 @@ def rates(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 PAIR_TYPE_STYLES = {
     "HH": ("Neither flagged", COLORS["grey"], COLORS["grey"], "o"),
     "HL": ("One flagged", COLORS["flag_light"], COLORS["flag"], "s"),
-    "LL": ("Both flagged", COLORS["flag"], COLORS["flag"], "D"),
+    "LL": ("Both flagged, not both AI-written", COLORS["flag"], COLORS["flag"], "D"),
     "WW": ("Both AI-written", COLORS["ink"], COLORS["ink"], "^"),
 }
 
@@ -212,23 +227,42 @@ def pair_type_means(model):
 
 def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     means = pair_type_means(model)
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 2.0))
+    contrasts = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"pair_types_{model}.csv")
+    fig, (top, bottom) = plt.subplots(
+        2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.1, 3.6), gridspec_kw=dict(height_ratios=[1.2, 1], hspace=0.32)
+    )
     for k, (pair_type, (label, face, edge, marker)) in enumerate(PAIR_TYPE_STYLES.items()):
-        rows = means[means.pair_type == pair_type].set_index("conf").loc[ML_VENUES]
         x = np.arange(len(ML_VENUES)) + (k - 1.5) * 0.17
-        ax.errorbar(
-            x, rows["mean"], yerr=rows.ci, fmt=marker, ms=3.5, mfc=face, mec=edge, mew=0.6,
-            ecolor=edge, elinewidth=0.9, label=label,
-        )
-    ax.set_xlim(-0.5, len(ML_VENUES) - 0.5)
-    ax.set_xticks(range(len(ML_VENUES)), rows.venue)
-    ax.tick_params(axis="x", length=0)
-    ax.set_ylim(0, 30)
-    ax.set_yticks([0, 10, 20, 30])
-    ax.set_ylabel("Critique overlap (%)")
-    ax.legend(
-        loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, columnspacing=1.2, handletextpad=0.3,
-        handlelength=1.2, borderaxespad=0.2,
+        style = dict(fmt=marker, ms=3.5, mfc=face, mec=edge, mew=0.6, ecolor=edge, elinewidth=0.9)
+        rows = means[means.pair_type == pair_type].set_index("conf").loc[ML_VENUES]
+        top.errorbar(x, rows["mean"], yerr=rows.ci, label=label, **style)
+        if pair_type == "HH":
+            bottom.errorbar(x, np.zeros(len(x)), **style)
+            continue
+        cell = contrasts[contrasts.pair_type == pair_type].set_index("conf").loc[ML_VENUES]
+        bottom.errorbar(x, cell.est, yerr=Z95 * cell.se, **style)
+    bottom.axhline(0, color=COLORS["light"], lw=0.6, zorder=0)
+    bottom.set_xlim(-0.5, len(ML_VENUES) - 0.5)
+    bottom.set_xticks(range(len(ML_VENUES)), rows.venue)
+    bottom.tick_params(axis="x", length=0)
+    top.tick_params(axis="x", length=0)
+    top.set_ylim(0, 30)
+    top.set_yticks([0, 10, 20, 30])
+    top.set_ylabel("Overlap (%)")
+    top.set_title("a  Mean overlap by pair type", fontweight="bold")
+    bottom.set_ylim(-2, 14)
+    bottom.set_yticks([0, 5, 10])
+    bottom.set_ylabel("Difference (points)")
+    bottom.set_title("b  Same-paper difference from neither flagged", fontweight="bold")
+    fig.align_ylabels([top, bottom])
+    top.legend(
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.13),
+        ncol=2,
+        columnspacing=1.2,
+        handletextpad=0.3,
+        handlelength=1.2,
+        borderaxespad=0.2,
     )
     save(fig, figs, "fig2_ai.pdf", COLUMN_WIDTH)
 
@@ -286,14 +320,18 @@ def overlap_panel(ax, by_year, styles, label_x, gap):
         rows = by_year[by_year.conf == conf]
         x, y, ci = rows.year + dx, rows["match"], Z95 * rows.match_se
         muted = color == COLORS["grey"]
-        ax.fill_between(x, y - ci, y + ci, color=color, alpha=0.1 if muted else 0.2, lw=0, zorder=1)
-        ax.plot(x, y, "-", color=color, lw=0.9 if muted else 1.4, zorder=2 if muted else 3)
+        ax.fill_between(x, y - ci, y + ci, color=color, alpha=0.12 if muted else 0.2, lw=0, zorder=1)
+        ax.plot(x, y, "-", color=color, lw=1.1 if muted else 1.4, zorder=2 if muted else 3)
         ax.plot(x, y, marker, color=color, mec="white", mew=0.6, ms=3.5 if muted else 4, zorder=4)
+        pre = rows.year.isin([year for c, year in PRE_CHATGPT_POINTS if c == conf]).to_numpy()
+        ax.plot(x[pre], y[pre], marker, color="white", mec=color, mew=1.0, ms=4, zorder=5)
         ends[name] = (x.iloc[-1], y.iloc[-1], color)
     label_ys = spread_labels([y for _, y, _ in ends.values()], gap)
     for (name, (x, y, color)), label_y in zip(ends.items(), label_ys):
-        ax.plot([x, label_x - 0.08], [y, label_y], color=color, lw=0.5, alpha=0.6, zorder=2)
-        ax.annotate(name, (label_x, label_y), ha="left", va="center", color=color, fontsize=7, annotation_clip=False)
+        ax.plot([x, label_x - 0.08], [y, label_y], color=color, lw=0.5, alpha=0.8, zorder=2)
+        ax.annotate(
+            name, (label_x, label_y), ha="left", va="center", color=text_color(color), fontsize=LABEL_SIZE, annotation_clip=False
+        )
 
 
 def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
@@ -303,25 +341,24 @@ def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     conferences, journals = CONFERENCE_STYLES, JOURNAL_STYLES
     for ax, styles, title in [(top, conferences, "a  ML conferences"), (bottom, journals, "b  Journals")]:
         shade_chatgpt_period(ax)
-        overlap_panel(ax, by_year, styles, 2026.65, 2.4)
+        overlap_panel(ax, by_year, styles, 2026.65, 2.6)
         ax.set_ylim(5, 21)
         ax.set_yticks([5, 10, 15, 20])
         ax.set_ylabel("Critique overlap (%)")
         ax.set_title(title, fontweight="bold")
         ax.annotate(
-            "LLM era",
+            "After ChatGPT",
             (CHATGPT_BAND[0], 21),
             xytext=(3, -2),
             textcoords="offset points",
             ha="left",
             va="top",
-            fontsize=6.5,
+            fontsize=8,
             color=COLORS["grey"],
             style="italic",
         )
-        ax.tick_params(axis="x", labelsize=6)
     bottom.set_xlim(2018.6, CHATGPT_BAND[1])
-    bottom.set_xticks(range(2019, 2027))
+    bottom.set_xticks(range(2019, 2027), [f"'{year % 100}" for year in range(2019, 2027)])
     top.tick_params(labelbottom=True)
     bottom.set_xlabel("Review year")
     save(fig, figs, "fig1_trends.pdf", COLUMN_WIDTH)
@@ -355,9 +392,9 @@ def category_shifts(model):
 def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     shift = category_shifts(model)
     fig, (levels, changes) = plt.subplots(
-        1, 2, sharey=True, figsize=(COLUMN_WIDTH - 0.1, 2.45), gridspec_kw=dict(width_ratios=[1.3, 1], wspace=0.1)
+        1, 2, sharey=True, figsize=(COLUMN_WIDTH - 0.1, 3.0), gridspec_kw=dict(width_ratios=[1.3, 1], wspace=0.1)
     )
-    fig.subplots_adjust(left=0.37, right=0.97, top=0.92, bottom=0.15)
+    fig.subplots_adjust(left=0.37, right=0.97, top=0.93, bottom=0.12)
     y = np.arange(len(shift))
     levels.hlines(y, shift.pre, shift.post, color=COLORS["light"], lw=1.4, zorder=1)
     levels.plot(shift.post, y, "o", ms=3, color=COLORS["ink"], zorder=2)
@@ -367,8 +404,14 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         plt.Line2D([], [], ls="", marker="o", ms=3, color=COLORS["ink"]),
     ]
     levels.legend(
-        handles, [f"{ICLR_FROM}–22", "2026"], loc="lower left", bbox_to_anchor=(0, 1.0), ncol=2,
-        handletextpad=0.2, columnspacing=1.0, borderaxespad=0.0,
+        handles,
+        [f"{ICLR_FROM}–22", "2026"],
+        loc="lower left",
+        bbox_to_anchor=(0, 1.0),
+        ncol=2,
+        handletextpad=0.2,
+        columnspacing=1.0,
+        borderaxespad=0.0,
     )
     levels.set_xlim(-1.5, 25)
     levels.set_xticks([0, 10, 20])
@@ -405,7 +448,7 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     iclr = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv").iloc[0]
     sources = gaps.iloc[:-1].sort_values("est", ascending=False)
     pooled = gaps.iloc[-1]
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.9))
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.1, 1.6))
     fig.subplots_adjust(left=0.31, right=0.97, top=0.9, bottom=0.2)
     ax.axvspan(iclr.est - Z95 * iclr.se, iclr.est + Z95 * iclr.se, color="#D9E8F3", lw=0, zorder=0)
     ax.axvline(iclr.est, color=COLORS["ICLR"], lw=0.8, zorder=0)
@@ -415,8 +458,17 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     for yi, row in zip(y, rows.itertuples()):
         ax.errorbar(row.est, yi, xerr=Z95 * row.se, fmt="o", ms=3.5, color=COLORS["ink"], elinewidth=1.0, zorder=3)
     ax.axhline(0.55, color=COLORS["light"], lw=0.5)
-    ax.annotate("ICLR", (iclr.est, len(sources) + 0.8), xytext=(0, 1), textcoords="offset points",
-                fontsize=7, color=COLORS["ICLR"], ha="center", va="bottom", annotation_clip=False)
+    ax.annotate(
+        "ICLR",
+        (iclr.est, len(sources) + 0.8),
+        xytext=(0, 1),
+        textcoords="offset points",
+        fontsize=8,
+        color=COLORS["ICLR"],
+        ha="center",
+        va="bottom",
+        annotation_clip=False,
+    )
     labels = [f"{JOURNALS[r.source]} ({r.both_papers:,})" for r in sources.itertuples()]
     ax.set_yticks(y, [*labels, f"All journals ({int(pooled.both_papers):,})"])
     ax.get_yticklabels()[-1].set_fontweight("bold")
@@ -443,7 +495,7 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     iclr_venue = mean_line(venues_ax, venue[venue.conf == "ICLR"], "hit_rate_strict", COLORS["ICLR"])
     neurips_venue = mean_line(venues_ax, venue[venue.conf == "NeurIPS"], "hit_rate_strict", COLORS["NeurIPS"])
     end_label(venues_ax, 2026, iclr_venue.loc[2026, "mean"], "ICLR", COLORS["ICLR"], dx=5)
-    end_label(venues_ax, 2025, neurips_venue.loc[2025, "mean"], "NeurIPS", COLORS["NeurIPS"], 0, -8, "center", "top")
+    end_label(venues_ax, 2021, neurips_venue.loc[2021, "bar_top"], "NeurIPS", COLORS["NeurIPS"], 0, 3, "center", "bottom")
     venues_ax.set_title("a  Different papers, one venue-year", fontweight="bold")
 
     same_venue = mean_line(area_ax, iclr[iclr.placebo_kind == SAME_VENUE_PLACEBO], "hit_rate_strict", COLORS["ink"])
@@ -475,7 +527,7 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     embed = in_window(pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"embed_{model}.csv"))
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.5, 1.8))
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.7, 1.9))
     shade_chatgpt_period(ax)
     by_conf = {conf: embed[embed.conf == conf].set_index("year") for conf in ["ICLR", "NeurIPS"]}
     for conf, rows in by_conf.items():
@@ -483,7 +535,7 @@ def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         ax.plot(rows.index, rows.inter_area, "o--", ms=3, mfc="white", color=COLORS[conf])
     iclr, neurips = by_conf["ICLR"], by_conf["NeurIPS"]
     end_label(ax, 2026, iclr.intra.iloc[-1], "ICLR, same paper", COLORS["ICLR"])
-    end_label(ax, 2025, neurips.intra.iloc[-1], "NeurIPS, same paper", COLORS["NeurIPS"], dy=6, ha="right", dx=0)
+    end_label(ax, 2021, neurips.intra.loc[2021], "NeurIPS, same paper", COLORS["NeurIPS"], dx=-2, dy=7, ha="left", va="bottom")
     end_label(ax, 2026, iclr.inter_area.iloc[-1], "ICLR, different\npapers, same area", COLORS["ICLR"])
     end_label(ax, 2023, neurips.inter_area.loc[2023], "NeurIPS, different papers", COLORS["NeurIPS"], dx=0, dy=-10, ha="center")
     ax.set_xlim(2019.6, 2026.4)
@@ -540,7 +592,7 @@ def latex(rows):
     lines = [
         r"\begin{tabular}{llrrrrrrr}",
         r"\toprule",
-        r"Source & Year & Papers & Reviews & Claims/rev. & Overlap (\%) & Other papers (\%) & AI-flagged (\%) & AI-written (\%) \\",
+        r"Source & Year & Papers & Reviews & Claims & Overlap (\%) & Other & Flagged & Written \\",
         r"\midrule",
     ]
     for conf, group in rows.groupby("conf", observed=True):
@@ -623,6 +675,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         ("NeurIPS 2024–25", "NeuripsFlagGap"),
         ("ICML 2025–26", "IcmlFlagGap"),
         ("AI-written, ICLR", "WrittenGap"),
+        ("ICLR 2024", "FlagGapTwentyFour"),
+        ("ICLR 2025", "FlagGapTwentyFive"),
+        ("ICLR 2026", "FlagGapTwentySix"),
     ]:
         row = evidence.loc[label]
         record(prefix, row.est, row.se, row.papers)
@@ -699,6 +754,112 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         for name, digits in [("claims_bias", 2), ("overlap_bias", 1), ("recall", 1), ("precision", 1)]:
             for suffix in ("", "_low", "_high"):
                 values[prefix + name.title().replace("_", "") + suffix.title()[1:]] = f"{row[name + suffix]:.{digits}f}"
+    ident = pd.read_csv(reports / f"identification_{model}.csv").set_index("label")
+    for label, prefix in [
+        ("ICLR 2024–26", "IdIclr"),
+        ("ICLR 2024–26, AI-written", "IdWritten"),
+        ("All journals 2024–26", "IdJournal"),
+    ]:
+        row = ident.loc[label]
+        values[prefix + "Papers"] = f"{int(row.papers):,}"
+        values[prefix + "Varying"] = f"{int(row.varying):,}"
+        values[prefix + "TwoReports"] = f"{int(row.reports_2):,}"
+        record(prefix + "Direct", row.endpoint, row.endpoint_se, row.endpoint_papers)
+        values[prefix + "DirectLow"] = f"{row.endpoint_low:.1f}"
+        values[prefix + "DirectHigh"] = f"{row.endpoint_high:.1f}"
+    sizes = pd.read_csv(reports / f"pair_type_sizes_{model}.csv").set_index("pair_type")
+    for pair_type, row in sizes.iterrows():
+        prefix = "Size" + pair_type.title()
+        for name, label in [("shared", "Shared"), ("smaller", "Smaller"), ("union", "Union"), ("shared_adjusted", "SharedAdj")]:
+            values[prefix + label] = f"{row[name]:.2f}" if pair_type == "HH" else f"{row[name]:+.2f}"
+            if pair_type != "HH":
+                values[prefix + label + "SE"] = f"{row[name + '_se']:.2f}"
+    types = pd.read_csv(reports / f"pair_types_{model}.csv").set_index(["conf", "pair_type"])
+    for (conf, pair_type), row in types.iterrows():
+        record(f"Type{pair_type.title()}{conf.title()}", row.est, row.se, row.papers)
+    subsets = pd.read_csv(reports / f"journal_subsets_{model}.csv").set_index("subset")
+    for subset, prefix in [("Identifying", "JsIdent"), ("Two reports", "JsTwo")]:
+        row = subsets.loc[subset]
+        values[prefix + "Papers"] = f"{int(row.papers):,}"
+        for name in ["chars", "claims", "overlap", "flagged", "share_F1000"]:
+            record(prefix + name.title().replace("_", "").replace("1000", "Thousand"), row[name])
+    cover = pd.read_csv(reports / f"coverage_{model}.csv").set_index("year")
+    values["CovPapersFirst"] = f"{int(cover.papers.iloc[0]):,}"
+    for year, suffix in [(2023, "Base"), (2026, "Last")]:
+        row = cover.loc[year]
+        record("CovProblems" + suffix, row.problems, row.problems_se, row.papers)
+        record("CovPerReview" + suffix, row.per_review, row.per_review_se)
+        record("CovNew" + suffix, row.new_by_third, row.new_by_third_se, digits=2)
+        record("CovShared" + suffix, row.shared_per_pair, row.shared_per_pair_se, digits=2)
+    rewrite = pd.read_csv(reports / f"rewrite_test_{model}.csv").set_index(["condition", "group"])
+    meld_rates = pd.read_csv(settings.REPORTS_DIR / "meld_rates.csv")
+    for condition, base, meld_set in REWRITE_MACROS:
+        for group, suffix in [("All", ""), ("ICLR", "Iclr"), ("Journals", "Journal")]:
+            if (condition, group) not in rewrite.index:
+                continue
+            row = rewrite.loc[(condition, group)]
+            prefix = base + suffix
+            values[prefix + "Papers"] = f"{int(row.papers):,}"
+            record(prefix + "TwoBefore", row.two_before)
+            record(prefix + "TwoAfter", row.two_after)
+            values[prefix + "TwoDiff"] = f"{row.two_diff:+.1f}"
+            values[prefix + "TwoDiffLow"] = f"{row.two_diff_low:+.1f}"
+            values[prefix + "TwoDiffHigh"] = f"{row.two_diff_high:+.1f}"
+            record(prefix + "Two", row.two, row.two_se)
+            record(prefix + "One", row.one, row.one_se)
+            for name, label in [("unchanged_diff", "Unchanged"), ("alone_diff", "Alone")]:
+                record(prefix + label, row[name], row[name + "_se"])
+                values[prefix + label + "Low"] = f"{row[name + '_low']:.1f}"
+                values[prefix + label + "High"] = f"{row[name + '_high']:.1f}"
+        row = rewrite.loc[(condition, "All")]
+        record(base + "Regroup", row.regroup_diff, row.regroup_diff_se)
+        record(base + "LunaRecall", row.luna_recall)
+        record(base + "AuditRecall", row.audit_recall)
+        values[base + "AuditN"] = f"{int(row.audit_reviews)}"
+        record(base + "ClaimsOriginal", row.claims_original)
+        record(base + "ClaimsRewrite", row.claims_rewrite)
+        texts = meld_rates[meld_rates.set == meld_set]
+        record(base + "Flagged", (texts.flagged * texts.n).sum() / texts.n.sum())
+    labels = pd.read_csv(settings.REPORTS_DIR / "meld_labels.csv").set_index("known")
+    for known, prefix, digits in [
+        ("polish", "Polish", 1),
+        ("rewrite", "Rewrite", 1),
+        ("intel_ai", "Intel", 1),
+        ("heldout", "Heldout", 2),
+        ("paper_review", "PaperLuna", 1),
+        ("paper_review_second", "PaperKimi", 1),
+    ]:
+        row = labels.loc[known]
+        values[prefix + "Texts"] = f"{int(row.texts):,}"
+        record(prefix + "Flagged", 100 - row.unflagged, digits=digits)
+        record(prefix + "Written", row.written, digits=digits)
+        record(prefix + "WrittenOfFlagged", 100 * row.written / (100 - row.unflagged), digits=0)
+    audit = pd.read_csv(reports / f"audit_{model}.csv").set_index("label")
+    for label, prefix in [
+        ("ICLR 2023", "AuditBase"),
+        ("Journals 2024--26", "AuditJournal"),
+        ("Two flagged $-$ none", "AuditGap"),
+        ("Two AI-written $-$ none", "AuditWritten"),
+        ("ICLR 2024--26 minus 2018--23", "AuditChange"),
+    ]:
+        row = audit.loc[label]
+        values[prefix + "N"] = f"{int(row.panels)}"
+        for suffix in ("", "_low", "_high"):
+            values[prefix + "Diff" + suffix.title()[1:]] = f"{row['diff' + suffix]:+.1f}"
+        if not pd.isna(row.ref):
+            record(prefix + "Ref", row.ref)
+            record(prefix + "Luna", row.luna)
+    values["AuditWrittenPanels"] = f"{int(audit.loc['ICLR 2024--26, AI-written strata'].panels)}"
+    for label, prefix in [("Two flagged $-$ none", "AuditRefGap"), ("Two AI-written $-$ none", "AuditWrittenRefGap")]:
+        gap = audit.loc[label]
+        for suffix in ("", "_low", "_high"):
+            values[prefix + suffix.title()[1:]] = f"{gap['ref_gap' + suffix]:+.1f}"
+            values[prefix.replace("Ref", "Luna") + suffix.title()[1:]] = f"{gap['luna_gap' + suffix]:+.1f}"
+    repro = pd.read_csv(reports / f"repro_{model}.csv").set_index("name").value
+    record("TruncatedMl", repro.truncated_ml, digits=2)
+    record("TruncatedJournal", repro.truncated_journal)
+    for name in ["pass1_empty", "pass2_error_rows", "calibration_in_analysis", "calibration_outside"]:
+        values["Repro" + name.title().replace("_", "").replace("1", "One").replace("2", "Two")] = f"{int(repro[name]):,}"
     pd.DataFrame(rows).to_csv(reports / f"paper_numbers_{model}.csv", index=False)
     Path(tables, "numbers.tex").write_text(
         "\n".join(f"\\newcommand{{\\{name}}}{{{value}}}" for name, value in values.items()) + "\n"

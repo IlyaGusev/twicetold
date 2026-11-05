@@ -4,6 +4,7 @@ import random
 import re
 import sys
 import threading
+import time
 import unicodedata
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
@@ -31,6 +32,7 @@ SEED = 0
 YEARS = range(2018, 2027)
 MAX_PAPERS = 500
 MIN_CHARS = 100
+PAPER_MIN_CHARS = 5000
 MIN_REVIEWS = 2
 WORKERS = 4
 TIMEOUT = 120
@@ -924,5 +926,66 @@ def icml(year=2026, out=settings.DATA_DIR):
     print(len(df), "reviews of", df.paper_id.nunique(), "papers")
 
 
+ATOM = {"a": "http://www.w3.org/2005/Atom"}
+
+
+def title_key(title):
+    return re.sub(r"[^a-z0-9]", "", unicodedata.normalize("NFKD", title).lower())
+
+
+def arxiv_match(title, raw_dir):
+    path = raw_dir / f"search_{title_key(title)[:80]}.xml"
+    if not path.exists():
+        time.sleep(settings.ARXIV_DELAY_SECONDS)
+        query = 'ti:"' + re.sub(r"[^\w\s-]", " ", title) + '"'
+        r = session().get(settings.ARXIV_API, params=dict(search_query=query, max_results=5), timeout=TIMEOUT)
+        r.raise_for_status()
+        path.write_bytes(r.content)
+    for entry in ET.fromstring(path.read_bytes()).findall("a:entry", ATOM):
+        if title_key(entry.findtext("a:title", "", ATOM)) == title_key(title):
+            return entry.findtext("a:id", "", ATOM).rsplit("/abs/", 1)[-1]
+    return None
+
+
+def arxiv_text(arxiv_id, raw_dir):
+    path = raw_dir / f"{arxiv_id.replace('/', '_')}.pdf"
+    if not path.exists():
+        time.sleep(settings.ARXIV_DELAY_SECONDS)
+    raw = fetch(f"https://arxiv.org/pdf/{arxiv_id}", path)
+    pages = [p.extract_text() or "" for p in PdfReader(io.BytesIO(raw)).pages] if raw else []
+    return clean("\n".join(pages))[: settings.PAPER_TEXT_MAX_CHARS]
+
+
+def arxiv_papers(out=settings.PAPER_REVIEW_DIR / "papers.jsonl", n=settings.PAPER_REVIEW_PAPERS, seed=SEED):
+    out = Path(out)
+    raw_dir = out.parent / "raw"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    reviews = pd.read_parquet(settings.DATA_DIR / "sample_reviews.parquet", columns=["conf", "year", "paper_id", "text"])
+    reviews = reviews[(reviews.conf == "ICLR") & reviews.year.between(2020, settings.MELD_CALIBRATION_LAST_YEAR)]
+    words = reviews.assign(words=reviews.text.str.split().str.len()).groupby("paper_id").words.median()
+    papers = pd.read_parquet(settings.DATA_DIR / "papers.parquet", columns=["paper_id", "year", "title"])
+    papers = papers[papers.paper_id.isin(words.index)].drop_duplicates("paper_id").sample(frac=1, random_state=seed)
+    rows, tried = [], 0
+    for paper in tqdm(papers.itertuples(), total=n, desc="arxiv"):
+        tried += 1
+        arxiv_id = arxiv_match(paper.title, raw_dir)
+        text = arxiv_text(arxiv_id, raw_dir) if arxiv_id else ""
+        if len(text) >= PAPER_MIN_CHARS:
+            rows.append(
+                dict(
+                    paper_id=paper.paper_id,
+                    year=int(paper.year),
+                    title=paper.title,
+                    arxiv_id=arxiv_id,
+                    words=int(round(words[paper.paper_id], -1)),
+                    text=text,
+                )
+            )
+        if len(rows) == n:
+            break
+    print(f"{len(rows)} papers from {tried} tried")
+    pd.DataFrame(rows).to_json(out, orient="records", lines=True)
+
+
 if __name__ == "__main__":
-    fire.Fire(dict(scipost=scipost, f1000=f1000, bmc=bmc, plos=plos, copernicus=copernicus, icml=icml))
+    fire.Fire(dict(scipost=scipost, f1000=f1000, bmc=bmc, plos=plos, copernicus=copernicus, icml=icml, arxiv_papers=arxiv_papers))

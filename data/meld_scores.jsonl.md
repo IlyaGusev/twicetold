@@ -1,6 +1,6 @@
 # data/meld_scores.jsonl
 
-MELD scores for the 187,610 texts of `meld_input.parquet`. One JSON object per line: `key` (string, as in
+MELD scores for the 195,510 texts of `meld_input.parquet`. One JSON object per line: `key` (string, as in
 `meld_input.parquet`), `score` (float, MELD detection score; null for one empty text), `n_tokens` (int), `family`
 (predicted generator family), `task` (predicted operation: `generate`, `polish_formalize`, `paraphrase_rewrite`,
 `expand`, `summarize`, `humanize_mimic`).
@@ -18,6 +18,11 @@ windows across texts under a 16,384-token budget, and pools token scores with ME
 about 4.5 hours on one GPU. No paid API. No chain script runs it. It appends to the output and skips the keys it holds.
 
 ## Notes
+
+- Lines 187,611--190,410 (`polish` and the first 700 `rewrite_panel` texts), lines 190,411--192,910 (900 more
+  `rewrite_panel` and 1,600 `polish_panel` texts), lines 192,911--195,310 (`rewrite_panel_second`,
+  `polish_panel_second`) and the last 200 lines (`paper_review`, `paper_review_second`) came from later runs of
+  `scores` on the new keys only, on a vast.ai RTX 3090, with the same revision and settings.
 
 - The line order is the scoring order (shortest text first), not the input order.
 - Git LFS stores it.

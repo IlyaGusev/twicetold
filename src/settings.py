@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     DATA_DIR: Path = ROOT / "data"
     REPORTS_DIR: Path = ROOT / "reports"
     GOLD_DIR: Path = ROOT / "data" / "gold"
+    AUDIT_DIR: Path = ROOT / "data" / "gold_audit"
+    AUDIT_WRITTEN_DIR: Path = ROOT / "data" / "gold_audit_written"
+    REWRITE_TEST_DIR: Path = ROOT / "data" / "rewrite_test"
+    PAPER_REVIEW_DIR: Path = ROOT / "data" / "paper_reviews"
     ANALYSIS_DIR: Path = ROOT / "data" / "overlap"
     ANALYSIS_REPORTS_DIR: Path = ROOT / "reports" / "overlap"
     FIGURES_DIR: Path = ROOT / "paper" / "figs"
@@ -44,9 +48,14 @@ class Settings(BaseSettings):
 
     DEFAULT_MODEL: str = "gpt-6-luna-high"
     AI_REFERENCE_MODEL: str = "gpt-6-luna"
+    REWRITE_SECOND_WRITER: str = "kimi-k3.1-pro"
     GOLD_COUNCIL: list[str] = ["sol-or", "opus-5.5", "kimi-k3.1-pro"]
     GOLD_JUDGE_MODEL: str = "opus-5.5"
     REVIEW_TEXT_MAX_CHARS: int = 14000
+    PAPER_TEXT_MAX_CHARS: int = 60000
+    PAPER_REVIEW_PAPERS: int = 100
+    ARXIV_API: str = "https://export.arxiv.org/api/query"
+    ARXIV_DELAY_SECONDS: float = 3.0
 
     EMBED_MODEL: str = "text-embedding-3-small"
     MELD_REPO: str = "anon-review-meld-2026/meld"

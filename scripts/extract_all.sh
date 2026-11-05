@@ -58,6 +58,28 @@ p2() { run_pass pass2 "$@"; }
 wait
 uv run python -I src/extract.py merge --model "$MODEL"
 uv run python -I src/gold.py match_claims --model "$MODEL" > "$LOG_DIR/match.log" 2>&1
+
+if [ -f "data/overlap/panel_outcomes_$MODEL.parquet" ]; then
+  RW=data/rewrite_test
+  ( uv run python -I src/ai.py rewrite_sample --model "$MODEL"
+    uv run python -I src/ai.py rewrite_panels
+    uv run python -I src/ai.py rewrite_inputs --model "$MODEL"
+    uv run python -I src/ai.py rewrite_pairs
+    p1 64 $RW/reviews_ml.parquet --tag _ml --data $RW
+    p1 64 $RW/reviews_general.parquet --tag _general --paper_kind general --data $RW
+    p2 64 $RW/panels_ml.jsonl --tag _ml --data $RW &
+    p2 64 $RW/panels_general.jsonl --tag _general --paper_kind general --data $RW &
+    p2 64 $RW/panels_pairs_ml.jsonl --tag _pairs_ml --data $RW &
+    p2 64 $RW/panels_pairs_general.jsonl --tag _pairs_general --paper_kind general --data $RW &
+    wait
+    uv run python -I src/extract.py merge --model "$MODEL" --data $RW
+    uv run python -I src/extract.py pass2 $RW/panels_audit.jsonl --model opus-5.5 --claims_file "claims_$MODEL.jsonl" \
+      --data $RW --threads 12 --budget 30
+    echo "CHAIN rewrite DONE $(date)" ) > "$LOG_DIR/rewrite.log" 2>&1
+  uv run python -I src/ai.py polish > "$LOG_DIR/polish.log" 2>&1
+  uv run python -I src/fetch.py arxiv_papers > "$LOG_DIR/arxiv.log" 2>&1
+  uv run python -I src/ai.py paper_reviews > "$LOG_DIR/paper_reviews.log" 2>&1
+fi
 echo "ALL DONE $(date)"
 if grep -l "Traceback\|budget cap\|PASS FAILED\|panels skipped\|items failed" "$LOG_DIR"/*.log; then
   echo "SOME CHAIN FAILED"

@@ -163,7 +163,16 @@ def panel_pairs(df, review_ids):
         if claim.specific:
             specific[claim.review].add(claim.cluster)
     for a, b in combinations(range(len(review_ids)), 2):
-        yield dict(a=review_ids[a], b=review_ids[b], hit=hit(groups[a], groups[b]), hit_spec=hit(specific[a], specific[b]))
+        yield dict(
+            a=review_ids[a],
+            b=review_ids[b],
+            hit=hit(groups[a], groups[b]),
+            hit_spec=hit(specific[a], specific[b]),
+            shared=len(groups[a] & groups[b]),
+            smaller=min(len(groups[a]), len(groups[b])),
+            larger=max(len(groups[a]), len(groups[b])),
+            union=len(groups[a] | groups[b]),
+        )
 
 
 def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(settings.ANALYSIS_DIR)):

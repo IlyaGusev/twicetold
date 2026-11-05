@@ -1,0 +1,12 @@
+name,value
+truncated_ml,0.06925744646761181
+pass1_ml_reviews,193481.0
+truncated_journal,1.5490827478532396
+pass1_journal_reviews,40992.0
+pass1_error_rows,0.0
+pass1_empty,4528.0
+pass2_error_rows,3.0
+pass2_rows,91738.0
+calibration_reviews,63958.0
+calibration_in_analysis,52473.0
+calibration_outside,11485.0

@@ -9,6 +9,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import extract
+from ai import paper_kind
 from prompts import render
 from settings import settings
 
@@ -19,6 +20,13 @@ MAX_CLAIM_WORDS = 25
 JUDGE_ATTEMPTS = 3
 COUNCIL_RUNS = 2
 GOLD_CLAIM_KEYS = ("claim", "category", "target", "specific", "support")
+AUDIT_REVIEWS = 4
+AUDIT_PER_STRATUM = {"same2023": 10, "flag": 15}
+AUDIT_JOURNALS_PER_SOURCE = 3
+AUDIT_FLAG_YEARS = (2024, 2026)
+AUDIT_JOURNAL_FROM = 2024
+AUDIT_WRITTEN_PANELS = 60
+PAPER_KINDS = ("ml", "general")
 
 GOLD_CLAIMS_SCHEMA = extract.strict_object(
     claims={
@@ -81,12 +89,146 @@ def sample(out, seed=7, data=str(settings.DATA_DIR), gold=str(settings.GOLD_DIR)
     print(len(panels), "panels,", len(panel_ids), "reviews ->", out)
 
 
+def flagged_split(review_ids, flag, rng):
+    flagged = [r for r in review_ids if flag.get(r, False)]
+    clean = [r for r in review_ids if r in flag and not flag[r]]
+    if len(flagged) < 2 or len(clean) < 1:
+        return None
+    picked_flagged = list(rng.choice(flagged, 2, replace=False))
+    picked_clean = list(rng.choice(clean, min(len(clean), AUDIT_REVIEWS - 2), replace=False))
+    return [str(r) for r in picked_flagged + picked_clean]
+
+
+def sample_audit(out=settings.AUDIT_DIR, seed=11, model=settings.DEFAULT_MODEL):
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(seed)
+    flag = pd.read_parquet(settings.DATA_DIR / "meld_flags.parquet", columns=["review_id", "flag"]).set_index("review_id").flag
+    flag = flag.to_dict()
+    clusters = load_panels(settings.DATA_DIR / "panels.jsonl")
+    iclr = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["panel_id", "conf", "year"])
+    iclr = iclr[iclr.conf == "ICLR"].sort_values("panel_id")
+    panels = []
+    same = iclr[(iclr.year == 2023) & iclr.panel_id.map(lambda p: len(clusters[p]) >= AUDIT_REVIEWS)]
+    for p in same.sample(AUDIT_PER_STRATUM["same2023"], random_state=seed).itertuples():
+        picked = [str(r) for r in rng.choice(clusters[p.panel_id], AUDIT_REVIEWS, replace=False)]
+        panels.append(dict(source="ICLR", stratum="same2023", year=2023, paper_id=p.panel_id, review_ids=picked))
+    late = iclr[iclr.year.between(*AUDIT_FLAG_YEARS)].sample(frac=1, random_state=seed)
+    for p in late.itertuples():
+        if sum(x["stratum"] == "flag" for x in panels) == AUDIT_PER_STRATUM["flag"]:
+            break
+        picked = flagged_split(clusters[p.panel_id], flag, rng)
+        if picked and len(picked) == AUDIT_REVIEWS:
+            panels.append(dict(source="ICLR", stratum="flag", year=int(p.year), paper_id=p.panel_id, review_ids=picked))
+    journals = load_panels(settings.DATA_DIR / "panels_other.jsonl")
+    meta = pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=["review_id", "conf", "year"]).set_index(
+        "review_id"
+    )
+    candidates = pd.DataFrame(
+        [dict(panel_id=k, conf=meta.conf[v[0]], year=int(meta.year[v[0]])) for k, v in journals.items() if v[0] in meta.index]
+    )
+    candidates = candidates[candidates.year >= AUDIT_JOURNAL_FROM].sort_values("panel_id")
+    for source, cell in candidates.groupby("conf"):
+        chosen = 0
+        for p in cell.sample(frac=1, random_state=seed).itertuples():
+            if chosen == AUDIT_JOURNALS_PER_SOURCE:
+                break
+            picked = flagged_split(journals[p.panel_id], flag, rng)
+            if picked:
+                panels.append(dict(source=source, stratum="journal", year=p.year, paper_id=p.panel_id, review_ids=picked))
+                chosen += 1
+    write_audit(out, panels, model)
+
+
+def sample_written(out=settings.AUDIT_WRITTEN_DIR, seed=12, model=settings.DEFAULT_MODEL, n=AUDIT_WRITTEN_PANELS):
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    rng = np.random.default_rng(seed)
+    labels = pd.read_parquet(settings.DATA_DIR / "meld_flags.parquet", columns=["review_id", "flag", "written"]).set_index(
+        "review_id"
+    )
+    clusters = load_panels(settings.DATA_DIR / "panels.jsonl")
+    iclr = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["panel_id", "conf", "year"])
+    iclr = iclr[(iclr.conf == "ICLR") & iclr.year.between(*AUDIT_FLAG_YEARS)].sort_values("panel_id")
+    panels = []
+    for p in iclr.sample(frac=1, random_state=seed).itertuples():
+        ids = [r for r in clusters[p.panel_id] if r in labels.index]
+        written = [r for r in ids if labels.written[r]]
+        clean = [r for r in ids if not labels.flag[r]]
+        if len(written) >= 2 and len(clean) >= 2:
+            picked = list(rng.choice(written, 2, replace=False)) + list(rng.choice(clean, 2, replace=False))
+            panels.append(
+                dict(source="ICLR", stratum="written", year=int(p.year), paper_id=p.panel_id, review_ids=[str(r) for r in picked])
+            )
+        if len(panels) == n:
+            break
+    write_audit(out, panels, model)
+
+
+def write_audit(out, panels, model):
+    for i, panel in enumerate(panels):
+        panel.update(panel_id=f"A{i:02d}", kind="same", split="audit", paper_kind=paper_kind(panel["source"]))
+    extract.write_jsonl(out / "panels_tune.jsonl", panels)
+    texts = (
+        pd.concat(
+            [
+                pd.read_parquet(settings.DATA_DIR / "sample_reviews.parquet", columns=["review_id", "text"]),
+                pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=["review_id", "text"]),
+            ]
+        )
+        .drop_duplicates("review_id")
+        .set_index("review_id")
+        .text
+    )
+    order = [(r, p["paper_kind"]) for p in panels for r in p["review_ids"]]
+    reviews = pd.DataFrame([dict(review_id=r, text=texts[r], paper_kind=k) for r, k in order]).drop_duplicates("review_id")
+    reviews[["review_id", "text"]].to_parquet(out / "tune_reviews.parquet")
+    for kind in PAPER_KINDS:
+        reviews[reviews.paper_kind == kind][["review_id", "text"]].to_parquet(out / f"tune_reviews_{kind}.parquet")
+        extract.write_jsonl(out / f"panels_tune_{kind}.jsonl", [p for p in panels if p["paper_kind"] == kind])
+    ids = set(reviews.review_id)
+    luna = extract.read_jsonl(settings.DATA_DIR / f"claims_{model}.jsonl")
+    extract.write_jsonl(out / f"claims_{model}.jsonl", [row for row in luna if row["review_id"] in ids])
+    print(pd.DataFrame(panels).groupby(["stratum", "source"]).size().to_string())
+    print(len(panels), "panels,", len(reviews), "reviews ->", out)
+
+
+def load_panels(path):
+    return {p["panel_id"]: p["review_ids"] for p in extract.read_jsonl(path)}
+
+
+def kind_files(out, stem, suffix):
+    split = [(kind, out / f"{stem}_{kind}{suffix}") for kind in PAPER_KINDS]
+    return [(kind, path) for kind, path in split if path.exists()] or [("ml", out / f"{stem}{suffix}")]
+
+
+def split_council(out, kind, tag, council):
+    merged = out / f"{kind}_council.jsonl"
+    if not merged.exists():
+        return
+    rows = [row for row in extract.read_jsonl(merged) if not row.get("error")]
+    for model in council:
+        extract.write_jsonl(out / f"{kind}_{model}{tag}.jsonl", [row for row in rows if row["model"] == model])
+
+
 def council_claims(out, council=settings.GOLD_COUNCIL, threads=16, budget=15.0):
     out = Path(out)
+    split_council(out, "claims", "_tune", council)
     for _ in range(COUNCIL_RUNS):
         for model in council:
-            extract.pass1(str(out / "tune_reviews.parquet"), model=model, tag="_tune", threads=threads, budget=budget, data=out)
+            for kind, path in kind_files(out, "tune_reviews", ".parquet"):
+                extract.pass1(str(path), model=model, tag="_tune", threads=threads, budget=budget, paper_kind=kind, data=out)
     merge_council(out, "claims", "review_id", "_tune", council)
+
+
+def drop_incomplete(out, missing):
+    if not missing:
+        return
+    for path in [out / "panels_tune.jsonl", *[p for _, p in kind_files(out, "panels_tune", ".jsonl")]]:
+        panels = list(extract.read_jsonl(path))
+        kept = [p for p in panels if not missing & set(p["review_ids"])]
+        extract.write_jsonl(path, kept)
+        print(f"{path.name}: dropped {len(panels) - len(kept)} panels with missing claims")
 
 
 def claim_inputs(out, council=settings.GOLD_COUNCIL):
@@ -95,6 +237,7 @@ def claim_inputs(out, council=settings.GOLD_COUNCIL):
     folder.mkdir(exist_ok=True)
     texts = pd.read_parquet(out / "tune_reviews.parquet").set_index("review_id").text
     claims = by_model(out / "claims_council.jsonl", "review_id", "claims")
+    drop_incomplete(out, {r for model in council for r in texts.index if r not in claims[model]})
     order = [r for p in extract.read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]]
     items = [dict(review_id=r, text=texts[r], council={model: claims[model][r] for model in council}) for r in order]
     extract.write_jsonl(folder / "in.jsonl", items)
@@ -154,17 +297,20 @@ def judge_claims(out, model=settings.GOLD_JUDGE_MODEL, threads=8, budget=15.0):
 
 def council_groups(out, council=settings.GOLD_COUNCIL, threads=12, budget=15.0):
     out = Path(out)
+    split_council(out, "clusters", "_tune_gold", council)
     for _ in range(COUNCIL_RUNS):
         for model in council:
-            extract.pass2(
-                str(out / "panels_tune.jsonl"),
-                model=model,
-                tag="_tune_gold",
-                claims_file="adjudicate/out.jsonl",
-                threads=threads,
-                budget=budget,
-                data=out,
-            )
+            for kind, path in kind_files(out, "panels_tune", ".jsonl"):
+                extract.pass2(
+                    str(path),
+                    model=model,
+                    tag="_tune_gold",
+                    claims_file="adjudicate/out.jsonl",
+                    threads=threads,
+                    budget=budget,
+                    paper_kind=kind,
+                    data=out,
+                )
     merge_council(out, "clusters", "panel_id", "_tune_gold", council)
 
 
@@ -173,6 +319,8 @@ def group_inputs(out, council=settings.GOLD_COUNCIL):
     folder = out / "adjudicate2"
     folder.mkdir(exist_ok=True)
     gold = extract.load_claims(out / "adjudicate" / "out.jsonl")
+    reviews = {r for p in extract.read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]}
+    drop_incomplete(out, reviews - set(gold))
     clusters = by_model(out / "clusters_council.jsonl", "panel_id", "clusters")
     items = []
     for panel in extract.read_jsonl(out / "panels_tune.jsonl"):
@@ -216,6 +364,14 @@ def judge_groups(out, model=settings.GOLD_JUDGE_MODEL, threads=8, budget=15.0):
     )
 
 
+def model_groups(out=settings.AUDIT_DIR, model=settings.DEFAULT_MODEL, threads=16, budget=5.0):
+    out = Path(out)
+    for kind, path in kind_files(out, "panels_tune", ".jsonl"):
+        extract.pass2(
+            str(path), model=model, claims_file=f"claims_{model}.jsonl", threads=threads, budget=budget, paper_kind=kind, data=out
+        )
+
+
 def match_claims(
     model=settings.DEFAULT_MODEL,
     matcher=settings.GOLD_JUDGE_MODEL,
@@ -223,9 +379,10 @@ def match_claims(
     budget=15.0,
     data=str(settings.DATA_DIR),
     gold=str(settings.GOLD_DIR),
+    folder=None,
 ):
     gold = Path(gold)
-    folder = Path(data) / f"match_{model}"
+    folder = Path(folder) if folder else Path(data) / f"match_{model}"
     folder.mkdir(exist_ok=True)
     reference = extract.load_claims(gold / "adjudicate" / "out.jsonl")
     ours = extract.load_claims(Path(data) / f"claims_{model}.jsonl")
@@ -242,6 +399,9 @@ if __name__ == "__main__":
     fire.Fire(
         dict(
             sample=sample,
+            sample_audit=sample_audit,
+            sample_written=sample_written,
+            model_groups=model_groups,
             council_claims=council_claims,
             claim_inputs=claim_inputs,
             judge_claims=judge_claims,

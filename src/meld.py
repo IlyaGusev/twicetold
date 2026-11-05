@@ -18,6 +18,54 @@ INTEL_AI_PER_LLM = 1000
 FLUSH_DOCS = 2000
 WRITTEN_TASK = "generate"
 REAL_SETS = ["sample", "icml", "journal"]
+KNOWN_SETS = {
+    "human": "Human, pre-2023",
+    "heldout": "Human, ICLR 2023",
+    "polish": "Polished",
+    "rewrite": "From outline",
+    "rewrite_panel": "Panels: outline, Luna",
+    "polish_panel": "Panels: polished, Luna",
+    "rewrite_panel_second": "Panels: outline, Kimi",
+    "polish_panel_second": "Panels: polished, Kimi",
+    "intel_ai": "From paper, five LLMs",
+    "paper_review": "From paper, Luna",
+    "paper_review_second": "From paper, Kimi",
+}
+
+
+GENERATED_SETS = [
+    ("rewrite_panel", settings.REWRITE_TEST_DIR / f"rewrites_{settings.AI_REFERENCE_MODEL}.jsonl"),
+    ("polish_panel", settings.REWRITE_TEST_DIR / f"polishes_{settings.AI_REFERENCE_MODEL}.jsonl"),
+    ("rewrite_panel_second", settings.REWRITE_TEST_DIR / f"rewrites_{settings.REWRITE_SECOND_WRITER}.jsonl"),
+    ("polish_panel_second", settings.REWRITE_TEST_DIR / f"polishes_{settings.REWRITE_SECOND_WRITER}.jsonl"),
+    ("paper_review", settings.PAPER_REVIEW_DIR / f"reviews_{settings.AI_REFERENCE_MODEL}.jsonl"),
+    ("paper_review_second", settings.PAPER_REVIEW_DIR / f"reviews_{settings.REWRITE_SECOND_WRITER}.jsonl"),
+]
+
+
+def labels(known, human, heldout, reports, tex):
+    df = pd.concat([human, heldout, known])
+    df = df[df.known.isin(KNOWN_SETS)]
+    out = df.groupby("known").agg(
+        texts=("flag", "size"),
+        unflagged=("flag", lambda f: 100 * (1 - f.mean())),
+        written=("written", lambda w: 100 * w.mean()),
+    )
+    out["edited"] = 100 - out.unflagged - out.written
+    out = out.loc[[k for k in KNOWN_SETS if k in out.index]]
+    out.round(2).to_csv(Path(reports) / "meld_labels.csv")
+    print(out.round(1).to_string())
+    lines = [
+        r"\begin{tabular}{lrrrr}",
+        r"\toprule",
+        r"Texts & $n$ & Unflagged & Edited & Written \\",
+        r"\midrule",
+    ]
+    lines += [
+        f"{KNOWN_SETS[k]} & {int(r.texts):,} & {r.unflagged:.1f} & {r.edited:.1f} & {r.written:.1f} \\\\"
+        for k, r in out.iterrows()
+    ]
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
 def build_input(out=settings.DATA_DIR / "meld_input.parquet"):
@@ -30,7 +78,10 @@ def build_input(out=settings.DATA_DIR / "meld_input.parquet"):
     intel = intel.assign(review_id=intel.llm + ":" + intel.review_id, conf="ICLR", set="intel_ai")[cols + ["set"]]
     rewrites = pd.read_json(settings.DATA_DIR / f"ai_reference_{settings.AI_REFERENCE_MODEL}.jsonl", lines=True)
     rewrites = rewrites[~rewrites.conf.isin(["ICLR", "NeurIPS"])].assign(set="rewrite")[cols + ["set"]]
-    df = pd.concat([sample, icml, journal, intel, rewrites], ignore_index=True)
+    polish = pd.read_json(settings.DATA_DIR / f"ai_polish_{settings.AI_REFERENCE_MODEL}.jsonl", lines=True)
+    polish = polish.assign(set="polish")[cols + ["set"]]
+    generated = [pd.read_json(path, lines=True).assign(set=name)[cols + ["set"]] for name, path in GENERATED_SETS]
+    df = pd.concat([sample, icml, journal, intel, rewrites, polish, *generated], ignore_index=True)
     df["key"] = df.set + ":" + df.review_id
     assert df.key.is_unique
     print(df.groupby("set").size().to_string())
@@ -124,6 +175,7 @@ def flags(
     scored=settings.DATA_DIR / "meld_scores.jsonl",
     out=settings.DATA_DIR / "meld_flags.parquet",
     reports=settings.REPORTS_DIR,
+    tex=settings.TABLES_DIR / "meld_labels.tex",
 ):
     df = pd.read_parquet(input, columns=["key", "set", "review_id", "conf", "year"]).merge(
         pd.read_json(scored, lines=True)[["key", "score", "n_tokens", "family", "task"]], on="key"
@@ -151,6 +203,14 @@ def flags(
         "rewrite_reviews": int(known.loc["rewrite"].n.sum()),
         "rewrite_recall_min": known.loc["rewrite"].flagged.min(),
     }
+    heldout = df[is_real & (df.conf == "ICLR") & (df.year == settings.MELD_CALIBRATION_LAST_YEAR + 1)]
+    labels(
+        df[~is_real].assign(known=df.set),
+        calibration.assign(known="human", flag=pre.flag, written=pre.flag & (pre.task == WRITTEN_TASK)),
+        heldout.assign(known="heldout"),
+        reports,
+        tex,
+    )
     pd.Series(summary).to_csv(Path(reports) / "meld_summary.csv", header=["value"], index_label="name")
     print(pd.Series(summary).round(3).to_string())
     real = df[is_real]
