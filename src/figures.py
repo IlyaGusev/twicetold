@@ -30,7 +30,6 @@ REWRITE_MACROS = [
 ]
 TEXT_DARKEN = 0.35
 CHATGPT_BAND = (2022.6, 2026.5)
-PRE_CHATGPT_POINTS = {("ICLR", 2023)}
 SAME_VENUE_PLACEBO = "shuffled4"
 plt.rcParams.update(
     {
@@ -323,8 +322,6 @@ def overlap_panel(ax, by_year, styles, label_x, gap):
         ax.fill_between(x, y - ci, y + ci, color=color, alpha=0.12 if muted else 0.2, lw=0, zorder=1)
         ax.plot(x, y, "-", color=color, lw=1.1 if muted else 1.4, zorder=2 if muted else 3)
         ax.plot(x, y, marker, color=color, mec="white", mew=0.6, ms=3.5 if muted else 4, zorder=4)
-        pre = rows.year.isin([year for c, year in PRE_CHATGPT_POINTS if c == conf]).to_numpy()
-        ax.plot(x[pre], y[pre], marker, color="white", mec=color, mew=1.0, ms=4, zorder=5)
         ends[name] = (x.iloc[-1], y.iloc[-1], color)
     label_ys = spread_labels([y for _, y, _ in ends.values()], gap)
     for (name, (x, y, color)), label_y in zip(ends.items(), label_ys):
