@@ -190,7 +190,7 @@ def rates(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         overlap_panel(ax, by_source, styles, 2026.65, 10)
         ax.set_ylim(-2, 70)
         ax.set_yticks([0, 20, 40, 60])
-        ax.set_ylabel("AI-flagged (%)")
+        ax.set_ylabel("LLM-flagged (%)")
         ax.set_title(title, fontweight="bold")
     bottom.set_xlim(2018.6, CHATGPT_BAND[1])
     bottom.set_xticks(range(2019, 2027), [f"'{year % 100}" for year in range(2019, 2027)])
@@ -202,8 +202,8 @@ def rates(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 PAIR_TYPE_STYLES = {
     "HH": ("Neither flagged", COLORS["grey"], COLORS["grey"], "o"),
     "HL": ("One flagged", COLORS["flag_light"], COLORS["flag"], "s"),
-    "LL": ("Both flagged,\nnot both AI-written", COLORS["flag"], COLORS["flag"], "D"),
-    "WW": ("Both AI-written", COLORS["ink"], COLORS["ink"], "^"),
+    "LL": ("Both flagged,\nnot both LLM-written", COLORS["flag"], COLORS["flag"], "D"),
+    "WW": ("Both LLM-written", COLORS["ink"], COLORS["ink"], "^"),
 }
 
 
@@ -676,7 +676,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         ("+ length and claim count", "ControlGap"),
         ("NeurIPS 2024–25", "NeuripsFlagGap"),
         ("ICML 2025–26", "IcmlFlagGap"),
-        ("AI-written, ICLR", "WrittenGap"),
+        ("LLM-written, ICLR", "WrittenGap"),
         ("ICLR 2024", "FlagGapTwentyFour"),
         ("ICLR 2025", "FlagGapTwentyFive"),
         ("ICLR 2026", "FlagGapTwentySix"),
@@ -759,7 +759,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     ident = pd.read_csv(reports / f"identification_{model}.csv").set_index("label")
     for label, prefix in [
         ("ICLR 2024–26", "IdIclr"),
-        ("ICLR 2024–26, AI-written", "IdWritten"),
+        ("ICLR 2024–26, LLM-written", "IdWritten"),
         ("NeurIPS 2024–25", "IdNeurips"),
         ("ICML 2025–26", "IdIcml"),
         ("All journals 2024–26", "IdJournal"),
@@ -845,7 +845,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         ("ICLR 2023", "AuditBase"),
         ("Journals 2024--26", "AuditJournal"),
         ("Two flagged $-$ none", "AuditGap"),
-        ("Two AI-written $-$ none", "AuditWritten"),
+        ("Two LLM-written $-$ none", "AuditWritten"),
         ("ICLR 2024--26 minus 2018--23", "AuditChange"),
     ]:
         row = audit.loc[label]
@@ -855,8 +855,8 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         if not pd.isna(row.ref):
             record(prefix + "Ref", row.ref)
             record(prefix + "Luna", row.luna)
-    values["AuditWrittenPanels"] = f"{int(audit.loc['ICLR 2024--26, AI-written strata'].panels)}"
-    for label, prefix in [("Two flagged $-$ none", "AuditRefGap"), ("Two AI-written $-$ none", "AuditWrittenRefGap")]:
+    values["AuditWrittenPanels"] = f"{int(audit.loc['ICLR 2024--26, LLM-written strata'].panels)}"
+    for label, prefix in [("Two flagged $-$ none", "AuditRefGap"), ("Two LLM-written $-$ none", "AuditWrittenRefGap")]:
         gap = audit.loc[label]
         for suffix in ("", "_low", "_high"):
             values[prefix + suffix.title()[1:]] = f"{gap['ref_gap' + suffix]:+.1f}"

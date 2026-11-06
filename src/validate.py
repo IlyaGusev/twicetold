@@ -251,7 +251,7 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
         ("+ length and claim count", iclr.dropna(), flag, ("log_short", "log_long", "claims_short", "claims_long")),
         ("NeurIPS 2024–25", design[(design.conf == "NeurIPS") & (design.year >= 2024)], flag, ()),
         ("ICML 2025–26", design[design.conf == "ICML"], flag, ()),
-        ("AI-written, ICLR", iclr, written, ()),
+        ("LLM-written, ICLR", iclr, written, ()),
         ("99th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.99), ()),
         ("99.5th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.995), ()),
     ]:
@@ -357,8 +357,8 @@ PAIR_SIZE_OUTCOMES = {"hit": "Overlap", "shared": "Shared", "smaller": "Smaller 
 PAIR_TYPE_NAMES = {
     "HH": "Neither flagged",
     "HL": "One flagged",
-    "LL": "Both flagged, not both AI-written",
-    "WW": "Both AI-written",
+    "LL": "Both flagged, not both LLM-written",
+    "WW": "Both LLM-written",
 }
 
 
@@ -453,8 +453,8 @@ def detector_choices(
         flagged = meld.assign(flag=meld.score > calibration.quantile(quantile))
         written = flagged.assign(flag=flagged.flag & (flagged.task == WRITTEN_TASK))
         rows.append(detector_row("Flagged", quantile, flagged, pairs, iclr_last))
-        rows.append(detector_row("AI-written", quantile, written, pairs, iclr_last))
-    out = pd.DataFrame(rows).sort_values(["label", "percentile"], ascending=[False, True])
+        rows.append(detector_row("LLM-written", quantile, written, pairs, iclr_last))
+    out = pd.DataFrame(rows).sort_values(["label", "percentile"], key=lambda s: s.eq("LLM-written") if s.name == "label" else s)
     out.to_csv(Path(reports) / f"detector_choices_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     lines = [
@@ -563,7 +563,7 @@ def identification(
     journals = pairs[~pairs.conf.isin(ML_VENUES) & (pairs.year >= 2024)]
     cells = [
         ("ICLR 2024–26", iclr, flag),
-        ("ICLR 2024–26, AI-written", iclr, written),
+        ("ICLR 2024–26, LLM-written", iclr, written),
         ("NeurIPS 2024–25", pairs[(pairs.conf == "NeurIPS") & (pairs.year >= 2024)], flag),
         ("ICML 2025–26", pairs[pairs.conf == "ICML"], flag),
         *[(f"{source} 2024–26", cell, flag) for source, cell in journals.groupby("conf")],
@@ -873,7 +873,7 @@ def audit_pairs(gold, model_clusters, model_claims, flag, written, stratum_of):
 AUDIT_STRATA = {
     "same2023": "ICLR 2023",
     "flag": "ICLR 2024--26, flag strata",
-    "written": "ICLR 2024--26, AI-written strata",
+    "written": "ICLR 2024--26, LLM-written strata",
     "journal": "Journals 2024--26",
 }
 
@@ -938,7 +938,7 @@ def audit(
     rows.append(type_gap(pairs, "Two flagged $-$ none", lambda d: d.n_flagged.where(d.n_flagged != 1)))
     rows.append(
         type_gap(
-            pairs, "Two AI-written $-$ none", lambda d: d.n_written.where(d.n_written == 2, d.n_flagged.where(d.n_flagged == 0))
+            pairs, "Two LLM-written $-$ none", lambda d: d.n_written.where(d.n_written == 2, d.n_flagged.where(d.n_flagged == 0))
         )
     )
     early = panels[panels.stratum.isin(["ICLR 2018", "ICLR 2022", "ICLR 2023"])]
