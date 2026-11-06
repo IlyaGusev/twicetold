@@ -250,9 +250,8 @@ On \RefPanels{} same-paper panels, recall is \RefRecall\% (95\% CI \RefRecallLow
 \label{app:robust}
 
 \begin{table*}[!tp]
-\centering\normalsize
+\centering\small
 \setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{1.12}
 \begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.3cm}lllr@{}}
 \toprule
 Estimate & Points [95\% CI] & Pairs compared & Reference pairs & Papers \\
@@ -290,9 +289,8 @@ Rewrite control, raw & $\RwIclrTwoDiff$ [\RwIclrTwoDiffLow, \RwIclrTwoDiffHigh] 
 \end{table*}
 
 \begin{table*}[!tp]
-\centering\normalsize
+\centering\small
 \setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{1.12}
 \input{tables/pair_type_sizes}
 \caption{With both set sizes held fixed, each flagged pair type shares more problems than neither-flagged pairs of the same paper, and two LLM-written reviews share the most. Other flagged pairs have smaller critique sets, so their raw shared count barely changes. ICLR 2024--2026 pairs. Neither flagged: means over pairs, which weigh equally, unlike the paper-weighted baseline of Section~\ref{sec:ai}. Other rows: paper fixed-effects estimates against neither-flagged pairs of the same paper, one indicator per pair type; SE clustered by paper. Overlap: pair overlap in points. Shared: problem groups in both reviews. Smaller set and Union: problem groups in the smaller review and in either review. Shared, size-adjusted: shared count with both set sizes as controls.}
 \label{tab:sizes}
@@ -438,9 +436,8 @@ The 99.9th percentile of \MeldCalibrationReviews{} pre-2023 scores gives \MeldTh
 MELD flags \MeldIntelAiRecall\% of \MeldIntelAiReviews{} LLM reviews of ICLR 2021--2024 papers \citep{yu2026reviewed}, 1,000 from each of five LLMs, and at least \MeldRewriteRecallMin\% in each source-year of \MeldRewriteReviews{} LLM rewrites of pre-2022 journal reports. A rewrite keeps the human critique content, and MELD labels most rewrites as edited rather than generated. MELD lists \texttt{gpt-6-luna}, our rewrite model, among its training generators, so the rewrite check is an easy case.
 
 \begin{table*}[!t]
-\centering\normalsize
+\centering\small
 \setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{1.12}
 \input{tables/rewrite_test}
 \caption{The full-panel outline-rewrite interval includes the flagged-pair gap, but not the larger LLM-written point estimate. Pairs: all pairs in the panels. Before/After: mean overlap (\%) of the pair with both reviews changed. Change: After minus Before, with a $t$ interval over pairs. Writer: rewrite model; Kimi covers ICLR only. FE: pair fixed-effects estimate for two changed reviews, controlling for one changed review and the second grouping; SE clustered by paper. Alone: change when Luna groups only the two changed reviews, with a $t$ interval over papers.}
 \label{tab:rewrite}
