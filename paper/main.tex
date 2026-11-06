@@ -80,7 +80,7 @@ Let $G_A$ and $G_B$ be the sets of distinct problems that reviews $A$ and $B$ ra
 \begin{equation}
  o(A,B)=\frac{|G_A\cap G_B|}{\min(|G_A|,|G_B|)},
 \end{equation}
-and $o(A,B)=0$ for an empty set. Full overlap means containment of the smaller set, not identical reviews. Higher overlap can reflect smaller sets, not more shared problems. We average $o$ over all review pairs within a paper (IntraSim \citep{baumann2026stop}), then over papers within a year. Papers weigh equally; intervals are 95\% CIs over papers.
+and $o(A,B)=0$ for an empty set. Full overlap means containment of the smaller set, not identical reviews. Higher overlap can reflect smaller sets, not more shared problems; Appendix~\ref{app:measures} repeats each claim with other measures, including shared-problem counts at fixed set sizes. We average $o$ over all review pairs within a paper (IntraSim \citep{baumann2026stop}), then over papers within a year. Papers weigh equally; intervals are 95\% CIs over papers.
 
 \paragraph{LLM-flagged and LLM-written.}
 MELD \citep{li2026meld} scores reviews for LLM-generated or edited text. \textbf{LLM-flagged} means above one common threshold: the 99.9th percentile of \MeldCalibrationReviews{} pre-2023 scores. \textbf{LLM-written} means flagged with MELD's generation label; other flagged texts are LLM-edited. These are detector outputs, not known authorship. MELD flags at most \MeldPreSourceMax\% of each source's pre-2023 reviews and \MeldIntelAiRecall\% of \MeldIntelAiReviews{} generated ICLR reviews \citep{yu2026reviewed}. It labels \PolishWritten\% of Luna-polished human reviews LLM-written (Appendix~\ref{app:ai}).
@@ -336,6 +336,23 @@ Only papers whose pairs differ in $f_{AB}$ identify $\beta$; two-review papers c
 \paragraph{Shared problems by pair type.} Table~\ref{tab:sizes} applies the Figure~\ref{fig:ai} model to ICLR 2024--2026 problem counts. Two LLM-written reviews share more problems even with both set sizes as controls. For other two-flagged pairs, smaller critique sets account for most of the overlap gap. Higher normalized overlap need not mean more shared problems.
 
 Table~\ref{tab:robust} repeats the trend comparison with specific claims only, lenient grouping by paper element, three-review panels grouped from scratch, the questions field removed, and withdrawn papers included. The questions-field comparison starts in 2024, when that field became separate.
+
+\section{Overlap Measures}
+\label{app:measures}
+
+Any ratio of shared problems to set size depends on set size. Take two reviews that share two problems. If both raise ten, $o=2/10$; if one raises four and the other ten, $o=2/4$. The Jaccard index $J=|G_A\cap G_B|/|G_A\cup G_B|$ gives $2/18$ and $2/12$, and the Dice coefficient $D=2|G_A\cap G_B|/(|G_A|+|G_B|)$ gives $4/20$ and $4/14$. All three ratios rate the second pair as closer. The raw count $|G_A\cap G_B|$ is two in both cases, but two long reviews share more problems by chance. No single measure removes set size, so Table~\ref{tab:measures} repeats each main claim with seven measures and holds set size fixed in two of them.
+
+\paragraph{Measures.} \emph{Overlap coef.}, \emph{Jaccard} and \emph{Dice} are $100\,o$, $100J$ and $100D$. \emph{Shared} is $|G_A\cap G_B|$. \emph{Shared, linear sizes} adds $\min(|G_A|,|G_B|)$ and $\max(|G_A|,|G_B|)$ as controls. \emph{Shared, same sizes} adds one indicator per pair of set sizes, so a four-and-ten pair is compared only with other four-and-ten pairs. \emph{New problems} measures novelty, not repetition, so the claims predict a negative sign. For changes over time, it is the number of problems that a third review adds to two others, averaged over all three-review subsets and all three choices of the third review. For within-paper gaps, it is the number of problems of one review that no other review of the paper raises. The fit compares labeled with unlabeled reviews of one paper, with paper fixed effects and one indicator per set size.
+
+\paragraph{Results.} Every claim keeps its sign under each pair measure, and each 95\% interval excludes zero. Jaccard estimates are about half the overlap-coefficient estimates because the union is larger than the smaller set; compare signs and intervals, not sizes. Shared counts at fixed set sizes rise for two flagged reviews at each ML venue and in pooled journals, so the flagged-pair gaps are not only a result of smaller critique sets. New problems fall wherever overlap rises, with two exceptions: NeurIPS from 2024 to 2025, and the pooled journal gap. In both exceptions the interval includes zero. These checks are post hoc.
+
+\begin{table*}[!tp]
+\centering\small
+\setlength{\tabcolsep}{3pt}
+\input{tables/measures}
+\caption{Every main claim keeps its sign under each pair measure; new problems fall where overlap rises, except at NeurIPS over time and in the journal gap. Estimates with SE in parentheses. The claims predict a positive sign for pair measures and a negative sign for new problems. $^\dagger$: the 95\% interval does not exclude zero in that direction; all other intervals do. Change over time: last year minus the base year, or minus the mean of 2019--2023 for journals; papers weigh equally, and so do base years; SE clustered by paper. Within-paper gap: two labeled minus no labeled pairs of one paper, with paper fixed effects and a one-labeled control, in the years of Table~\ref{tab:estimands}; SE clustered by paper. Shared, same sizes: one indicator per pair of set sizes, with sizes above 25 pooled. New problems: for changes, problems that a third review adds to two others, in papers with at least three reviews; for gaps, problems that no other review of the paper raises, labeled minus unlabeled reviews, with one indicator per set size. Post hoc.}
+\label{tab:measures}
+\end{table*}
 
 \FloatBarrier
 \section{ICLR Review Forms}

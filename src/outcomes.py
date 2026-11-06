@@ -12,7 +12,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from extract import read_jsonl
-from metrics import assign, load_jsonl, panel_metrics
+from metrics import assign, load_jsonl, panel_metrics, review_groups
 from metrics import overlap as hit
 from settings import settings
 
@@ -155,6 +155,10 @@ def panels(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(se
         build(model, tag, clusters, claims, data, out)
 
 
+def review_sets(df, n_reviews):
+    return review_groups([], [], n_reviews) if df.empty else review_groups(df.review, df.cluster, n_reviews)
+
+
 def panel_pairs(df, review_ids):
     groups = [set() for _ in review_ids]
     specific = [set() for _ in review_ids]
@@ -181,7 +185,7 @@ def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(set
     papers = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "conf", "year"]).set_index("paper_id")
     main_reviews = main_sample_review_ids(data)
     n_dropped = n_stale = 0
-    rows = []
+    rows, reviews = [], []
     claims, clusters_by_tag = load_outputs(model, data)
     for tag in ["", *SOURCE_FILES]:
         if tag:
@@ -204,8 +208,13 @@ def pairs(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(set
             rows.extend(
                 dict(panel_id=panel_id, conf=conf, year=int(year), **pair) for pair in panel_pairs(df, panel["review_ids"])
             )
+            reviews.extend(
+                dict(panel_id=panel_id, conf=conf, year=int(year), review_id=rid, groups=sorted(groups))
+                for rid, groups in zip(panel["review_ids"], review_sets(df, len(panel["review_ids"])))
+            )
     table = pd.DataFrame(rows)
     table.to_parquet(Path(out) / f"pairs_{model}.parquet")
+    pd.DataFrame(reviews).to_parquet(Path(out) / f"review_groups_{model}.parquet")
     print(n_dropped, "panels dropped:", DROP_REASON)
     print(n_stale, "panels dropped:", STALE_REASON)
     print(table.groupby(["conf", "year"]).agg(pairs=("hit", "size"), hit=("hit", "mean")).to_string())

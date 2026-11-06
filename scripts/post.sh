@@ -37,6 +37,7 @@ if [ -z "$OUT_DIR" ]; then
   for check in identification journal_subsets coverage rewrite_test audit detector_choices; do
     step src/validate.py "$check" --model "$MODEL"
   done
+  step src/measures.py measures --model "$MODEL"
   step src/figures.py table --model "$MODEL"
   step src/figures.py numbers --model "$MODEL"
   step src/figures.py all --model "$MODEL"
@@ -48,6 +49,7 @@ else
   for check in identification journal_subsets coverage rewrite_test audit detector_choices; do
     step src/validate.py "$check" --model "$MODEL" --tex "$OUT_DIR/tables/$check.tex"
   done
+  step src/measures.py measures --model "$MODEL" --tex "$OUT_DIR/tables/measures.tex"
   step src/figures.py table --model "$MODEL" --tables "$OUT_DIR/tables"
   step src/figures.py numbers --model "$MODEL" --tables "$OUT_DIR/tables"
   step src/figures.py all --model "$MODEL" --figs "$OUT_DIR/figs"
