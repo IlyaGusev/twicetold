@@ -97,7 +97,7 @@ ICLR overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2026, by $+\IclrCha
 
 \paragraph{RQ2: Do LLM-flagged reviews share a larger fraction of their critiques?}
 \label{sec:ai}
-Two detector-labeled reviews overlap more than two reviews without that label (Table~\ref{tab:main_gaps}). The LLM-written comparison can include LLM-edited reviews in its reference. Only papers whose pairs differ in label count identify these estimates. The ICLR unflagged baseline is \FlagBaseline\% with equal paper weights; Table~\ref{tab:sizes} weights pairs equally.
+Two detector-labeled reviews overlap more than two reviews without that label (Table~\ref{tab:main_gaps}). The LLM-written comparison can include LLM-edited reviews in its reference. Only papers whose pairs differ in label count identify these estimates. The ICLR unflagged baseline is \FlagBaseline\% with equal paper weights.
 
 \begin{table}[t]
 \centering\small
@@ -116,7 +116,7 @@ ICML / flagged & \IcmlFlagGap{} [\IcmlFlagGapLow, \IcmlFlagGapHigh] & \IdIcmlVar
 \label{tab:main_gaps}
 \end{table}
 
-Against a common unflagged-pair reference, two LLM-written reviews overlap \TypeWwIclr{} points more, other two-flagged pairs \TypeLlIclr{} points more (\TypeLlIclrLow--\TypeLlIclrHigh), and one-flagged pairs \TypeHlIclr{} points more. The first group also shares $\SizeWwShared$ more problems. Other two-flagged pairs share only $\SizeLlShared$ more; smaller critique sets account for most of their overlap gap (Table~\ref{tab:sizes}).
+Against a common unflagged-pair reference, two LLM-written reviews overlap \TypeWwIclr{} points more, other two-flagged pairs \TypeLlIclr{} points more (\TypeLlIclrLow--\TypeLlIclrHigh), and one-flagged pairs \TypeHlIclr{} points more. The first group also shares $\SizeWwShared$ more problems. Other two-flagged pairs raise fewer problems and share $\SizeLlShared$ more; with both set sizes held fixed, they share $\SizeLlSharedAdj$ more (\SizeLlSharedAdjLow{} to \SizeLlSharedAdjHigh; Appendix~\ref{app:robust}).
 
 The flagged-pair gap survives alternate thresholds, separate ICLR years and length/claim-count controls. Pre-ChatGPT top-45\%-score pairs show no gap (Appendix~\ref{app:robust}). The three-model reference council shows both gaps: $\AuditRefGap$ points for flagged pairs and $\AuditWrittenRefGap$ for LLM-written pairs (Appendix~\ref{app:reference}).
 
@@ -294,7 +294,7 @@ Rewrite control, raw & $\RwIclrTwoDiff$ [\RwIclrTwoDiffLow, \RwIclrTwoDiffHigh] 
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.12}
 \input{tables/pair_type_sizes}
-\caption{Two LLM-written reviews share more problems; other flagged pairs mostly have smaller critique sets. ICLR 2024--2026 pairs. Neither flagged: means. Other rows: paper fixed-effects estimates against neither-flagged pairs of the same paper, one indicator per pair type; SE clustered by paper. Overlap: pair overlap in points. Shared: problem groups in both reviews. Smaller set and Union: problem groups in the smaller review and in either review. Shared, size-adjusted: shared count with both set sizes as controls.}
+\caption{With both set sizes held fixed, each flagged pair type shares more problems than neither-flagged pairs of the same paper, and two LLM-written reviews share the most. Other flagged pairs have smaller critique sets, so their raw shared count barely changes. ICLR 2024--2026 pairs. Neither flagged: means over pairs, which weigh equally, unlike the paper-weighted baseline of Section~\ref{sec:ai}. Other rows: paper fixed-effects estimates against neither-flagged pairs of the same paper, one indicator per pair type; SE clustered by paper. Overlap: pair overlap in points. Shared: problem groups in both reviews. Smaller set and Union: problem groups in the smaller review and in either review. Shared, size-adjusted: shared count with both set sizes as controls.}
 \label{tab:sizes}
 \end{table*}
 
@@ -333,7 +333,7 @@ Only papers whose pairs differ in $f_{AB}$ identify $\beta$; two-review papers c
 
 \paragraph{Distinct problems.} Table~\ref{tab:coverage} uses newly grouped three-review subsets of papers with at least four reviews, avoiding copies of main panels. We sampled all eligible papers in 2023 and 2026 and 400 per other year (seeds 1 and 11); 2020 has only \CovPapersFirst{}. These subsets cover fewer papers than the main sample. A third review adds problems absent from the other two, averaged over all three choices. From 2023 to 2026, shared problems rose but distinct problems per panel did not fall: each review raised slightly more problems.
 
-\paragraph{Shared problems by pair type.} Table~\ref{tab:sizes} applies the Figure~\ref{fig:ai} model to ICLR 2024--2026 problem counts. Two LLM-written reviews share more problems even with both set sizes as controls. For other two-flagged pairs, smaller critique sets account for most of the overlap gap. Higher normalized overlap need not mean more shared problems.
+\paragraph{Shared problems by pair type.} Table~\ref{tab:sizes} applies the Figure~\ref{fig:ai} model to ICLR 2024--2026 problem counts. Two LLM-written reviews share more problems with or without set-size controls. Other two-flagged pairs raise fewer problems, so their raw shared count barely changes; with both set sizes as controls, they share more. Higher normalized overlap need not mean more shared problems, so Appendix~\ref{app:measures} repeats each claim with counts at fixed set sizes.
 
 Table~\ref{tab:robust} repeats the trend comparison with specific claims only, lenient grouping by paper element, three-review panels grouped from scratch, the questions field removed, and withdrawn papers included. The questions-field comparison starts in 2024, when that field became separate.
 
