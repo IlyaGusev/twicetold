@@ -1,16 +1,13 @@
 import json
 import shutil
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fire
 import numpy as np
 import pandas as pd
 from huggingface_hub import HfApi, snapshot_download
 
-from extract import read_jsonl
+from jsonl import read_jsonl
 from prompts import render
 from settings import settings
 

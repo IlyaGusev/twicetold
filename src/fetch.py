@@ -2,7 +2,6 @@ import io
 import json
 import random
 import re
-import sys
 import threading
 import time
 import unicodedata
@@ -24,8 +23,8 @@ from tqdm import tqdm
 from urllib3.exceptions import ResponseError
 from urllib3.util.retry import Retry
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hub
+from jsonl import read_jsonl
 from settings import settings
 
 UA = "twicetold-research"
@@ -905,30 +904,26 @@ def icml_download(year, raw):
 
 def icml_reviews(year, raw):
     rows = []
-    with open(raw) as f:
-        for line in tqdm(f, desc=f"icml {year} submissions"):
-            sub = json.loads(line)
-            for reply in sub["replies"]:
-                if not any(inv.endswith("/Official_Review") for inv in reply.get("invitations", [])):
-                    continue
-                content = reply["content"]
-                text = "\n\n".join(
-                    f"[{tag}]\n{value_of(content, key)}" for key, tag in ICML_FIELDS[year] if value_of(content, key)
+    for sub in tqdm(read_jsonl(raw), desc=f"icml {year} submissions"):
+        for reply in sub["replies"]:
+            if not any(inv.endswith("/Official_Review") for inv in reply.get("invitations", [])):
+                continue
+            content = reply["content"]
+            text = "\n\n".join(f"[{tag}]\n{value_of(content, key)}" for key, tag in ICML_FIELDS[year] if value_of(content, key))
+            rows.append(
+                dict(
+                    conf="ICML",
+                    year=year,
+                    paper_id=sub["id"],
+                    review_id=reply["id"],
+                    text=text,
+                    rating=value_of(content, "overall_recommendation"),
+                    confidence=value_of(content, "confidence"),
+                    primary_area=value_of(sub["content"], "primary_area"),
+                    review_time=reply.get("cdate"),
+                    modified_time=reply.get("mdate"),
                 )
-                rows.append(
-                    dict(
-                        conf="ICML",
-                        year=year,
-                        paper_id=sub["id"],
-                        review_id=reply["id"],
-                        text=text,
-                        rating=value_of(content, "overall_recommendation"),
-                        confidence=value_of(content, "confidence"),
-                        primary_area=value_of(sub["content"], "primary_area"),
-                        review_time=reply.get("cdate"),
-                        modified_time=reply.get("mdate"),
-                    )
-                )
+            )
     return pd.DataFrame(rows)
 
 
@@ -947,11 +942,9 @@ def iclr_download(year=2027):
         openreview_download(raw, invitation=f"ICLR.cc/{year}/Conference/-/Submission")
     venues = Counter()
     reviews = 0
-    with open(raw) as f:
-        for line in f:
-            sub = json.loads(line)
-            venues[value_of(sub["content"], "venueid")] += 1
-            reviews += sum(any(inv.endswith("/Official_Review") for inv in r.get("invitations", [])) for r in sub["replies"])
+    for sub in read_jsonl(raw):
+        venues[value_of(sub["content"], "venueid")] += 1
+        reviews += sum(any(inv.endswith("/Official_Review") for inv in r.get("invitations", [])) for r in sub["replies"])
     print(venues, "reviews", reviews)
 
 
@@ -1017,4 +1010,15 @@ def arxiv_papers(out=settings.PAPER_REVIEW_DIR / "papers.jsonl", n=settings.PAPE
 
 
 if __name__ == "__main__":
-    fire.Fire(dict(scipost=scipost, f1000=f1000, bmc=bmc, plos=plos, copernicus=copernicus, icml=icml, iclr_download=iclr_download, arxiv_papers=arxiv_papers))
+    fire.Fire(
+        dict(
+            scipost=scipost,
+            f1000=f1000,
+            bmc=bmc,
+            plos=plos,
+            copernicus=copernicus,
+            icml=icml,
+            iclr_download=iclr_download,
+            arxiv_papers=arxiv_papers,
+        )
+    )

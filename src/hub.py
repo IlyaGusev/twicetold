@@ -1,15 +1,11 @@
-import sys
 from functools import cache
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import pyarrow.dataset as ds
 from huggingface_hub import snapshot_download
 
 from settings import settings
 
-ML_SOURCES = ["ICLR", "NeurIPS"]
 NAMES = {
     "conf": "source",
     "score": "meld_score",
@@ -51,7 +47,7 @@ def in_corpus():
 
 
 def corpus_reviews(columns, condition=None):
-    base = ds.field("source").isin(ML_SOURCES) & in_corpus()
+    base = ds.field("source").isin(settings.ML_SOURCES) & in_corpus()
     return frame("reviews", columns, base if condition is None else base & condition, "corpus_row")
 
 
@@ -69,15 +65,15 @@ def variant(name, columns):
 
 
 def papers(columns):
-    return frame("papers", columns, ds.field("source").isin(ML_SOURCES), "corpus_row")
+    return frame("papers", columns, ds.field("source").isin(settings.ML_SOURCES), "corpus_row")
 
 
 def paper_areas():
     return frame("papers", ["paper_id", "area_pred"], ds.field("area_pred").is_valid())
 
 
-def meld_flags(columns):
-    return frame("reviews", columns, ds.field("meld_flag").is_valid())
+def meld_flags(columns=("conf", "year", "score", "flag", "written")):
+    return frame("reviews", ["review_id", *columns], ds.field("meld_flag").is_valid()).set_index("review_id")
 
 
 def texts(review_ids):

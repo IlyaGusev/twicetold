@@ -11,6 +11,15 @@ class PassEfforts(BaseModel):
     pass2: str
 
 
+class RewriteCondition(BaseModel):
+    writer: str
+    task: str
+    panel: str
+    preserve: str
+    text: str
+    sources: tuple[str, ...] | None = None
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
@@ -31,9 +40,9 @@ class Settings(BaseSettings):
     FIGURES_DIR: Path = ROOT / "paper" / "figs"
     TABLES_DIR: Path = ROOT / "paper" / "tables"
     PROMPTS_DIR: Path = ROOT / "src" / "prompts"
-    RAW_ML_REVIEWS_DIR: Path = Path("/home/yallen/data/peer-review")
-    RAW_JOURNAL_REVIEWS_DIR: Path = Path("/home/yallen/data/peer-review/other")
-    RELEASE_DIR: Path = Path("/data/twicetold_release")
+    RAW_ML_REVIEWS_DIR: Path = ROOT / "data" / "raw"
+    RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "other"
+    RELEASE_DIR: Path = ROOT / "data" / "release"
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
     HF_DATASET_REVISION: str = "3c3e0120177b1e12ff7d507bb3d6e22d80871466"
     HF_DATASET_LOCAL: bool = False
@@ -49,6 +58,26 @@ class Settings(BaseSettings):
     @property
     def ICLR_AREAS_DIR(self):
         return self.RAW_ML_REVIEWS_DIR / "iclr_areas"
+
+    @property
+    def REWRITE_CONDITIONS(self):
+        first, second = self.AI_REFERENCE_MODEL, self.REWRITE_SECOND_WRITER
+        return {
+            "outline": RewriteCondition(writer=first, task="rewrites", panel="rw2_", preserve="pres_", text="rw_"),
+            "polish": RewriteCondition(writer=first, task="polishes", panel="rwp_", preserve="ppres_", text="pl_"),
+            "outline_second": RewriteCondition(
+                writer=second, task="rewrites", panel="rk2_", preserve="kpres_", text="rk_", sources=("ICLR",)
+            ),
+            "polish_second": RewriteCondition(
+                writer=second, task="polishes", panel="rkp_", preserve="kppres_", text="pk_", sources=("ICLR",)
+            ),
+        }
+
+    ICLR_FROM: int = 2020
+    ICLR_LAST: int = 2027
+    ML_SOURCES: list[str] = ["ICLR", "NeurIPS"]
+    ML_VENUES: list[str] = ["ICLR", "NeurIPS", "ICML"]
+    REWRITE_PAIR_PREFIX: str = "pair_"
 
     DEFAULT_MODEL: str = "gpt-6-luna-high"
     AI_REFERENCE_MODEL: str = "gpt-6-luna"
@@ -66,6 +95,7 @@ class Settings(BaseSettings):
     MELD_REVISION: str = "ddfc9c789b8c8d0f92d3774265316d418c96dc67"
     MELD_FLAG_QUANTILE: float = 0.999
     MELD_CALIBRATION_LAST_YEAR: int = 2022
+    MELD_WRITTEN_TASK: str = "generate"
 
     PRICES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
         "gpt-6-luna": (0.10, 0.50),

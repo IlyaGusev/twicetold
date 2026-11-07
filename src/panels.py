@@ -1,6 +1,4 @@
-import json
 import re
-import sys
 from pathlib import Path
 
 import fire
@@ -8,8 +6,7 @@ import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from extract import read_jsonl, write_jsonl
+from jsonl import append_jsonl, read_jsonl, write_jsonl
 from settings import settings
 
 QUOTA = {
@@ -130,11 +127,6 @@ def icml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), per_year=1500,
         )
         .to_string()
     )
-
-
-def append_jsonl(path, rows):
-    with open(path, "a") as f:
-        f.writelines(json.dumps(row) + "\n" for row in rows)
 
 
 def icml_eligible(data, year):

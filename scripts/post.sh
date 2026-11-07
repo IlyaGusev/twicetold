@@ -11,7 +11,7 @@ export OMP_NUM_THREADS=2
 step() {
   echo "=== $* $(date +%H:%M:%S)"
   local exit_code=0
-  nice -n 19 uv run --all-extras python -I "$@" 2>&1 | { grep --line-buffered -v "it/s\]" || true; } || exit_code=$?
+  nice -n 19 uv run --all-extras python "$@" 2>&1 | { grep --line-buffered -v "it/s\]" || true; } || exit_code=$?
   if [ "$exit_code" -ne 0 ]; then
     echo "FAILED (exit $exit_code): $*"
     exit "$exit_code"

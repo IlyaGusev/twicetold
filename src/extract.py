@@ -1,5 +1,4 @@
 import json
-import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -11,12 +10,17 @@ import pandas as pd
 from openai import OpenAI
 from tqdm import tqdm
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from jsonl import read_jsonl, write_jsonl
 from prompts import render
 from settings import settings
 
 PASS1_PAPER_WORDING = {"ml": "machine-learning conference paper", "general": "scientific paper submitted to a journal"}
 PASS2_PAPER_WORDING = {"ml": "machine-learning paper", "general": "scientific paper"}
+
+
+def paper_kind(conf):
+    return "ml" if conf in settings.ML_SOURCES else "general"
+
 
 CATEGORIES = [
     "novelty",
@@ -174,17 +178,6 @@ def call(instructions, text, schema, name, model, effort):
             time.sleep(RETRY_BACKOFF_SECONDS * (attempt + 1))
 
 
-def read_jsonl(path):
-    with open(path) as f:
-        for line in f:
-            yield json.loads(line)
-
-
-def write_jsonl(path, rows):
-    with open(path, "w") as f:
-        f.writelines(json.dumps(row) + "\n" for row in rows)
-
-
 def load_claims(*paths):
     return {row["review_id"]: row["claims"] for path in paths if path.exists() for row in read_jsonl(path) if "claims" in row}
 
@@ -216,13 +209,11 @@ def done_ids(path, key, effort):
     if not path.exists():
         return set()
     done = set()
-    with open(path) as f:
-        rows = (json.loads(line) for line in f if line.strip())
-        for row in rows:
-            if row.get("effort", effort) != effort:
-                raise SystemExit(f"{path} has rows made at effort {row['effort']}, not {effort}; use a new short name")
-            if "error" not in row:
-                done.add(key(row))
+    for row in read_jsonl(path):
+        if row.get("effort", effort) != effort:
+            raise SystemExit(f"{path} has rows made at effort {row['effort']}, not {effort}; use a new short name")
+        if "error" not in row:
+            done.add(key(row))
     return done
 
 

@@ -1,8 +1,4 @@
-import json
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fire
 import numpy as np
@@ -11,6 +7,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import cross_val_score
 
 from between import openai_embed
+from jsonl import read_jsonl
 from settings import settings
 
 MAX_DOC_CHARS = 6000
@@ -24,7 +21,7 @@ AREA_YEARS = (2023, 2024, 2025, 2026)
 def classify(out, data=str(settings.DATA_DIR)):
     data, out = Path(data), Path(out)
     papers = pd.read_parquet(data / "papers.parquet")
-    sampled = {json.loads(line)["panel_id"] for line in open(data / "panels.jsonl")}
+    sampled = {row["panel_id"] for row in read_jsonl(data / "panels.jsonl")}
     need = papers[papers.paper_id.isin(sampled) | ((papers.year == LABEL_YEAR) & papers.primary_area.notna())].copy()
     need["doc"] = (need.title.fillna("") + "\n" + need.abstract.fillna("")).str.slice(0, MAX_DOC_CHARS)
     need = need[need.doc.str.len() > MIN_DOC_CHARS].reset_index(drop=True)

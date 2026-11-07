@@ -1,4 +1,3 @@
-import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -9,7 +8,6 @@ import pandas as pd
 from openai import APIError, BadRequestError, OpenAI, RateLimitError
 from tqdm import tqdm
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 import hub
 from outcomes import main_sample_review_ids
 from settings import settings

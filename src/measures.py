@@ -1,8 +1,5 @@
-import sys
 from itertools import combinations
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fire
 import numpy as np
@@ -10,9 +7,10 @@ import pandas as pd
 import statsmodels.api as sm
 from tqdm import tqdm
 
+import hub
 from outcomes import in_window
 from settings import settings
-from validate import ML_VENUES, meld_flags, pair_counts
+from validate import pair_counts
 
 Z95 = 1.96
 MAX_CELL_SIZE = 25
@@ -77,7 +75,7 @@ def pair_specs(frame):
 
 
 def in_venue(frame, venue):
-    return ~frame.conf.isin(ML_VENUES) if venue == JOURNALS else frame.conf == venue
+    return ~frame.conf.isin(settings.ML_VENUES) if venue == JOURNALS else frame.conf == venue
 
 
 def cluster_fit(model):
@@ -133,7 +131,7 @@ def summarize(estimate, se, papers, digits, sign):
 
 
 def estimates(model):
-    meld = meld_flags()
+    meld = hub.meld_flags()
     labels = {"flag": meld.flag.astype(int), "written": meld.written.astype(int)}
     pairs = pair_measures(in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")))
     reviews = review_table(model)
@@ -185,9 +183,7 @@ def latex(out):
     return "\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n"
 
 
-def measures(
-    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "measures.tex"
-):
+def measures(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "measures.tex"):
     out = estimates(model)
     out.to_csv(Path(reports) / f"measures_{model}.csv", index=False)
     print(out.drop(columns="digits").round(3).to_string(index=False))

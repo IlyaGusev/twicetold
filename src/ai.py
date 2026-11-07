@@ -1,11 +1,7 @@
 import json
-import sys
-from collections import namedtuple
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fire
 import numpy as np
@@ -15,6 +11,7 @@ from tqdm import tqdm
 
 import extract
 import hub
+from jsonl import read_jsonl, write_jsonl
 from prompts import render
 from settings import settings
 
@@ -48,18 +45,9 @@ REWRITE_ML_YEARS = (2020, 2022)
 REWRITE_LAST_JOURNAL_YEAR = 2022
 REWRITE_MIN_REVIEWS = 3
 REWRITTEN_PER_PANEL = 2
-RewriteCondition = namedtuple("RewriteCondition", "writer task panel preserve text sources")
-REWRITE_CONDITIONS = {
-    "outline": RewriteCondition(settings.AI_REFERENCE_MODEL, "rewrites", "rw2_", "pres_", "rw_", None),
-    "polish": RewriteCondition(settings.AI_REFERENCE_MODEL, "polishes", "rwp_", "ppres_", "pl_", None),
-    "outline_second": RewriteCondition(settings.REWRITE_SECOND_WRITER, "rewrites", "rk2_", "kpres_", "rk_", ("ICLR",)),
-    "polish_second": RewriteCondition(settings.REWRITE_SECOND_WRITER, "polishes", "rkp_", "kppres_", "pk_", ("ICLR",)),
-}
 PRESERVE_AUDIT_REVIEWS = 100
-PAIR_PREFIX = "pair_"
 PAPER_REVIEW_WRITERS = (settings.AI_REFERENCE_MODEL, settings.REWRITE_SECOND_WRITER)
 POLISH_PER_SOURCE = 300
-ML_SOURCES = ("ICLR", "NeurIPS")
 VENUE = {
     "ICLR": "a machine-learning conference (ICLR)",
     "NeurIPS": "a machine-learning conference (NeurIPS)",
@@ -69,10 +57,6 @@ VENUE = {
     "PLOS": "a multidisciplinary journal (PLOS ONE)",
     "Copernicus": "a geoscience journal (Copernicus/EGU)",
 }
-
-
-def done_ids(path):
-    return {r["review_id"] for r in extract.read_jsonl(path)} if path.exists() else set()
 
 
 def reference_sample(per_source):
@@ -117,7 +101,7 @@ def write_rows(todo, worker, out, threads, desc):
 def reference(model=settings.AI_REFERENCE_MODEL, threads=32, per_source=3000, out=None):
     effort = extract.reasoning_efforts(model).pass1
     out = Path(out) if out else settings.DATA_DIR / f"ai_reference_{model}.jsonl"
-    done = done_ids(out)
+    done = extract.done_ids(out, extract.review_key, effort)
     todo = [r for r in reference_sample(per_source).itertuples() if r.review_id not in done]
     print(f"{len(done)} done, {len(todo)} to write -> {out}")
     write_rows(todo, partial(rewrite, model=model, effort=effort), out, threads, "reference")
@@ -135,14 +119,10 @@ def polish_one(row, model, effort):
 def polish(model=settings.AI_REFERENCE_MODEL, threads=32, per_source=POLISH_PER_SOURCE, out=None):
     effort = extract.reasoning_efforts(model).pass1
     out = Path(out) if out else settings.DATA_DIR / f"ai_polish_{model}.jsonl"
-    done = done_ids(out)
+    done = extract.done_ids(out, extract.review_key, effort)
     todo = [r for r in reference_sample(per_source).itertuples() if r.review_id not in done]
     print(f"{len(done)} done, {len(todo)} to polish -> {out}")
     write_rows(todo, partial(polish_one, model=model, effort=effort), out, threads, "polish")
-
-
-def paper_kind(conf):
-    return "ml" if conf in ML_SOURCES else "general"
 
 
 def rewrite_sample(out=settings.REWRITE_TEST_DIR, seed=0, model=settings.DEFAULT_MODEL):
@@ -170,7 +150,7 @@ def rewrite_sample(out=settings.REWRITE_TEST_DIR, seed=0, model=settings.DEFAULT
         review_ids = clusters[p.panel_id]["review_ids"]
         picked = [str(r) for r in rng.choice(review_ids, REWRITTEN_PER_PANEL, replace=False)]
         rows.append(dict(panel_id=p.panel_id, conf=p.conf, year=int(p.year), review_ids=review_ids, rewritten=picked))
-    extract.write_jsonl(out / "papers.jsonl", rows)
+    write_jsonl(out / "papers.jsonl", rows)
     print(chosen.groupby("conf").size().to_string())
 
 
@@ -188,14 +168,14 @@ def applies(condition, conf):
 
 def rewrite_panels(out=settings.REWRITE_TEST_DIR, threads=32):
     out = Path(out)
-    papers = list(extract.read_jsonl(out / "papers.jsonl"))
+    papers = list(read_jsonl(out / "papers.jsonl"))
     workers = {"rewrites": rewrite, "polishes": polish_one}
-    for condition in REWRITE_CONDITIONS.values():
+    for condition in settings.REWRITE_CONDITIONS.values():
         wanted = [r for p in papers if applies(condition, p["conf"]) for r in p["rewritten"]]
         texts = source_texts(set(wanted)).loc[wanted].reset_index()
         effort = extract.reasoning_efforts(condition.writer).pass1
         path = out / f"{condition.task}_{condition.writer}.jsonl"
-        done = done_ids(path)
+        done = extract.done_ids(path, extract.review_key, effort)
         todo = [r for r in texts.itertuples() if r.review_id not in done]
         print(f"{len(done)} done, {len(todo)} to write -> {path}")
         worker = partial(workers[condition.task], model=condition.writer, effort=effort)
@@ -204,18 +184,18 @@ def rewrite_panels(out=settings.REWRITE_TEST_DIR, threads=32):
 
 def rewrite_inputs(out=settings.REWRITE_TEST_DIR, model=settings.DEFAULT_MODEL, seed=0):
     out = Path(out)
-    papers = list(extract.read_jsonl(out / "papers.jsonl"))
+    papers = list(read_jsonl(out / "papers.jsonl"))
     versions = {
-        name: {r["review_id"]: r["text"] for r in extract.read_jsonl(out / f"{c.task}_{c.writer}.jsonl")}
-        for name, c in REWRITE_CONDITIONS.items()
+        name: {r["review_id"]: r["text"] for r in read_jsonl(out / f"{c.task}_{c.writer}.jsonl")}
+        for name, c in settings.REWRITE_CONDITIONS.items()
     }
     kinds = {"ml": [], "general": []}
     texts = {"ml": [], "general": []}
-    preserve = {name: [] for name in REWRITE_CONDITIONS}
+    preserve = {name: [] for name in settings.REWRITE_CONDITIONS}
     for p in papers:
-        kind = paper_kind(p["conf"])
+        kind = extract.paper_kind(p["conf"])
         kinds[kind].append(dict(panel_id=f"rw0_{p['panel_id']}", review_ids=p["review_ids"]))
-        for name, c in REWRITE_CONDITIONS.items():
+        for name, c in settings.REWRITE_CONDITIONS.items():
             if not applies(c, p["conf"]) or not all(r in versions[name] for r in p["rewritten"]):
                 continue
             swapped = [c.text + r if r in p["rewritten"] else r for r in p["review_ids"]]
@@ -226,36 +206,36 @@ def rewrite_inputs(out=settings.REWRITE_TEST_DIR, model=settings.DEFAULT_MODEL, 
                 kinds[kind].append(pair)
                 preserve[name].append(pair)
     for kind in kinds:
-        extract.write_jsonl(out / f"panels_{kind}.jsonl", kinds[kind])
+        write_jsonl(out / f"panels_{kind}.jsonl", kinds[kind])
         pd.DataFrame(texts[kind]).to_parquet(out / f"reviews_{kind}.parquet")
     rng = np.random.default_rng(seed)
     audit = []
     for pairs in preserve.values():
         picked = rng.choice(len(pairs), min(PRESERVE_AUDIT_REVIEWS, len(pairs)), replace=False)
         audit += [pairs[i] for i in sorted(picked)]
-    extract.write_jsonl(out / "panels_audit.jsonl", audit)
+    write_jsonl(out / "panels_audit.jsonl", audit)
     originals = {r for p in papers for r in p["review_ids"]}
     path = out / f"claims_{model}.jsonl"
-    kept = list(extract.read_jsonl(path)) if path.exists() else []
+    kept = list(read_jsonl(path)) if path.exists() else []
     have = {row["review_id"] for row in kept}
     claims = hub.claims(model)
-    extract.write_jsonl(path, kept + [dict(review_id=r, claims=c) for r, c in claims.items() if r in originals - have])
+    write_jsonl(path, kept + [dict(review_id=r, claims=c) for r, c in claims.items() if r in originals - have])
     print(len(papers), "papers;", {k: len(v) for k, v in texts.items()}, "rewritten reviews")
 
 
 def rewrite_pairs(out=settings.REWRITE_TEST_DIR):
     out = Path(out)
-    papers = list(extract.read_jsonl(out / "papers.jsonl"))
+    papers = list(read_jsonl(out / "papers.jsonl"))
     kinds = {"ml": [], "general": []}
     for p in papers:
-        kind = paper_kind(p["conf"])
-        kinds[kind].append(dict(panel_id=f"{PAIR_PREFIX}rw0_{p['panel_id']}", review_ids=p["rewritten"]))
-        for c in REWRITE_CONDITIONS.values():
+        kind = extract.paper_kind(p["conf"])
+        kinds[kind].append(dict(panel_id=f"{settings.REWRITE_PAIR_PREFIX}rw0_{p['panel_id']}", review_ids=p["rewritten"]))
+        for c in settings.REWRITE_CONDITIONS.values():
             if applies(c, p["conf"]):
                 ids = [c.text + r for r in p["rewritten"]]
-                kinds[kind].append(dict(panel_id=f"{PAIR_PREFIX}{c.panel}{p['panel_id']}", review_ids=ids))
+                kinds[kind].append(dict(panel_id=f"{settings.REWRITE_PAIR_PREFIX}{c.panel}{p['panel_id']}", review_ids=ids))
     for kind, panels in kinds.items():
-        extract.write_jsonl(out / f"panels_pairs_{kind}.jsonl", panels)
+        write_jsonl(out / f"panels_pairs_{kind}.jsonl", panels)
         print(kind, len(panels), "pair panels")
 
 
@@ -272,10 +252,11 @@ def paper_reviews(out=settings.PAPER_REVIEW_DIR, threads=16):
     papers = pd.read_json(out / "papers.jsonl", lines=True)
     for writer in PAPER_REVIEW_WRITERS:
         path = out / f"reviews_{writer}.jsonl"
-        done = done_ids(path)
+        effort = extract.reasoning_efforts(writer).pass1
+        done = extract.done_ids(path, extract.review_key, effort)
         todo = [r for r in papers.itertuples() if r.paper_id not in done]
         print(f"{len(done)} done, {len(todo)} to write -> {path}")
-        worker = partial(paper_review, model=writer, effort=extract.reasoning_efforts(writer).pass1)
+        worker = partial(paper_review, model=writer, effort=effort)
         write_rows(todo, worker, path, threads, f"paper reviews {writer}")
 
 

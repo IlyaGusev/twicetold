@@ -1,8 +1,5 @@
-import sys
 from itertools import combinations
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fire
 import numpy as np
@@ -12,15 +9,12 @@ from scipy import stats
 from tqdm import tqdm
 
 import hub
-from ai import PAIR_PREFIX, REWRITE_CONDITIONS
-from extract import read_jsonl
-from meld import WRITTEN_TASK
-from metrics import assign, load_jsonl, mean_overlap, review_groups
+from jsonl import load_jsonl, read_jsonl
+from metrics import assign, mean_overlap, review_groups
 from metrics import overlap as pair_overlap
-from outcomes import ICLR_FROM, ICLR_LAST, excluded_review_ids, in_window
+from outcomes import excluded_review_ids, in_window
 from settings import settings
 
-ML_VENUES = ["ICLR", "NeurIPS", "ICML"]
 REMOVED_FIELD_TAGS = ("_nocq", "_noq")
 MIN_DIRECT_PAPERS = 10
 FORM_CATEGORIES = ("clarity/presentation", "novelty", "reproducibility/details")
@@ -53,11 +47,11 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     wd = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_wd.parquet").query("n_claims > 0")
     with_wd = pd.concat([main, wd.assign(year=2026)])
     checks = [
-        ("Main overlap rate", main, "hit_rate_strict", 2023, ICLR_LAST),
-        ("Specific claims only", specific, "hit_spec", 2023, ICLR_LAST),
-        ("Same part of paper (lenient)", main, "hit_rate_lenient", 2023, ICLR_LAST),
-        ("3-review subsets, grouped again", sub3, "hit_rate_strict", 2023, ICLR_LAST),
-        ("Questions field removed", noq, "hit_rate_strict", 2024, ICLR_LAST),
+        ("Main overlap rate", main, "hit_rate_strict", 2023, settings.ICLR_LAST),
+        ("Specific claims only", specific, "hit_spec", 2023, settings.ICLR_LAST),
+        ("Same part of paper (lenient)", main, "hit_rate_lenient", 2023, settings.ICLR_LAST),
+        ("3-review subsets, grouped again", sub3, "hit_rate_strict", 2023, settings.ICLR_LAST),
+        ("Questions field removed", noq, "hit_rate_strict", 2024, settings.ICLR_LAST),
         ("Withdrawn 2026 papers added", with_wd, "hit_rate_strict", 2023, 2026),
     ]
     rows = []
@@ -112,7 +106,7 @@ def forms(
 ):
     data = Path(data)
     main = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").query(
-        f"conf == 'ICLR' and year >= {ICLR_FROM} and n_claims > 0"
+        f"conf == 'ICLR' and year >= {settings.ICLR_FROM} and n_claims > 0"
     )
     clusters = hub.clusters(model, panel_ids=main.panel_id)
     claims = hub.panel_claims(model, clusters)
@@ -173,10 +167,6 @@ def fe_gap(design, flag, controls=()):
     }
 
 
-def meld_flags():
-    return hub.meld_flags(["review_id", "year", "score", "flag", "written"]).set_index("review_id")
-
-
 def meld_flag_at(meld, quantile):
     threshold = meld[meld.year <= settings.MELD_CALIBRATION_LAST_YEAR].score.quantile(quantile)
     return (meld.score > threshold).astype(int)
@@ -187,9 +177,9 @@ def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.DAT
         settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
     )
     iclr_pairs = iclr_pairs[iclr_pairs.conf == "ICLR"]
-    scores = meld_flags()
+    scores = hub.meld_flags()
     periods = {
-        str(ICLR_FROM): (ICLR_FROM, ICLR_FROM),
+        str(settings.ICLR_FROM): (settings.ICLR_FROM, settings.ICLR_FROM),
         "2021-2022": (2021, 2022),
         "2023": (2023, 2023),
     }
@@ -226,7 +216,7 @@ def pair_design(model):
 
 def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     data, reports = Path(data), Path(reports)
-    meld = meld_flags()
+    meld = hub.meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
     design = pair_design(model)
     claim_counts = pd.read_parquet(data / f"claims_table_{model}.parquet", columns=["review_id"]).groupby("review_id").size()
@@ -261,11 +251,11 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
 
 
 def journal_gaps(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR, first_year=2024):
-    flag = meld_flags().flag.astype(int)
+    flag = hub.meld_flags().flag.astype(int)
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
-    journals = pairs[~pairs.conf.isin(ML_VENUES) & (pairs.year >= first_year)]
+    journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= first_year)]
     rows = []
     for source, source_pairs in [*journals.groupby("conf"), ("All journals", journals)]:
         n_flagged = source_pairs.a.map(flag) + source_pairs.b.map(flag)
@@ -320,12 +310,12 @@ def pair_type(pairs, flag, written):
 
 
 def venue_pairs(pairs):
-    window = pairs[pairs.conf.isin(ML_VENUES) & (pairs.year >= 2024)]
+    window = pairs[pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= 2024)]
     return list(window.groupby("conf"))
 
 
 def pair_types(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    meld = meld_flags()
+    meld = hub.meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
@@ -367,7 +357,7 @@ def pair_type_sizes(
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "pair_type_sizes.tex",
 ):
-    meld = meld_flags()
+    meld = hub.meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
     pairs = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet"))
     cell = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)].assign(hit=lambda d: d.hit * 100)
@@ -409,7 +399,7 @@ DETECTOR_QUANTILES = (0.99, 0.995, 0.999)
 
 def detector_row(label, quantile, flags, pairs, iclr_last):
     pre = flags[flags.year <= settings.MELD_CALIBRATION_LAST_YEAR]
-    flag = flags.drop_duplicates("review_id").set_index("review_id").flag.astype(int)
+    flag = flags[~flags.index.duplicated()].flag.astype(int)
     counts = pair_counts(pairs, flag)
     gap = fe_gap(pairs, flag)
     varying = (counts.groupby(pairs.panel_id.to_numpy()).nunique() > 1).sum()
@@ -432,18 +422,18 @@ def detector_choices(
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "detector_choices.tex",
 ):
-    meld = hub.meld_flags(["review_id", "conf", "year", "score", "task"])
+    meld = hub.meld_flags(["conf", "year", "score", "task"])
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
     pairs = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)]
-    iclr_last = meld[(meld.conf == "ICLR") & (meld.year == pairs.year.max())].review_id
+    iclr_last = meld[(meld.conf == "ICLR") & (meld.year == pairs.year.max())].index
     iclr_last = iclr_last[~iclr_last.isin(excluded_review_ids())]
     calibration = meld[meld.year <= settings.MELD_CALIBRATION_LAST_YEAR].score
     rows = []
     for quantile in DETECTOR_QUANTILES:
         flagged = meld.assign(flag=meld.score > calibration.quantile(quantile))
-        written = flagged.assign(flag=flagged.flag & (flagged.task == WRITTEN_TASK))
+        written = flagged.assign(flag=flagged.flag & (flagged.task == settings.MELD_WRITTEN_TASK))
         rows.append(detector_row("Flagged", quantile, flagged, pairs, iclr_last))
         rows.append(detector_row("LLM-written", quantile, written, pairs, iclr_last))
     out = pd.DataFrame(rows).sort_values(["label", "percentile"], key=lambda s: s.eq("LLM-written") if s.name == "label" else s)
@@ -477,11 +467,11 @@ def journal_subsets(
     tex=settings.TABLES_DIR / "journal_subsets.tex",
 ):
     data = Path(data)
-    flag = meld_flags().flag.astype(int)
+    flag = hub.meld_flags().flag.astype(int)
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
-    journals = pairs[~pairs.conf.isin(ML_VENUES) & (pairs.year >= 2024)]
+    journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= 2024)]
     journals = journals.assign(n_flagged=pair_counts(journals, flag).to_numpy())
     texts = pd.concat(
         [journals[["panel_id", "a"]].rename(columns={"a": "r"}), journals[["panel_id", "b"]].rename(columns={"b": "r"})]
@@ -546,13 +536,13 @@ def identification(
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "identification.tex",
 ):
-    meld = meld_flags()
+    meld = hub.meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
     iclr = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)]
-    journals = pairs[~pairs.conf.isin(ML_VENUES) & (pairs.year >= 2024)]
+    journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= 2024)]
     cells = [
         ("ICLR 2024–27", iclr, flag),
         ("ICLR 2024–27, LLM-written", iclr, written),
@@ -609,7 +599,7 @@ def coverage(
 ):
     data = Path(data)
     sub3 = pd.read_parquet(settings.ANALYSIS_DIR / f"sub3_outcomes_{model}.parquet").query(
-        f"conf == 'ICLR' and year >= {ICLR_FROM}"
+        f"conf == 'ICLR' and year >= {settings.ICLR_FROM}"
     )
     clusters = hub.clusters(model, panel_ids=sub3.panel_id)
     claims = hub.panel_claims(model, clusters)
@@ -651,9 +641,9 @@ def repro(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
         )
     values.update(hub.extraction_counts(model))
     pairs = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["a", "b", "conf", "year"]))
-    flags = hub.meld_flags(["review_id", "conf", "year"])
+    flags = hub.meld_flags(["year"])
     calibration = flags[flags.year <= settings.MELD_CALIBRATION_LAST_YEAR]
-    in_analysis = calibration.review_id.isin(set(pairs.a) | set(pairs.b))
+    in_analysis = calibration.index.isin(set(pairs.a) | set(pairs.b))
     values["calibration_reviews"] = len(calibration)
     values["calibration_in_analysis"] = int(in_analysis.sum())
     values["calibration_outside"] = int((~in_analysis).sum())
@@ -718,8 +708,8 @@ def standalone_change(clusters, claims, papers, panel_prefix):
     rows = []
     for p in papers:
         before, after = (
-            clusters.get(f"{PAIR_PREFIX}rw0_{p['panel_id']}"),
-            clusters.get(f"{PAIR_PREFIX}{panel_prefix}{p['panel_id']}"),
+            clusters.get(f"{settings.REWRITE_PAIR_PREFIX}rw0_{p['panel_id']}"),
+            clusters.get(f"{settings.REWRITE_PAIR_PREFIX}{panel_prefix}{p['panel_id']}"),
         )
         if before and after:
             group = "ICLR" if p["conf"] == "ICLR" else "Journals"
@@ -750,7 +740,7 @@ def rewrite_test(
     audited = {p["panel_id"] for p in read_jsonl(out / "panels_audit.jsonl")}
     audit = {pid: row for pid, row in load_jsonl(out / f"clusters_{matcher}.jsonl", "panel_id").items() if pid in audited}
     rows, all_pairs = [], []
-    for condition, c in REWRITE_CONDITIONS.items():
+    for condition, c in settings.REWRITE_CONDITIONS.items():
         pairs = rewrite_pairs(out, claims, clusters, main, c.panel).assign(condition=condition)
         all_pairs.append(pairs)
         luna_kept = preservation(clusters, claims, c.preserve)
@@ -886,7 +876,7 @@ def audit(
     tex=settings.TABLES_DIR / "audit.tex",
 ):
     data, gold, audit_dir, written_dir = Path(data), Path(gold), Path(audit_dir), Path(written_dir)
-    labels = meld_flags()
+    labels = hub.meld_flags()
     flag, written = labels.flag.to_dict(), labels.written.to_dict()
     tunes = {d: list(read_jsonl(d / "panels_tune.jsonl")) for d in [gold, audit_dir, written_dir]}
     model_claims = hub.claims(model, {r for panels in tunes.values() for panel in panels for r in panel["review_ids"]})

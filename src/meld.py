@@ -1,10 +1,7 @@
 import importlib.util
 import json
-import sys
 from collections import defaultdict
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fire
 import pandas as pd
@@ -12,11 +9,11 @@ import torch
 from huggingface_hub import snapshot_download
 
 from ai import TAGS
+from jsonl import read_jsonl
 from settings import settings
 
 INTEL_AI_PER_LLM = 1000
 FLUSH_DOCS = 2000
-WRITTEN_TASK = "generate"
 REAL_SETS = ["sample", "icml", "journal"]
 KNOWN_SETS = {
     "human": "Human, pre-2023",
@@ -156,7 +153,7 @@ def check(input=settings.DATA_DIR / "meld_input.parquet", n=64, batch_tokens=163
 def scores(input=settings.DATA_DIR / "meld_input.parquet", out=settings.DATA_DIR / "meld_scores.jsonl", batch_tokens=16384):
     out = Path(out)
     df = pd.read_parquet(input, columns=["key", "text"])
-    done = {json.loads(line)["key"] for line in open(out)} if out.exists() else set()
+    done = {row["key"] for row in read_jsonl(out)} if out.exists() else set()
     df = df[~df.key.isin(done)]
     df = df.assign(text=df.text.str.replace(TAGS, " ", regex=True), n=df.text.str.len()).sort_values("n")
     print(f"{len(done)} done, {len(df)} to score -> {out}", flush=True)
@@ -184,7 +181,7 @@ def flags(
     calibration = df[is_real & (df.year <= settings.MELD_CALIBRATION_LAST_YEAR)]
     threshold = calibration.score.quantile(settings.MELD_FLAG_QUANTILE)
     df["flag"] = df.score > threshold
-    df["written"] = df.flag & (df.task == WRITTEN_TASK)
+    df["written"] = df.flag & (df.task == settings.MELD_WRITTEN_TASK)
     rates = df.groupby(["set", "conf", "year"]).agg(n=("flag", "size"), flagged=("flag", "mean"), written=("written", "mean"))
     rates[["flagged", "written"]] *= 100
     rates.round(3).to_csv(Path(reports) / "meld_rates.csv")
@@ -206,7 +203,7 @@ def flags(
     heldout = df[is_real & (df.conf == "ICLR") & (df.year == settings.MELD_CALIBRATION_LAST_YEAR + 1)]
     labels(
         df[~is_real].assign(known=df.set),
-        calibration.assign(known="human", flag=pre.flag, written=pre.flag & (pre.task == WRITTEN_TASK)),
+        calibration.assign(known="human", flag=pre.flag, written=pre.flag & (pre.task == settings.MELD_WRITTEN_TASK)),
         heldout.assign(known="heldout"),
         reports,
         tex,

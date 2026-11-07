@@ -30,16 +30,16 @@ reviews, papers, claims, panels and MELD scores, plus the working files under `a
 
 - Analysis code reads the dataset through `src/hub.py`. The first read downloads the pinned revision.
 - `HF_DATASET_LOCAL=true` reads the local build in `RELEASE_DIR` instead.
-- `uv run python -I src/release.py pull` copies `artifacts/` into `data/`. The producer steps and
+- `uv run python src/release.py pull` copies `artifacts/` into `data/`. The producer steps and
   `tests/test_gold.py` need these local files.
 - `scripts/release.sh MODEL` builds the dataset into `RELEASE_DIR` from `data/`. `release.py push` uploads it. After
   a push, set `HF_DATASET_REVISION` to the new commit.
 
 ## Data and extraction
 
-Run commands as `uv run python -I src/<module>.py <command>`. Raw ML dumps live at `RAW_ML_REVIEWS_DIR`; journal
-sources live at `RAW_JOURNAL_REVIEWS_DIR`, both set in `src/settings.py`. Only the producer steps (`fetch`, `corpus`,
-`panels`, `extract`, `meld`, `areas`, `release`) read or write `data/`.
+Run commands as `uv run python src/<module>.py <command>`. Raw ML dumps live at `RAW_ML_REVIEWS_DIR`; journal
+sources live at `RAW_JOURNAL_REVIEWS_DIR`. Both default to `data/raw/`; set them in `.env` to point elsewhere. Only
+the producer steps (`fetch`, `corpus`, `panels`, `extract`, `meld`, `areas`, `release`) read or write `data/`.
 
 1. Fetch source data with `fetch.py`. `fetch.py iclr_download` gets the ICLR 2027 submissions and reviews from the
    OpenReview API.
@@ -142,9 +142,9 @@ archive; the repository therefore does not establish a fully pinned GPU rerun.
 In a working copy with `data/meld_input.parquet` (`meld.py input`) and no `data/meld_scores.jsonl`, run:
 
 ```
-OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python -I -c 'import torch; assert torch.cuda.is_available()'
-OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python -I src/meld.py check --n 64 --batch_tokens 16384
-OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python -I src/meld.py scores --batch_tokens 16384
+OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python -c 'import torch; assert torch.cuda.is_available()'
+OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python src/meld.py check --n 64 --batch_tokens 16384
+OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python src/meld.py scores --batch_tokens 16384
 ```
 
 The scorer downloads `anon-review-meld-2026/meld` at revision
@@ -173,8 +173,8 @@ reference protocol and robustness checks appear in the appendix. Figures and pro
 ## Checks
 
 ```
-uv run python -I -m pytest
+uv run python -m pytest
 uv run ruff check src scripts tests
 uv run black --check src scripts tests
-uv run python -I scripts/check_no_comments.py
+uv run python scripts/check_no_comments.py
 ```

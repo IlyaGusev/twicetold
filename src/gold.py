@@ -1,5 +1,4 @@
 import json
-import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -7,10 +6,9 @@ import fire
 import numpy as np
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 import extract
 import hub
-from ai import paper_kind
+from jsonl import read_jsonl, write_jsonl
 from prompts import render
 from settings import settings
 
@@ -49,7 +47,7 @@ def council_names(council):
 
 def by_model(path, key, field):
     rows = {}
-    for row in extract.read_jsonl(path):
+    for row in read_jsonl(path):
         if field in row:
             rows.setdefault(row["model"], {})[row[key]] = row[field]
     return rows
@@ -57,7 +55,7 @@ def by_model(path, key, field):
 
 def merge_council(out, kind, key, tag, council):
     parts = [out / f"{kind}_{model}{tag}.jsonl" for model in council]
-    extract.write_jsonl(out / f"{kind}_council.jsonl", extract.merge_rows(parts, lambda row: (row["model"], row[key])))
+    write_jsonl(out / f"{kind}_council.jsonl", extract.merge_rows(parts, lambda row: (row["model"], row[key])))
     for part in parts:
         part.unlink()
 
@@ -79,7 +77,7 @@ def sample(out, seed=7, gold=str(settings.GOLD_DIR)):
     for (kind, _), cell in cells.items():
         for i, panel in enumerate(cell):
             panel["split"] = "test" if i >= len(cell) - TEST_PER_CELL[kind] else "dev"
-    extract.write_jsonl(out / "panels_tune.jsonl", panels)
+    write_jsonl(out / "panels_tune.jsonl", panels)
 
     reviews = hub.sample("main", ["conf", "year", "paper_id", "review_id", "text"])
     blind_ids = {r for v in key.values() for r in v["review_ids"]}
@@ -104,7 +102,7 @@ def sample_audit(out=settings.AUDIT_DIR, seed=11, model=settings.DEFAULT_MODEL):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
-    flag = hub.meld_flags(["review_id", "flag"]).set_index("review_id").flag
+    flag = hub.meld_flags(["flag"]).flag
     flag = flag.to_dict()
     clusters = hub.panel_definitions(["paper"])
     iclr = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["panel_id", "conf", "year"])
@@ -143,7 +141,7 @@ def sample_written(out=settings.AUDIT_WRITTEN_DIR, seed=12, model=settings.DEFAU
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
-    labels = hub.meld_flags(["review_id", "flag", "written"]).set_index("review_id")
+    labels = hub.meld_flags(["flag", "written"])
     clusters = hub.panel_definitions(["paper"])
     iclr = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["panel_id", "conf", "year"])
     iclr = iclr[(iclr.conf == "ICLR") & iclr.year.between(*AUDIT_FLAG_YEARS)].sort_values("panel_id")
@@ -164,8 +162,8 @@ def sample_written(out=settings.AUDIT_WRITTEN_DIR, seed=12, model=settings.DEFAU
 
 def write_audit(out, panels, model):
     for i, panel in enumerate(panels):
-        panel.update(panel_id=f"A{i:02d}", kind="same", split="audit", paper_kind=paper_kind(panel["source"]))
-    extract.write_jsonl(out / "panels_tune.jsonl", panels)
+        panel.update(panel_id=f"A{i:02d}", kind="same", split="audit", paper_kind=extract.paper_kind(panel["source"]))
+    write_jsonl(out / "panels_tune.jsonl", panels)
     texts = (
         pd.concat(
             [
@@ -182,16 +180,16 @@ def write_audit(out, panels, model):
     reviews[["review_id", "text"]].to_parquet(out / "tune_reviews.parquet")
     for kind in PAPER_KINDS:
         reviews[reviews.paper_kind == kind][["review_id", "text"]].to_parquet(out / f"tune_reviews_{kind}.parquet")
-        extract.write_jsonl(out / f"panels_tune_{kind}.jsonl", [p for p in panels if p["paper_kind"] == kind])
+        write_jsonl(out / f"panels_tune_{kind}.jsonl", [p for p in panels if p["paper_kind"] == kind])
     ids = set(reviews.review_id)
     luna = hub.claims(model)
-    extract.write_jsonl(out / f"claims_{model}.jsonl", [dict(review_id=r, claims=c) for r, c in luna.items() if r in ids])
+    write_jsonl(out / f"claims_{model}.jsonl", [dict(review_id=r, claims=c) for r, c in luna.items() if r in ids])
     print(pd.DataFrame(panels).groupby(["stratum", "source"]).size().to_string())
     print(len(panels), "panels,", len(reviews), "reviews ->", out)
 
 
 def load_panels(path):
-    return {p["panel_id"]: p["review_ids"] for p in extract.read_jsonl(path)}
+    return {p["panel_id"]: p["review_ids"] for p in read_jsonl(path)}
 
 
 def kind_files(out, stem, suffix):
@@ -203,9 +201,9 @@ def split_council(out, kind, tag, council):
     merged = out / f"{kind}_council.jsonl"
     if not merged.exists():
         return
-    rows = [row for row in extract.read_jsonl(merged) if not row.get("error")]
+    rows = [row for row in read_jsonl(merged) if not row.get("error")]
     for model in council:
-        extract.write_jsonl(out / f"{kind}_{model}{tag}.jsonl", [row for row in rows if row["model"] == model])
+        write_jsonl(out / f"{kind}_{model}{tag}.jsonl", [row for row in rows if row["model"] == model])
 
 
 def council_claims(out, council=settings.GOLD_COUNCIL, threads=16, budget=15.0):
@@ -222,9 +220,9 @@ def drop_incomplete(out, missing):
     if not missing:
         return
     for path in [out / "panels_tune.jsonl", *[p for _, p in kind_files(out, "panels_tune", ".jsonl")]]:
-        panels = list(extract.read_jsonl(path))
+        panels = list(read_jsonl(path))
         kept = [p for p in panels if not missing & set(p["review_ids"])]
-        extract.write_jsonl(path, kept)
+        write_jsonl(path, kept)
         print(f"{path.name}: dropped {len(panels) - len(kept)} panels with missing claims")
 
 
@@ -235,9 +233,9 @@ def claim_inputs(out, council=settings.GOLD_COUNCIL):
     texts = pd.read_parquet(out / "tune_reviews.parquet").set_index("review_id").text
     claims = by_model(out / "claims_council.jsonl", "review_id", "claims")
     drop_incomplete(out, {r for model in council for r in texts.index if r not in claims[model]})
-    order = [r for p in extract.read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]]
+    order = [r for p in read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]]
     items = [dict(review_id=r, text=texts[r], council={model: claims[model][r] for model in council}) for r in order]
-    extract.write_jsonl(folder / "in.jsonl", items)
+    write_jsonl(folder / "in.jsonl", items)
     (folder / "INSTRUCTIONS.md").write_text(render("gold_claims", council=council_names(council)))
 
 
@@ -263,13 +261,13 @@ def judge(folder, schema, name, key, keys, valid, model, effort, threads, budget
                 return [{k: entry[k] for k in keys} for entry in reply[name]]
         return None
 
-    items = list(extract.read_jsonl(folder / "in.jsonl"))
-    done = {row[key]: row for row in extract.read_jsonl(out_path)} if out_path.exists() else {}
+    items = list(read_jsonl(folder / "in.jsonl"))
+    done = {row[key]: row for row in read_jsonl(out_path)} if out_path.exists() else {}
     todo = [item for item in items if item[key] not in done]
     with ThreadPoolExecutor(threads) as pool:
         replies = list(pool.map(one, todo))
     done.update({item[key]: {key: item[key], name: reply} for item, reply in zip(todo, replies) if reply is not None})
-    extract.write_jsonl(out_path, [done[item[key]] for item in items if item[key] in done])
+    write_jsonl(out_path, [done[item[key]] for item in items if item[key] in done])
     failed = len(items) - len(done)
     print(f"{out_path}: {len(done)} of {len(items)} items, ${extract.cost():.2f}", flush=True)
     if failed:
@@ -316,11 +314,11 @@ def group_inputs(out, council=settings.GOLD_COUNCIL):
     folder = out / "adjudicate2"
     folder.mkdir(exist_ok=True)
     gold = extract.load_claims(out / "adjudicate" / "out.jsonl")
-    reviews = {r for p in extract.read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]}
+    reviews = {r for p in read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]}
     drop_incomplete(out, reviews - set(gold))
     clusters = by_model(out / "clusters_council.jsonl", "panel_id", "clusters")
     items = []
-    for panel in extract.read_jsonl(out / "panels_tune.jsonl"):
+    for panel in read_jsonl(out / "panels_tune.jsonl"):
         claims = [
             dict(id=f"R{j}-{k}", claim=c["claim"], category=c["category"], specific=c["specific"])
             for j, review_id in enumerate(panel["review_ids"])
@@ -341,7 +339,7 @@ def group_inputs(out, council=settings.GOLD_COUNCIL):
                 council=votes,
             )
         )
-    extract.write_jsonl(folder / "in.jsonl", items)
+    write_jsonl(folder / "in.jsonl", items)
     (folder / "INSTRUCTIONS.md").write_text(render("gold_groups", council=council_names(council)))
 
 
@@ -383,10 +381,10 @@ def match_claims(
     folder.mkdir(exist_ok=True)
     reference = extract.load_claims(gold / "adjudicate" / "out.jsonl")
     ours = hub.claims(model)
-    order = [r for p in extract.read_jsonl(gold / "panels_tune.jsonl") for r in p["review_ids"]]
+    order = [r for p in read_jsonl(gold / "panels_tune.jsonl") for r in p["review_ids"]]
     claims = [dict(review_id=f"ref_{r}", claims=reference[r]) for r in order] + [dict(review_id=r, claims=ours[r]) for r in order]
-    extract.write_jsonl(folder / "claims.jsonl", claims)
-    extract.write_jsonl(folder / "panels.jsonl", [dict(panel_id=r, review_ids=[f"ref_{r}", r]) for r in order])
+    write_jsonl(folder / "claims.jsonl", claims)
+    write_jsonl(folder / "panels.jsonl", [dict(panel_id=r, review_ids=[f"ref_{r}", r]) for r in order])
     extract.pass2(
         str(folder / "panels.jsonl"), model=matcher, claims_file="claims.jsonl", threads=threads, budget=budget, data=folder
     )

@@ -1,11 +1,8 @@
 import re
-import sys
 from collections import Counter
 from functools import cache
 from itertools import combinations
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fire
 import pandas as pd
@@ -31,14 +28,8 @@ DROP_REASONS = {"panel": DROP_REASON, "sub3": DROP_REASON, "placebo": PLACEBO_DR
 SOURCE_TAGS = ["_icml", "_other"]
 SOURCE_PANEL_KINDS = {"_icml": ["icml"], "_other": ["journal", "journal_placebo"]}
 STALE_REASON = "a cluster row that does not match the current panel files and source parquet"
-ICLR_FROM = 2020
-ICLR_LAST = 2027
-FIRST_YEAR = {"ICLR": ICLR_FROM}
+FIRST_YEAR = {"ICLR": settings.ICLR_FROM}
 DEFAULT_FIRST_YEAR = 2019
-
-
-def load_claims(model):
-    return {review_id: [{"specific": claim["specific"]} for claim in claims] for review_id, claims in hub.claims(model).items()}
 
 
 def tag_of(panel_id):
@@ -49,7 +40,8 @@ def load_outputs(model):
     clusters_by_tag = {}
     for panel_id, panel in hub.clusters(model).items():
         clusters_by_tag.setdefault(tag_of(panel_id), {})[panel_id] = panel
-    return load_claims(model), clusters_by_tag
+    claims = {review_id: [{"specific": claim["specific"]} for claim in claims] for review_id, claims in hub.claims(model).items()}
+    return claims, clusters_by_tag
 
 
 def in_main_sample(frame):

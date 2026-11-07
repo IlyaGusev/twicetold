@@ -1,6 +1,5 @@
 import json
 import re
-import sys
 from difflib import SequenceMatcher
 from pathlib import Path
 
@@ -9,7 +8,7 @@ import fire
 import pandas as pd
 from tqdm import tqdm
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from jsonl import read_jsonl
 from settings import settings
 
 ARCADE = settings.RAW_ML_REVIEWS_DIR / "arcade/train-*.parquet"
@@ -228,43 +227,41 @@ def from_iclr26():
 
 def from_openreview_iclr(year):
     review_rows, paper_rows = [], []
-    with open(settings.DATA_DIR / f"iclr{year}_raw.jsonl") as f:
-        for line in tqdm(f, desc=f"iclr{year} raw notes"):
-            submission = json.loads(line)
-            content = submission["content"]
-            paper_rows.append(
+    for submission in tqdm(read_jsonl(settings.DATA_DIR / f"iclr{year}_raw.jsonl"), desc=f"iclr{year} raw notes"):
+        content = submission["content"]
+        paper_rows.append(
+            dict(
+                conf="ICLR",
+                year=year,
+                paper_id=submission["id"],
+                title=unwrap(content.get("title")),
+                abstract=unwrap(content.get("abstract")),
+                decision_raw=OPENREVIEW_STATUS[unwrap(content.get("venueid")).rsplit("/", 1)[-1]],
+                primary_area=unwrap(content.get("primary_area")),
+                final_venue=unwrap(content.get("venue")),
+            )
+        )
+        for reply in submission["replies"]:
+            if not any(inv.endswith("/Official_Review") for inv in reply.get("invitations", [])):
+                continue
+            raw_fields = {k: unwrap(v) for k, v in reply["content"].items()}
+            fields = {OPENREVIEW_ICLR_FIELDS[k]: v for k, v in raw_fields.items() if k in OPENREVIEW_ICLR_FIELDS and v}
+            review_rows.append(
                 dict(
                     conf="ICLR",
                     year=year,
                     paper_id=submission["id"],
-                    title=unwrap(content.get("title")),
-                    abstract=unwrap(content.get("abstract")),
-                    decision_raw=OPENREVIEW_STATUS[unwrap(content.get("venueid")).rsplit("/", 1)[-1]],
-                    primary_area=unwrap(content.get("primary_area")),
-                    final_venue=unwrap(content.get("venue")),
+                    review_id=reply["id"],
+                    reviewer=reply["signatures"][0],
+                    rating=leading_int(raw_fields.get("rating")),
+                    confidence=leading_int(raw_fields.get("confidence")),
+                    text=join_fields(fields),
+                    weaknesses=squash(str(fields["weaknesses"])) if "weaknesses" in fields else None,
+                    form="+".join(sorted(k for k in raw_fields if k in OPENREVIEW_ICLR_FIELDS)),
+                    review_time=pd.to_datetime(reply.get("cdate"), unit="ms", errors="coerce"),
+                    modified_time=pd.to_datetime(reply.get("mdate"), unit="ms", errors="coerce"),
                 )
             )
-            for reply in submission["replies"]:
-                if not any(inv.endswith("/Official_Review") for inv in reply.get("invitations", [])):
-                    continue
-                raw_fields = {k: unwrap(v) for k, v in reply["content"].items()}
-                fields = {OPENREVIEW_ICLR_FIELDS[k]: v for k, v in raw_fields.items() if k in OPENREVIEW_ICLR_FIELDS and v}
-                review_rows.append(
-                    dict(
-                        conf="ICLR",
-                        year=year,
-                        paper_id=submission["id"],
-                        review_id=reply["id"],
-                        reviewer=reply["signatures"][0],
-                        rating=leading_int(raw_fields.get("rating")),
-                        confidence=leading_int(raw_fields.get("confidence")),
-                        text=join_fields(fields),
-                        weaknesses=squash(str(fields["weaknesses"])) if "weaknesses" in fields else None,
-                        form="+".join(sorted(k for k in raw_fields if k in OPENREVIEW_ICLR_FIELDS)),
-                        review_time=pd.to_datetime(reply.get("cdate"), unit="ms", errors="coerce"),
-                        modified_time=pd.to_datetime(reply.get("mdate"), unit="ms", errors="coerce"),
-                    )
-                )
     return pd.DataFrame(review_rows), pd.DataFrame(paper_rows)
 
 

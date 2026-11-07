@@ -1,14 +1,7 @@
-import json
 from itertools import combinations
 
 import numpy as np
 import pandas as pd
-
-
-def load_jsonl(path, key):
-    with open(path) as f:
-        rows = map(json.loads, f)
-        return {row[key]: row for row in rows if "error" not in row}
 
 
 def assign(panel, claims_by_review):
