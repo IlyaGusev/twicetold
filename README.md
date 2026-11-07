@@ -26,7 +26,7 @@ Every paper has equal weight.
 
 The Hugging Face dataset [`IlyaGusev/twicetold`](https://huggingface.co/datasets/IlyaGusev/twicetold) holds the
 reviews, papers, claims, panels and MELD scores, plus the working files under `artifacts/`. `HF_DATASET_REVISION` in
-`src/settings.py` pins the commit that the paper uses. Git stores only the `.md` notes in `data/`, not the data files.
+`src/settings.py` pins the commit that the paper uses. Git does not store `data/`.
 
 - Analysis code reads the dataset through `src/hub.py`. The first read downloads the pinned revision.
 - `HF_DATASET_LOCAL=true` reads the local build in `RELEASE_DIR` instead.
@@ -66,7 +66,8 @@ input and output; `adjudicate2/` holds the grouping judge input and output. The 
 folder (`src/gold.py`); it calls paid APIs and never writes into `data/gold/`. `tests/test_gold.py` checks that the
 steps without model calls rebuild `data/gold/` byte for byte.
 
-Each data file has a `<file>.md` next to it that says what it holds, how to make it and what reads it.
+The dataset card describes each config and column. Each file under `artifacts/` has a `<file>.md` next to it that
+says what it holds, how to make it and what reads it.
 
 `sample_reviews.parquet` and `panels.jsonl` are the fixed sample; `panels.py ml` cannot redraw them from the current
 `reviews.parquet`. Claim and review embeddings, MELD scores and reference annotations are saved model outputs,
@@ -154,7 +155,7 @@ After scoring, run step 3 in the CPU analysis environment. `meld.py flags`, the 
 
 The recorded initial scoring run took about 4.5 hours on one GPU. Later added-text runs used an RTX 3090; the
 notes do not establish a full-current-corpus runtime or peak memory requirement. See
-[`data/meld_scores.jsonl.md`](data/meld_scores.jsonl.md). Rerun timings depend on hardware and text lengths.
+`artifacts/meld/meld_scores.jsonl.md` in the dataset. Rerun timings depend on hardware and text lengths.
 
 The dataset holds review-linked MELD scores and flags. A flag is a detector output, not proof that a reviewer
 used an LLM. Detector labels must not support action against individual reviewers.
