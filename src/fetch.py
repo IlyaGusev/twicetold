@@ -25,12 +25,13 @@ from urllib3.exceptions import ResponseError
 from urllib3.util.retry import Retry
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import hub
 from settings import settings
 
 UA = "twicetold-research"
 SEED = 0
 YEARS = range(2018, 2027)
-MAX_PAPERS = 500
+MAX_PAPERS = 2000
 MIN_CHARS = 100
 PAPER_MIN_CHARS = 5000
 MIN_REVIEWS = 2
@@ -39,6 +40,7 @@ TIMEOUT = 120
 EPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
 EPMC_BROKEN_RECORD = ResponseError.SPECIFIC_ERROR.format(status_code=500)
 OPENREVIEW_API = "https://api2.openreview.net"
+OPENREVIEW_PAGE = 1000
 
 _local = threading.local()
 
@@ -93,7 +95,10 @@ def shuffled(items):
     return items
 
 
-def finalize(source, reviews, papers, out, max_papers=MAX_PAPERS, stats=None):
+def finalize(source, reviews, papers, out, stats=None):
+    out = Path(out)
+    prior_path = out / f"{source}_reviews.parquet"
+    prior = pd.read_parquet(prior_path) if prior_path.exists() else None
     rv = pd.DataFrame([dict(r, text=clean(r["text"])) for r in reviews])
     pp = pd.DataFrame(papers).drop_duplicates("paper_id")
     rv["n_chars"] = rv.text.str.len()
@@ -110,16 +115,20 @@ def finalize(source, reviews, papers, out, max_papers=MAX_PAPERS, stats=None):
     reviews_per_paper = rv.groupby("paper_id").size()
     reviewed_papers = reviews_per_paper[reviews_per_paper >= MIN_REVIEWS].index
     rv = rv[rv.paper_id.isin(reviewed_papers) & rv.year.isin(YEARS)]
+    prior_years = pd.Series(dtype=int) if prior is None else prior.groupby("paper_id").year.first()
+    rv = rv[~rv.paper_id.isin(prior_years.index)]
     paper_year = rv.groupby("paper_id").year.first()
     chosen = []
     for year, ids in paper_year.groupby(paper_year):
-        year_cap = max_papers(year) if callable(max_papers) else max_papers
-        chosen += shuffled(ids.index.tolist())[:year_cap]
-    rv = rv[rv.paper_id.isin(chosen)].reset_index(drop=True)
+        chosen += shuffled(ids.index.tolist())[: max(MAX_PAPERS - int((prior_years == year).sum()), 0)]
+    rv = rv[rv.paper_id.isin(chosen)]
     pp = pp[pp.paper_id.isin(chosen)].copy()
     pp["year"] = pp.paper_id.map(paper_year)
     pp["n_reviews"] = pp.paper_id.map(rv.groupby("paper_id").size())
-    out = Path(out)
+    if prior is not None:
+        rv = pd.concat([prior, rv[prior.columns]], ignore_index=True)
+        pp = pd.concat([pd.read_parquet(out / f"{source}_papers.parquet"), pp], ignore_index=True)
+    rv = rv.reset_index(drop=True)
     out.mkdir(parents=True, exist_ok=True)
     rv.to_parquet(out / f"{source}_reviews.parquet")
     pp.to_parquet(out / f"{source}_papers.parquet")
@@ -671,10 +680,6 @@ COP_PREPRINT_SERVER = "egusphere"
 COP_JOURNAL_NAMES = {"egusphere": "EGUsphere", "esurf": "ESurf", "gchron": "GChron", "sand": "SaND"}
 
 
-def copernicus_cap(year):
-    return 500 if year >= 2022 else 300
-
-
 def crossref_row(item):
     return dict(
         doi=item["DOI"].lower(),
@@ -836,7 +841,7 @@ def copernicus(out=settings.OTHER_REVIEWS_DIR):
     papers, reviews = [], []
     for y in YEARS:
         year_ms = by_year.get(y, [])
-        candidates = shuffled(year_ms)[: int(copernicus_cap(y) * COP_OVERSAMPLE)]
+        candidates = shuffled(year_ms)[: int(MAX_PAPERS * COP_OVERSAMPLE)]
         print("copernicus", y, "candidates with 2+ RC", len(year_ms), "fetching", len(candidates))
         items = [(ms, sorted(by_ms[ms], key=lambda r: r["created"])) for ms in candidates]
         for res in pmap(copernicus_parse, items, f"copernicus {y}", workers=2):
@@ -845,7 +850,7 @@ def copernicus(out=settings.OTHER_REVIEWS_DIR):
                 papers.append(paper)
                 reviews += paper_reviews
     print("skipped papers:", dict(COP_SKIPPED))
-    finalize("copernicus", reviews, papers, out, max_papers=copernicus_cap, stats=dict(COP_SKIPPED))
+    finalize("copernicus", reviews, papers, out, stats=dict(COP_SKIPPED))
 
 
 ICML_FIELDS = {
@@ -876,16 +881,26 @@ def value_of(content, key):
     return v.get("value") if isinstance(v, dict) else v
 
 
-def icml_download(year, raw):
+def openreview_download(raw, **query):
     client = openreview.api.OpenReviewClient(
         baseurl=OPENREVIEW_API, username=settings.OPENREVIEW_USERNAME, password=settings.OPENREVIEW_PASSWORD
     )
-    notes = client.get_all_notes(content={"venueid": f"ICML.cc/{year}/Conference"}, details="replies")
     tmp = raw.with_suffix(raw.suffix + ".part")
-    with open(tmp, "w") as f:
-        f.writelines(json.dumps(dict(id=n.id, content=n.content, replies=n.details.get("replies", []))) + "\n" for n in notes)
+    total = 0
+    with open(tmp, "w") as f, tqdm(desc=raw.name) as bar:
+        while True:
+            notes = client.get_notes(**query, details="replies", sort="number:asc", limit=OPENREVIEW_PAGE, offset=total)
+            f.writelines(json.dumps(dict(id=n.id, content=n.content, replies=n.details.get("replies", []))) + "\n" for n in notes)
+            total += len(notes)
+            bar.update(len(notes))
+            if len(notes) < OPENREVIEW_PAGE:
+                break
     tmp.rename(raw)
-    print("submissions", len(notes))
+    print("submissions", total)
+
+
+def icml_download(year, raw):
+    openreview_download(raw, content={"venueid": f"ICML.cc/{year}/Conference"})
 
 
 def icml_reviews(year, raw):
@@ -926,6 +941,20 @@ def icml(year=2026, out=settings.DATA_DIR):
     print(len(df), "reviews of", df.paper_id.nunique(), "papers")
 
 
+def iclr_download(year=2027):
+    raw = settings.DATA_DIR / f"iclr{year}_raw.jsonl"
+    if not raw.exists():
+        openreview_download(raw, invitation=f"ICLR.cc/{year}/Conference/-/Submission")
+    venues = Counter()
+    reviews = 0
+    with open(raw) as f:
+        for line in f:
+            sub = json.loads(line)
+            venues[value_of(sub["content"], "venueid")] += 1
+            reviews += sum(any(inv.endswith("/Official_Review") for inv in r.get("invitations", [])) for r in sub["replies"])
+    print(venues, "reviews", reviews)
+
+
 ATOM = {"a": "http://www.w3.org/2005/Atom"}
 
 
@@ -960,10 +989,10 @@ def arxiv_papers(out=settings.PAPER_REVIEW_DIR / "papers.jsonl", n=settings.PAPE
     out = Path(out)
     raw_dir = out.parent / "raw"
     raw_dir.mkdir(parents=True, exist_ok=True)
-    reviews = pd.read_parquet(settings.DATA_DIR / "sample_reviews.parquet", columns=["conf", "year", "paper_id", "text"])
+    reviews = hub.sample("main", ["conf", "year", "paper_id", "text"])
     reviews = reviews[(reviews.conf == "ICLR") & reviews.year.between(2020, settings.MELD_CALIBRATION_LAST_YEAR)]
     words = reviews.assign(words=reviews.text.str.split().str.len()).groupby("paper_id").words.median()
-    papers = pd.read_parquet(settings.DATA_DIR / "papers.parquet", columns=["paper_id", "year", "title"])
+    papers = hub.papers(["paper_id", "year", "title"])
     papers = papers[papers.paper_id.isin(words.index)].drop_duplicates("paper_id").sample(frac=1, random_state=seed)
     rows, tried = [], 0
     for paper in tqdm(papers.itertuples(), total=n, desc="arxiv"):
@@ -988,4 +1017,4 @@ def arxiv_papers(out=settings.PAPER_REVIEW_DIR / "papers.jsonl", n=settings.PAPE
 
 
 if __name__ == "__main__":
-    fire.Fire(dict(scipost=scipost, f1000=f1000, bmc=bmc, plos=plos, copernicus=copernicus, icml=icml, arxiv_papers=arxiv_papers))
+    fire.Fire(dict(scipost=scipost, f1000=f1000, bmc=bmc, plos=plos, copernicus=copernicus, icml=icml, iclr_download=iclr_download, arxiv_papers=arxiv_papers))

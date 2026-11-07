@@ -32,10 +32,11 @@ def classify(out, data=str(settings.DATA_DIR)):
     emb = openai_embed(need.doc.tolist(), settings.EMBED_MODEL, EMBED_BATCH, EMBED_THREADS, "embed abstracts")
 
     labelled = need.primary_area.notna().to_numpy()
-    y = need.primary_area[labelled].to_numpy()
+    train = labelled & (need.year == LABEL_YEAR).to_numpy()
+    y = need.primary_area[train].to_numpy()
     clf = LogisticRegression(max_iter=2000, C=3.0)
-    print(f"5-fold accuracy on {LABEL_YEAR} labels:", cross_val_score(clf, emb[labelled], y, cv=5).mean().round(3))
-    clf.fit(emb[labelled], y)
+    print(f"5-fold accuracy on {LABEL_YEAR} labels:", cross_val_score(clf, emb[train], y, cv=5).mean().round(3))
+    clf.fit(emb[train], y)
     proba = clf.predict_proba(emb)
     pred = clf.classes_[proba.argmax(1)]
     areas = pd.DataFrame(

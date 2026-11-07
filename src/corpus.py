@@ -16,6 +16,14 @@ ARCADE = settings.RAW_ML_REVIEWS_DIR / "arcade/train-*.parquet"
 ARCADE_PAPERS = settings.RAW_ML_REVIEWS_DIR / "arcade/papers.parquet"
 ICLR26 = settings.RAW_ML_REVIEWS_DIR / "iclr2026/heineman.parquet"
 ICLR26_RAW = settings.RAW_ML_REVIEWS_DIR / "iclr2026/jerma_2026.parquet"
+OPENREVIEW_ICLR_YEARS = (2027,)
+OPENREVIEW_ICLR_FIELDS = {
+    "paper_summary": "summary",
+    "critical_strengths": "strengths",
+    "critical_weaknesses": "weaknesses",
+    "questions_for_authors": "questions",
+}
+OPENREVIEW_STATUS = {"Submission": "pending", "Withdrawn_Submission": "Withdrawn", "Desk_Rejected_Submission": "Desk Rejected"}
 REPORT = settings.REPORTS_DIR / "other_inventory.txt"
 
 SECTION_KEYS = [
@@ -81,6 +89,8 @@ def join_fields(fields):
 
 def decision_class(decision):
     decision = decision.lower()
+    if decision == "pending":
+        return "pending"
     if "desk" in decision:
         return "desk_reject"
     if "reject" in decision or decision in ("", "unknown"):
@@ -216,6 +226,48 @@ def from_iclr26():
     return reviews, papers
 
 
+def from_openreview_iclr(year):
+    review_rows, paper_rows = [], []
+    with open(settings.DATA_DIR / f"iclr{year}_raw.jsonl") as f:
+        for line in tqdm(f, desc=f"iclr{year} raw notes"):
+            submission = json.loads(line)
+            content = submission["content"]
+            paper_rows.append(
+                dict(
+                    conf="ICLR",
+                    year=year,
+                    paper_id=submission["id"],
+                    title=unwrap(content.get("title")),
+                    abstract=unwrap(content.get("abstract")),
+                    decision_raw=OPENREVIEW_STATUS[unwrap(content.get("venueid")).rsplit("/", 1)[-1]],
+                    primary_area=unwrap(content.get("primary_area")),
+                    final_venue=unwrap(content.get("venue")),
+                )
+            )
+            for reply in submission["replies"]:
+                if not any(inv.endswith("/Official_Review") for inv in reply.get("invitations", [])):
+                    continue
+                raw_fields = {k: unwrap(v) for k, v in reply["content"].items()}
+                fields = {OPENREVIEW_ICLR_FIELDS[k]: v for k, v in raw_fields.items() if k in OPENREVIEW_ICLR_FIELDS and v}
+                review_rows.append(
+                    dict(
+                        conf="ICLR",
+                        year=year,
+                        paper_id=submission["id"],
+                        review_id=reply["id"],
+                        reviewer=reply["signatures"][0],
+                        rating=leading_int(raw_fields.get("rating")),
+                        confidence=leading_int(raw_fields.get("confidence")),
+                        text=join_fields(fields),
+                        weaknesses=squash(str(fields["weaknesses"])) if "weaknesses" in fields else None,
+                        form="+".join(sorted(k for k in raw_fields if k in OPENREVIEW_ICLR_FIELDS)),
+                        review_time=pd.to_datetime(reply.get("cdate"), unit="ms", errors="coerce"),
+                        modified_time=pd.to_datetime(reply.get("mdate"), unit="ms", errors="coerce"),
+                    )
+                )
+    return pd.DataFrame(review_rows), pd.DataFrame(paper_rows)
+
+
 def is_older_version(reviews):
     repeated = reviews[reviews.reviewer.notna() & reviews.duplicated(["paper_id", "reviewer"], keep=False)]
     older = set()
@@ -248,7 +300,7 @@ def merge_ml(parts):
 
 def ml(out=settings.DATA_DIR):
     out = Path(out)
-    reviews, papers = merge_ml([from_arcade(), from_iclr26()])
+    reviews, papers = merge_ml([from_arcade(), from_iclr26(), *(from_openreview_iclr(y) for y in OPENREVIEW_ICLR_YEARS)])
     out.mkdir(exist_ok=True)
     reviews.to_parquet(out / "reviews.parquet")
     papers.to_parquet(out / "papers.parquet")
@@ -266,6 +318,19 @@ def ml(out=settings.DATA_DIR):
     summary["rev_per_paper"] = (summary.reviews / summary.papers).round(2)
     print(summary.to_string())
     print(papers.groupby(["conf", "year"]).decision.value_counts().unstack(fill_value=0).to_string())
+
+
+def append_openreview_iclr(year=2027, out=settings.DATA_DIR):
+    out = Path(out)
+    reviews = pd.read_parquet(out / "reviews.parquet")
+    if (reviews.conf.eq("ICLR") & reviews.year.eq(year)).any():
+        raise SystemExit(f"ICLR {year} is already in {out / 'reviews.parquet'}")
+    papers = pd.read_parquet(out / "papers.parquet")
+    new_reviews, new_papers = merge_ml([from_openreview_iclr(year)])
+    pd.concat([reviews, new_reviews[reviews.columns]], ignore_index=True).to_parquet(out / "reviews.parquet")
+    pd.concat([papers, new_papers[papers.columns]], ignore_index=True).to_parquet(out / "papers.parquet")
+    print(new_papers.groupby(["decision", "withdrawn"]).size().to_string())
+    print("reviews", len(new_reviews), "papers", len(new_papers))
 
 
 def inventory(reviews, papers, sources, n_dups, src):
@@ -335,4 +400,4 @@ def other(src=settings.OTHER_REVIEWS_DIR, out=settings.DATA_DIR, report=REPORT):
 
 
 if __name__ == "__main__":
-    fire.Fire(dict(ml=ml, other=other))
+    fire.Fire(dict(ml=ml, append_openreview_iclr=append_openreview_iclr, other=other))

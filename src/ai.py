@@ -10,10 +10,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fire
 import numpy as np
 import pandas as pd
+import pyarrow.dataset as ds
 from tqdm import tqdm
 
 import extract
-from metrics import load_jsonl
+import hub
 from prompts import render
 from settings import settings
 
@@ -76,10 +77,8 @@ def done_ids(path):
 
 def reference_sample(per_source):
     cols = ["conf", "year", "review_id", "text"]
-    ml = pd.read_parquet(
-        settings.DATA_DIR / "reviews.parquet", columns=cols, filters=[("year", ">=", 2018), ("year", "<=", 2021)]
-    )
-    other = pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=cols, filters=[("year", "<=", 2021)])
+    ml = hub.corpus_reviews(cols, (ds.field("year") >= 2018) & (ds.field("year") <= 2021))
+    other = hub.journal_reviews(cols, ds.field("year") <= 2021)
     return pd.concat([ml, other]).sample(frac=1, random_state=0).groupby("conf").head(per_source)
 
 
@@ -165,7 +164,7 @@ def rewrite_sample(out=settings.REWRITE_TEST_DIR, seed=0, model=settings.DEFAULT
             ml.drop(first.index).sample(REWRITE_ML_EXTRA_PAPERS, random_state=seed + 1),
         ]
     )
-    clusters = load_jsonl(settings.DATA_DIR / f"clusters_{model}.jsonl", "panel_id")
+    clusters = hub.clusters(model)
     rows = []
     for p in chosen.itertuples():
         review_ids = clusters[p.panel_id]["review_ids"]
@@ -177,8 +176,8 @@ def rewrite_sample(out=settings.REWRITE_TEST_DIR, seed=0, model=settings.DEFAULT
 
 def source_texts(review_ids):
     cols = ["review_id", "conf", "year", "text"]
-    ml = pd.read_parquet(settings.DATA_DIR / "sample_reviews.parquet", columns=cols)
-    other = pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=cols)
+    ml = hub.sample("main", cols)
+    other = hub.journal_reviews(cols)
     texts = pd.concat([ml[ml.review_id.isin(review_ids)], other[other.review_id.isin(review_ids)]])
     return texts.drop_duplicates("review_id").set_index("review_id")
 
@@ -239,8 +238,8 @@ def rewrite_inputs(out=settings.REWRITE_TEST_DIR, model=settings.DEFAULT_MODEL, 
     path = out / f"claims_{model}.jsonl"
     kept = list(extract.read_jsonl(path)) if path.exists() else []
     have = {row["review_id"] for row in kept}
-    claims = extract.read_jsonl(settings.DATA_DIR / f"claims_{model}.jsonl")
-    extract.write_jsonl(path, kept + [row for row in claims if row["review_id"] in originals - have])
+    claims = hub.claims(model)
+    extract.write_jsonl(path, kept + [dict(review_id=r, claims=c) for r, c in claims.items() if r in originals - have])
     print(len(papers), "papers;", {k: len(v) for k, v in texts.items()}, "rewritten reviews")
 
 

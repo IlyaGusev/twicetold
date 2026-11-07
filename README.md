@@ -22,13 +22,29 @@ Every paper has equal weight.
 
 `src/metrics.py` defines the measure. The same function scores panels, pair tables and cross-paper controls.
 
+## Dataset
+
+The Hugging Face dataset [`IlyaGusev/twicetold`](https://huggingface.co/datasets/IlyaGusev/twicetold) holds the
+reviews, papers, claims, panels and MELD scores, plus the working files under `artifacts/`. `HF_DATASET_REVISION` in
+`src/settings.py` pins the commit that the paper uses. Git stores only the `.md` notes in `data/`, not the data files.
+
+- Analysis code reads the dataset through `src/hub.py`. The first read downloads the pinned revision.
+- `HF_DATASET_LOCAL=true` reads the local build in `RELEASE_DIR` instead.
+- `uv run python -I src/release.py pull` copies `artifacts/` into `data/`. The producer steps and
+  `tests/test_gold.py` need these local files.
+- `scripts/release.sh MODEL` builds the dataset into `RELEASE_DIR` from `data/`. `release.py push` uploads it. After
+  a push, set `HF_DATASET_REVISION` to the new commit.
+
 ## Data and extraction
 
 Run commands as `uv run python -I src/<module>.py <command>`. Raw ML dumps live at `RAW_ML_REVIEWS_DIR`; journal
-sources live at `RAW_JOURNAL_REVIEWS_DIR`, both set in `src/settings.py`.
+sources live at `RAW_JOURNAL_REVIEWS_DIR`, both set in `src/settings.py`. Only the producer steps (`fetch`, `corpus`,
+`panels`, `extract`, `meld`, `areas`, `release`) read or write `data/`.
 
-1. Fetch source data with `fetch.py`.
-2. Build the ML review tables with `corpus.py ml`.
+1. Fetch source data with `fetch.py`. `fetch.py iclr_download` gets the ICLR 2027 submissions and reviews from the
+   OpenReview API.
+2. Build the ML review tables with `corpus.py ml`. `corpus.py append_openreview_iclr` appends ICLR 2027 to the
+   existing tables; `panels.py new_cell` and `panels.py robust_cell` append its sample and robustness panels.
 3. Run `scripts/inputs.sh`. It builds the journal tables (`corpus.py other`), parses the ICML downloads
    (`fetch.py icml`), and builds the ICML, journal and robustness inputs (`panels.py icml`, `other`,
    `robust`, `nocq`) and the MELD input (`meld.py input`). Git does not store these inputs. `extract_all.sh` and `post.sh` run `inputs.sh` when the
@@ -41,11 +57,12 @@ Each model has one claims file and one clusters file in `data/` (`claims_<model>
 They hold every sample; the panel id prefix names the sample (`icml_`, `other_`, `otherplacebo_`, `noq_`, `nocq_`, `wd_`,
 `placebo_`, `placeboA_`, `sub3_`, or a bare paper id). Rows record the request settings. A different model or
 reasoning effort needs a different short name. The extraction chains write part files and
-`extract.py merge` joins them. Git LFS stores both files.
+`extract.py merge` joins them. The dataset holds both files as the `claims` column and the `panels` config.
 
 `data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs (`claims_council.jsonl`,
 `clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `adjudicate/` holds the claim judge
-input and output; `adjudicate2/` holds the grouping judge input and output. JSONL and Parquet files use Git LFS. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new
+input and output; `adjudicate2/` holds the grouping judge input and output. The dataset holds them under
+`artifacts/experiments/`. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new
 folder (`src/gold.py`); it calls paid APIs and never writes into `data/gold/`. `tests/test_gold.py` checks that the
 steps without model calls rebuild `data/gold/` byte for byte.
 
@@ -80,22 +97,18 @@ hand-entered values.
 ## Reproduce the detector-conditioned results
 
 1. Use the same repository revision and `uv.lock`, Python 3.14, and the `detect` extra included by
-   `uv sync --locked --all-extras`. Fetch the Git LFS objects with `git lfs pull`.
-2. Restore the fixed sample texts and panels described above. Set the raw-data paths in `.env` and run
-   `scripts/inputs.sh` if the derived inputs are absent. Do not redraw the ML sample: the current corpus cannot
-   recover its original draw. The file notes under `data/` list the required source and saved-output files.
-3. With the saved `data/meld_scores.jsonl`, run the existing analysis chain:
+   `uv sync --locked --all-extras`.
+2. Run the analysis chain:
 
    ```
    OMP_NUM_THREADS=2 nice -n 19 scripts/post.sh gpt-6-luna-high
    ```
 
-   This route uses saved extraction, grouping, embedding and detector outputs. It needs no paid API calls or GPU.
-   It writes review-linked flags locally; do not publish those flags. Do not run `extract_all.sh` to reproduce
-   analysis from saved responses: that script makes paid model calls. On 5 November 2026, the full post chain
-   took 11 minutes 16 seconds and peaked at 3.75 GiB resident memory on an 8-vCPU AMD EPYC-Rome host with
-   `OMP_NUM_THREADS=2`. This is one local run, not a hardware requirement.
-4. Check these aggregate files under `reports/overlap/`:
+   The chain reads the pinned dataset revision and pulls `artifacts/` if `data/` lacks them. It uses saved
+   extraction, grouping, embedding and detector outputs and needs no paid API calls or GPU. Do not redraw the ML
+   sample: the current corpus cannot recover its original draw. Do not run `extract_all.sh` to reproduce analysis
+   from saved responses: that script makes paid model calls.
+3. Check these aggregate files under `reports/overlap/`:
 
    | File | Check |
    |---|---|
@@ -108,13 +121,13 @@ hand-entered values.
 
    | Sample | Identifying papers | Two vs. none (points) | Clustered SE |
    |---|---:|---:|---:|
-   | ICLR 2024–2026, flagged | 6,275 | 3.3 | 0.4 |
-   | ICLR 2024–2026, AI-written | 4,284 | 7.5 | 0.6 |
-   | NeurIPS 2024–2025, flagged | 1,012 | 4.6 | 1.2 |
-   | ICML 2025–2026, flagged | 2,335 | 5.0 | 0.6 |
-   | All journals 2024–2026, flagged | 887 | 4.8 | 1.6 |
+   | ICLR 2024–2027, flagged | 23,471 | 5.5 | 0.2 |
+   | ICLR 2024–2027, LLM-written | 18,368 | 9.8 | 0.3 |
+   | NeurIPS 2024–2025, flagged | 4,542 | 5.2 | 0.6 |
+   | ICML 2025–2026, flagged | 7,481 | 5.5 | 0.4 |
+   | All journals 2024–2026, flagged | 2,225 | 5.0 | 0.9 |
 
-   The AI-written row uses pairs with no AI-written review as its reference; the other rows use unflagged pairs.
+   The LLM-written row uses pairs with no LLM-written review as its reference; the other rows use unflagged pairs.
    The fixed-effects 95% intervals are the estimate ± 1.96 times its unrounded clustered SE. Direct-comparison
    intervals use the t distribution over papers. Source-year pair-type counts alone cannot reproduce either fit.
 
@@ -125,7 +138,7 @@ installation with the project's dependencies. Keep `uv.lock` unchanged and use `
 replace that installation with CPU PyTorch. The original GPU environment lock and driver version are not in this
 archive; the repository therefore does not establish a fully pinned GPU rerun.
 
-In a working copy with the fixed `data/meld_input.parquet` and no `data/meld_scores.jsonl`, run:
+In a working copy with `data/meld_input.parquet` (`meld.py input`) and no `data/meld_scores.jsonl`, run:
 
 ```
 OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python -I -c 'import torch; assert torch.cuda.is_available()'
@@ -143,10 +156,8 @@ The recorded initial scoring run took about 4.5 hours on one GPU. Later added-te
 notes do not establish a full-current-corpus runtime or peak memory requirement. See
 [`data/meld_scores.jsonl.md`](data/meld_scores.jsonl.md). Rerun timings depend on hardware and text lengths.
 
-A release without review-linked scores needs this local detector rerun and the exact sampled texts. Released
-pair overlap and source-year counts are not enough. Withholding scores limits direct disclosure; it does not
-prevent someone from joining public reviews to released claims or rerunning the public detector. Detector labels
-must not support action against individual reviewers.
+The dataset holds review-linked MELD scores and flags. A flag is a detector output, not proof that a reviewer
+used an LLM. Detector labels must not support action against individual reviewers.
 
 ## Paper
 

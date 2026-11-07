@@ -1,4 +1,3 @@
-import json
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -11,6 +10,7 @@ from openai import APIError, BadRequestError, OpenAI, RateLimitError
 from tqdm import tqdm
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import hub
 from outcomes import main_sample_review_ids
 from settings import settings
 
@@ -43,29 +43,26 @@ def openai_embed(texts, model, batch, threads, desc):
 
 def claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
     data = Path(data)
-    reviews = pd.read_parquet(data / "reviews.parquet", columns=["review_id", "paper_id", "conf", "year"]).set_index("review_id")
+    reviews = hub.corpus_reviews(["review_id", "paper_id", "conf", "year"]).set_index("review_id")
     rows = []
-    with open(data / f"claims_{model}.jsonl") as f:
-        for line in tqdm(f, desc="claims table"):
-            record = json.loads(line)
-            if "claims" not in record or record["review_id"] not in reviews.index:
-                continue
-            review_id = record["review_id"]
-            review = reviews.loc[review_id]
-            for k, claim in enumerate(record["claims"]):
-                rows.append(
-                    {
-                        "review_id": review_id,
-                        "k": k,
-                        "paper_id": review.paper_id,
-                        "conf": review.conf,
-                        "year": int(review.year),
-                        "claim": claim["claim"],
-                        "category": claim["category"],
-                        "target": claim["target"],
-                        "specific": claim["specific"],
-                    }
-                )
+    for review_id, claims in tqdm(hub.claims(model).items(), desc="claims table"):
+        if review_id not in reviews.index:
+            continue
+        review = reviews.loc[review_id]
+        for k, claim in enumerate(claims):
+            rows.append(
+                {
+                    "review_id": review_id,
+                    "k": k,
+                    "paper_id": review.paper_id,
+                    "conf": review.conf,
+                    "year": int(review.year),
+                    "claim": claim["claim"],
+                    "category": claim["category"],
+                    "target": claim["target"],
+                    "specific": claim["specific"],
+                }
+            )
     pd.DataFrame(rows).to_parquet(data / f"claims_table_{model}.parquet", index=False)
 
 
@@ -74,19 +71,23 @@ def normalize_rows(X):
     return X
 
 
-def embed_reviews(data, threads):
-    R = pd.read_parquet(data / "sample_reviews.parquet", columns=["review_id", "text"])
-    texts = [t[:REVIEW_EMBED_CHARS] for t in R.text.fillna("")]
+def embed_reviews(data, threads, reembed):
+    path = data / "review_emb.npy"
+    R = hub.sample("main", ["review_id", "text"])
+    old = None if reembed or not path.exists() else np.load(path)
+    start = 0 if old is None else len(old)
+    if start == len(R):
+        return
+    texts = [t[:REVIEW_EMBED_CHARS] for t in R.text.iloc[start:].fillna("")]
     E = openai_embed(texts, settings.EMBED_MODEL, batch=64, threads=threads, desc="embed reviews")
-    np.save(data / "review_emb.npy", E)
-    print("embedded", len(texts))
+    np.save(path, E if old is None else np.concatenate([old, E]))
+    print("embedded", len(texts), "from row", start)
 
 
 def load_reviews(data):
-    R = pd.read_parquet(data / "sample_reviews.parquet", columns=["conf", "year", "paper_id", "review_id"])
+    R = hub.sample("main", ["conf", "year", "paper_id", "review_id"])
     R["row"] = np.arange(len(R))
-    areas = pd.read_parquet(data / "paper_areas.parquet", columns=["paper_id", "area_pred"])
-    R = R[R.review_id.isin(main_sample_review_ids(data))].merge(areas, on="paper_id", how="left")
+    R = R[R.review_id.isin(main_sample_review_ids())].merge(hub.paper_areas(), on="paper_id", how="left")
     E = normalize_rows(np.load(data / "review_emb.npy"))
     return R, E
 
@@ -143,8 +144,7 @@ def cell_similarity(R, E, intra, rng):
 
 def embed(model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     data, reports = Path(data), Path(reports)
-    if reembed:
-        embed_reviews(data, threads)
+    embed_reviews(data, threads, reembed)
     R, E = load_reviews(data)
     intra = intra_paper(R, E)
     cells = cell_similarity(R, E, intra, np.random.default_rng(0))

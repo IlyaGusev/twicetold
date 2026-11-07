@@ -20,7 +20,7 @@ MIN_NOVELTY_PAPERS = 30
 JOURNALS = "journals"
 PRE_PERIOD = tuple(range(2019, 2024))
 TRENDS = [
-    ("ICLR, 2023 to 2026", "ICLR", (2023,), 2026),
+    ("ICLR, 2023 to 2027", "ICLR", (2023,), 2027),
     ("NeurIPS, 2024 to 2025", "NeurIPS", (2024,), 2025),
     ("ICML, 2025 to 2026", "ICML", (2025,), 2026),
     ("F1000, 2019--23 to 2026", "F1000", PRE_PERIOD, 2026),
@@ -133,7 +133,7 @@ def summarize(estimate, se, papers, digits, sign):
 
 
 def estimates(model):
-    meld = meld_flags(settings.DATA_DIR)
+    meld = meld_flags()
     labels = {"flag": meld.flag.astype(int), "written": meld.written.astype(int)}
     pairs = pair_measures(in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")))
     reviews = review_table(model)

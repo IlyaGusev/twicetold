@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     PROMPTS_DIR: Path = ROOT / "src" / "prompts"
     RAW_ML_REVIEWS_DIR: Path = Path("/home/yallen/data/peer-review")
     RAW_JOURNAL_REVIEWS_DIR: Path = Path("/home/yallen/data/peer-review/other")
+    RELEASE_DIR: Path = Path("/data/twicetold_release")
+    HF_DATASET_REPO: str = "IlyaGusev/twicetold"
+    HF_DATASET_REVISION: str = "3c3e0120177b1e12ff7d507bb3d6e22d80871466"
+    HF_DATASET_LOCAL: bool = False
 
     @property
     def OTHER_REVIEWS_DIR(self):

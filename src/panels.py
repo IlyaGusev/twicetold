@@ -1,3 +1,4 @@
+import json
 import re
 import sys
 from pathlib import Path
@@ -11,7 +12,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from extract import read_jsonl, write_jsonl
 from settings import settings
 
-QUOTA = {("ICLR", 2024): 3000, ("ICLR", 2025): 3000, ("ICLR", 2026): 6000, **{("NeurIPS", y): 1000 for y in range(2021, 2026)}}
+QUOTA = {
+    ("ICLR", 2024): 3000,
+    ("ICLR", 2025): 3000,
+    ("ICLR", 2026): 6000,
+    ("ICLR", 2027): 10000,
+    **{("NeurIPS", y): 1000 for y in range(2021, 2026)},
+}
 MAX_REVIEWS = 5
 MIN_REVIEWS = 3
 MIN_ICML_REVIEW_CHARS = 200
@@ -107,10 +114,8 @@ def icml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), per_year=1500,
     rng = np.random.default_rng(seed)
     parts = []
     for year in (2025, 2026):
-        year_reviews = pd.read_parquet(data / f"icml{year}_reviews.parquet")
-        year_reviews = year_reviews[year_reviews.text.str.len() > MIN_ICML_REVIEW_CHARS].drop_duplicates(["paper_id", "text"])
-        reviews_per_paper = year_reviews.groupby("paper_id").size()
-        keep = rng.choice(reviews_per_paper[reviews_per_paper >= MIN_REVIEWS].index, per_year, replace=False)
+        year_reviews, paper_ids = icml_eligible(data, year)
+        keep = rng.choice(paper_ids, per_year, replace=False)
         shuffled = year_reviews[year_reviews.paper_id.isin(keep)].sample(frac=1, random_state=0)
         parts.append(shuffled.groupby("paper_id").head(MAX_REVIEWS))
     sample = pd.concat(parts)
@@ -125,6 +130,76 @@ def icml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), per_year=1500,
         )
         .to_string()
     )
+
+
+def append_jsonl(path, rows):
+    with open(path, "a") as f:
+        f.writelines(json.dumps(row) + "\n" for row in rows)
+
+
+def icml_eligible(data, year):
+    year_reviews = pd.read_parquet(data / f"icml{year}_reviews.parquet")
+    year_reviews = year_reviews[year_reviews.text.str.len() > MIN_ICML_REVIEW_CHARS].drop_duplicates(["paper_id", "text"])
+    reviews_per_paper = year_reviews.groupby("paper_id").size()
+    return year_reviews, reviews_per_paper[reviews_per_paper >= MIN_REVIEWS].index
+
+
+def extend(data=str(settings.DATA_DIR), seed=2028):
+    data = Path(data)
+    rng = np.random.default_rng(seed)
+    sample = pd.read_parquet(data / "sample_reviews.parquet")
+    reviews = pd.read_parquet(data / "reviews.parquet", columns=["conf", "year", "paper_id", "review_id"])
+    papers = pd.read_parquet(data / "papers.parquet", columns=["conf", "year", "paper_id", "withdrawn", "n_reviews", "decision"])
+    eligible = papers[~papers.withdrawn & (papers.n_reviews >= MIN_REVIEWS) & papers.decision.ne("desk_reject")]
+    in_quota_cell = pd.Series(list(zip(eligible.conf, eligible.year)), index=eligible.index).isin(QUOTA)
+    new_ids = set(eligible.paper_id[in_quota_cell]) - set(sample.paper_id)
+    added = cap_reviews_per_paper(rng, reviews[reviews.paper_id.isin(new_ids)])
+    added = added.sort_values(["conf", "year", "paper_id", "review_id"])
+    added["text"] = texts_by_id(data / "reviews.parquet", set(added.review_id)).reindex(added.review_id).to_numpy()
+    pd.concat([sample, added], ignore_index=True).to_parquet(data / "sample_reviews.parquet")
+    append_jsonl(data / "panels.jsonl", (p for p in by_paper_panels(added) if len(p["review_ids"]) >= MIN_REVIEWS))
+    print(added.groupby(["conf", "year"]).agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")).to_string())
+
+    icml_sample = pd.read_parquet(data / "icml_sample.parquet")
+    parts = []
+    for year in (2025, 2026):
+        year_reviews, paper_ids = icml_eligible(data, year)
+        new = year_reviews[year_reviews.paper_id.isin(set(paper_ids) - set(icml_sample.paper_id))]
+        parts.append(new.sample(frac=1, random_state=0).groupby("paper_id").head(MAX_REVIEWS))
+    icml_added = pd.concat(parts)[icml_sample.columns]
+    pd.concat([icml_sample, icml_added], ignore_index=True).to_parquet(data / "icml_sample.parquet")
+    append_jsonl(data / "panels_icml.jsonl", by_paper_panels(icml_added, "icml_", sort=True))
+    print(icml_added.groupby("year").agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")).to_string())
+
+
+def new_cell(conf="ICLR", year=2027, data=str(settings.DATA_DIR), placebo_per_cell=300, seed=2029):
+    data = Path(data)
+    rng = np.random.default_rng(seed)
+    sample = pd.read_parquet(data / "sample_reviews.parquet")
+    if ((sample.conf == conf) & (sample.year == year)).any():
+        raise SystemExit(f"{conf} {year} is already in the sample")
+    cell = [("conf", "==", conf), ("year", "==", year)]
+    reviews = pd.read_parquet(data / "reviews.parquet", columns=["conf", "year", "paper_id", "review_id"], filters=cell)
+    papers = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "withdrawn", "n_reviews", "decision"], filters=cell)
+    eligible = papers[~papers.withdrawn & (papers.n_reviews >= MIN_REVIEWS) & papers.decision.ne("desk_reject")]
+    chosen = rng.choice(np.sort(eligible.paper_id.to_numpy()), QUOTA[(conf, year)], replace=False)
+    added = cap_reviews_per_paper(rng, reviews[reviews.paper_id.isin(chosen)])
+    added = added.sort_values(["conf", "year", "paper_id", "review_id"])
+    added["text"] = texts_by_id(data / "reviews.parquet", set(added.review_id)).reindex(added.review_id).to_numpy()
+    pd.concat([sample, added], ignore_index=True).to_parquet(data / "sample_reviews.parquet")
+    append_jsonl(data / "panels.jsonl", (p for p in by_paper_panels(added) if len(p["review_ids"]) >= MIN_REVIEWS))
+    by_paper = review_ids_by_paper(added)
+    append_jsonl(
+        data / "panels_placebo.jsonl",
+        (
+            dict(
+                panel_id=f"placebo_{conf}_{year}_{k}",
+                review_ids=one_review_per_paper(rng, by_paper, rng.choice(by_paper.index, 4, replace=False)),
+            )
+            for k in range(placebo_per_cell)
+        ),
+    )
+    print(conf, year, "eligible", len(eligible), "papers", added.paper_id.nunique(), "reviews", len(added))
 
 
 def preprint_shares(reviews):
@@ -229,9 +304,40 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
     print("new noq reviews", len(noq_full), "papers", noq_full.paper_id.nunique())
 
 
-def full_sub3(iclr, rng, main_panel_reviews, done_sub3):
+def robust_cell(year=2027, data=str(settings.DATA_DIR), seed=2030):
+    data = Path(data)
+    rng = np.random.default_rng(seed)
+    iclr = pd.read_parquet(data / "sample_reviews.parquet")
+    iclr = iclr[(iclr.conf == "ICLR") & (iclr.year == year)]
+    if any(r["panel_id"].startswith(f"placeboA_ICLR_{year}_") for r in read_jsonl(data / "panels_placebo_area.jsonl")):
+        raise SystemExit(f"ICLR {year} already has robustness panels")
+    areas = pd.read_parquet(data / "paper_areas.parquet")[["paper_id", "area_pred"]]
+    with_area = iclr.merge(areas, on="paper_id", how="left")
+    with_area["area_pred"] = with_area.area_pred.fillna("other")
+    by_paper = review_ids_by_paper(with_area)
+    area_of = with_area.drop_duplicates("paper_id").set_index("paper_id").area_pred
+    placebo_area = []
+    for k in range(AREA_PLACEBOS_PER_YEAR):
+        area = area_of.sample(1, random_state=int(rng.integers(1 << 31))).iloc[0]
+        area_papers = area_of.index[area_of == area]
+        if len(area_papers) >= 3:
+            rids = one_review_per_paper(rng, by_paper, rng.choice(area_papers, 3, replace=False))
+            placebo_area.append(dict(panel_id=f"placeboA_ICLR_{year}_{k}", area=area, review_ids=rids))
+    append_jsonl(data / "panels_placebo_area.jsonl", placebo_area)
+    main_panel_reviews = {r for p in read_jsonl(data / "panels.jsonl") for r in p["review_ids"]}
+    sub3 = full_sub3(iclr.assign(year=year), rng, main_panel_reviews, set(), years=(year,))
+    append_jsonl(data / "panels_sub3.jsonl", sub3)
+    pids = rng.choice(np.sort(iclr.paper_id.unique()), ROBUST_PAPERS_PER_YEAR, replace=False)
+    noq = without_questions(iclr[iclr.paper_id.isin(pids)])[["conf", "year", "paper_id", "review_id", "text"]]
+    noq_all = pd.read_parquet(data / "noq_reviews.parquet")
+    pd.concat([noq_all, noq], ignore_index=True).to_parquet(data / "noq_reviews.parquet")
+    append_jsonl(data / "panels_noq.jsonl", by_paper_panels(noq, NOQ_PREFIX, sort=True))
+    print("placebo_area", len(placebo_area), "sub3", len(sub3), "noq reviews", len(noq), "papers", noq.paper_id.nunique())
+
+
+def full_sub3(iclr, rng, main_panel_reviews, done_sub3, years=SUB3_FULL_YEARS):
     new_sub3 = []
-    for year in SUB3_FULL_YEARS:
+    for year in years:
         by_paper = review_ids_by_paper(iclr[iclr.year == year])
         for pid, rids in by_paper[by_paper.str.len() >= 4].items():
             if f"sub3_{pid}" not in done_sub3:
@@ -273,4 +379,16 @@ def wd(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
 
 
 if __name__ == "__main__":
-    fire.Fire({"ml": ml, "icml": icml, "other": other, "robust": robust, "nocq": nocq, "wd": wd})
+    fire.Fire(
+        {
+            "ml": ml,
+            "icml": icml,
+            "extend": extend,
+            "new_cell": new_cell,
+            "robust_cell": robust_cell,
+            "other": other,
+            "robust": robust,
+            "nocq": nocq,
+            "wd": wd,
+        }
+    )

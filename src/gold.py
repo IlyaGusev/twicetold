@@ -9,6 +9,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import extract
+import hub
 from ai import paper_kind
 from prompts import render
 from settings import settings
@@ -61,17 +62,17 @@ def merge_council(out, kind, key, tag, council):
         part.unlink()
 
 
-def sample(out, seed=7, data=str(settings.DATA_DIR), gold=str(settings.GOLD_DIR)):
-    out, data = Path(out), Path(data)
+def sample(out, seed=7, gold=str(settings.GOLD_DIR)):
+    out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     key = json.loads((Path(gold) / "blind_key.json").read_text())
-    placebo = {p["panel_id"]: p for p in extract.read_jsonl(data / "panels_placebo.jsonl")}
+    placebo = hub.panel_definitions(["placebo_venue"])
     rng = np.random.default_rng(seed)
     panels = [dict(panel_id=code, review_ids=v["review_ids"], kind="same", year=v["year"]) for code, v in sorted(key.items())]
     for year in CROSS_YEARS:
         ids = sorted(p for p in placebo if p.startswith(f"placebo_ICLR_{year}_"))
         chosen = rng.choice(ids, CROSS_PER_YEAR, replace=False)
-        panels += [dict(panel_id=p, review_ids=placebo[p]["review_ids"], kind="cross", year=year) for p in chosen]
+        panels += [dict(panel_id=p, review_ids=placebo[p], kind="cross", year=year) for p in chosen]
     cells = {}
     for panel in panels:
         cells.setdefault((panel["kind"], panel["year"]), []).append(panel)
@@ -80,7 +81,7 @@ def sample(out, seed=7, data=str(settings.DATA_DIR), gold=str(settings.GOLD_DIR)
             panel["split"] = "test" if i >= len(cell) - TEST_PER_CELL[kind] else "dev"
     extract.write_jsonl(out / "panels_tune.jsonl", panels)
 
-    reviews = pd.read_parquet(data / "sample_reviews.parquet")
+    reviews = hub.sample("main", ["conf", "year", "paper_id", "review_id", "text"])
     blind_ids = {r for v in key.values() for r in v["review_ids"]}
     blind = reviews[reviews.review_id.isin(blind_ids)][["review_id", "text"]]
     panel_ids = {r for p in panels for r in p["review_ids"]}
@@ -103,9 +104,9 @@ def sample_audit(out=settings.AUDIT_DIR, seed=11, model=settings.DEFAULT_MODEL):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
-    flag = pd.read_parquet(settings.DATA_DIR / "meld_flags.parquet", columns=["review_id", "flag"]).set_index("review_id").flag
+    flag = hub.meld_flags(["review_id", "flag"]).set_index("review_id").flag
     flag = flag.to_dict()
-    clusters = load_panels(settings.DATA_DIR / "panels.jsonl")
+    clusters = hub.panel_definitions(["paper"])
     iclr = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["panel_id", "conf", "year"])
     iclr = iclr[iclr.conf == "ICLR"].sort_values("panel_id")
     panels = []
@@ -120,10 +121,8 @@ def sample_audit(out=settings.AUDIT_DIR, seed=11, model=settings.DEFAULT_MODEL):
         picked = flagged_split(clusters[p.panel_id], flag, rng)
         if picked and len(picked) == AUDIT_REVIEWS:
             panels.append(dict(source="ICLR", stratum="flag", year=int(p.year), paper_id=p.panel_id, review_ids=picked))
-    journals = load_panels(settings.DATA_DIR / "panels_other.jsonl")
-    meta = pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=["review_id", "conf", "year"]).set_index(
-        "review_id"
-    )
+    journals = hub.panel_definitions(["journal"])
+    meta = hub.journal_reviews(["review_id", "conf", "year"]).set_index("review_id")
     candidates = pd.DataFrame(
         [dict(panel_id=k, conf=meta.conf[v[0]], year=int(meta.year[v[0]])) for k, v in journals.items() if v[0] in meta.index]
     )
@@ -144,10 +143,8 @@ def sample_written(out=settings.AUDIT_WRITTEN_DIR, seed=12, model=settings.DEFAU
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
-    labels = pd.read_parquet(settings.DATA_DIR / "meld_flags.parquet", columns=["review_id", "flag", "written"]).set_index(
-        "review_id"
-    )
-    clusters = load_panels(settings.DATA_DIR / "panels.jsonl")
+    labels = hub.meld_flags(["review_id", "flag", "written"]).set_index("review_id")
+    clusters = hub.panel_definitions(["paper"])
     iclr = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["panel_id", "conf", "year"])
     iclr = iclr[(iclr.conf == "ICLR") & iclr.year.between(*AUDIT_FLAG_YEARS)].sort_values("panel_id")
     panels = []
@@ -172,8 +169,8 @@ def write_audit(out, panels, model):
     texts = (
         pd.concat(
             [
-                pd.read_parquet(settings.DATA_DIR / "sample_reviews.parquet", columns=["review_id", "text"]),
-                pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=["review_id", "text"]),
+                hub.sample("main", ["review_id", "text"]),
+                hub.journal_reviews(["review_id", "text"]),
             ]
         )
         .drop_duplicates("review_id")
@@ -187,8 +184,8 @@ def write_audit(out, panels, model):
         reviews[reviews.paper_kind == kind][["review_id", "text"]].to_parquet(out / f"tune_reviews_{kind}.parquet")
         extract.write_jsonl(out / f"panels_tune_{kind}.jsonl", [p for p in panels if p["paper_kind"] == kind])
     ids = set(reviews.review_id)
-    luna = extract.read_jsonl(settings.DATA_DIR / f"claims_{model}.jsonl")
-    extract.write_jsonl(out / f"claims_{model}.jsonl", [row for row in luna if row["review_id"] in ids])
+    luna = hub.claims(model)
+    extract.write_jsonl(out / f"claims_{model}.jsonl", [dict(review_id=r, claims=c) for r, c in luna.items() if r in ids])
     print(pd.DataFrame(panels).groupby(["stratum", "source"]).size().to_string())
     print(len(panels), "panels,", len(reviews), "reviews ->", out)
 
@@ -385,7 +382,7 @@ def match_claims(
     folder = Path(folder) if folder else Path(data) / f"match_{model}"
     folder.mkdir(exist_ok=True)
     reference = extract.load_claims(gold / "adjudicate" / "out.jsonl")
-    ours = extract.load_claims(Path(data) / f"claims_{model}.jsonl")
+    ours = hub.claims(model)
     order = [r for p in extract.read_jsonl(gold / "panels_tune.jsonl") for r in p["review_ids"]]
     claims = [dict(review_id=f"ref_{r}", claims=reference[r]) for r in order] + [dict(review_id=r, claims=ours[r]) for r in order]
     extract.write_jsonl(folder / "claims.jsonl", claims)

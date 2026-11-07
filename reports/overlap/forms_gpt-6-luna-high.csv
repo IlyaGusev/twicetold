@@ -1,8 +1,9 @@
 year,form,papers,removed_papers,hit,hit_removed,hit_without,hit_spec,form_share,removed_change,hit_se,hit_removed_se,hit_without_se,hit_spec_se,form_share_se,removed_change_se
-2020,review,2127,0,12.751,,11.546,10.586,40.007,,0.302,,0.335,0.295,0.994,
-2021,review,2594,0,11.312,,9.832,9.465,41.787,,0.196,,0.216,0.188,0.76,
-2022,main review+summary of the paper+summary of the review,2617,0,12.332,,10.722,10.422,41.083,,0.211,,0.234,0.204,0.734,
-2023,"clarity, quality, novelty and reproducibility+strength and weaknesses+summary of the paper+summary of the review",3789,3789,13.064,11.965,10.259,9.995,49.124,-1.099,0.186,0.193,0.2,0.174,0.633,0.16
-2024,questions+strengths+summary+weaknesses,3000,3000,11.355,11.191,10.525,9.47,37.69,-0.164,0.178,0.212,0.205,0.175,0.714,0.178
-2025,questions+strengths+summary+weaknesses,3000,3000,11.761,11.486,11.474,10.113,34.047,-0.275,0.175,0.205,0.207,0.173,0.644,0.167
-2026,questions+strengths+summary+weaknesses,4761,4761,14.478,13.986,14.598,13.389,26.091,-0.492,0.155,0.176,0.179,0.161,0.455,0.133
+2020,review,2127,0,12.793,,11.575,10.606,39.996,,0.303,,0.337,0.296,0.994,
+2021,review,2594,0,11.311,,9.846,9.463,41.794,,0.196,,0.216,0.188,0.76,
+2022,main review+summary of the paper+summary of the review,2617,0,12.335,,10.728,10.425,41.116,,0.211,,0.234,0.204,0.734,
+2023,"clarity, quality, novelty and reproducibility+strength and weaknesses+summary of the paper+summary of the review",3789,3789,13.061,11.962,10.255,9.991,49.107,-1.099,0.186,0.193,0.2,0.174,0.633,0.16
+2024,questions+strengths+summary+weaknesses,5690,3000,11.276,11.191,10.476,9.429,37.929,-0.157,0.131,0.212,0.153,0.127,0.518,0.178
+2025,questions+strengths+summary+weaknesses,8629,3000,11.666,11.485,11.197,10.166,34.885,-0.275,0.102,0.205,0.118,0.101,0.384,0.166
+2026,questions+strengths+summary+weaknesses,13745,4761,14.651,13.988,14.786,13.584,25.747,-0.492,0.093,0.176,0.107,0.095,0.265,0.133
+2027,critical_strengths+critical_weaknesses+paper_summary+questions_for_authors,10000,400,24.423,23.303,25.06,23.624,21.439,-0.908,0.173,0.922,0.195,0.177,0.298,0.635

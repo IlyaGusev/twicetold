@@ -12,7 +12,7 @@ uv run python -I src/fetch.py icml --year 2026
 
 `scripts/inputs.sh` runs this step. It downloads the file (`icml_download`) only when the file does not exist. It
 calls OpenReview API v2 (`https://api2.openreview.net`) with `OPENREVIEW_USERNAME` and `OPENREVIEW_PASSWORD` from
-`.env`: `client.get_all_notes(content={"venueid": "ICML.cc/2026/Conference"}, details="replies")`. Needs network
+`.env`: `client.get_notes(content={"venueid": "ICML.cc/2026/Conference"}, details="replies")`, 1,000 papers per request. Needs network
 and credentials; no cost.
 
 ## Notes

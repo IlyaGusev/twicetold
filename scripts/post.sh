@@ -8,7 +8,6 @@ fi
 MODEL=$1
 OUT_DIR=${2:-}
 export OMP_NUM_THREADS=2
-[ -f data/other_reviews.parquet ] || scripts/inputs.sh
 step() {
   echo "=== $* $(date +%H:%M:%S)"
   local exit_code=0
@@ -19,7 +18,7 @@ step() {
   fi
 }
 
-step src/meld.py flags
+[ -f data/review_emb.npy ] || step src/release.py pull
 step src/outcomes.py panels --model "$MODEL"
 step src/outcomes.py pairs --model "$MODEL"
 step src/between.py claims_table --model "$MODEL"

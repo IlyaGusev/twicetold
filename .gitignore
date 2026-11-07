@@ -6,8 +6,6 @@ __pycache__/
 .pytest_cache/
 uv.lock
 logs/
-data/overlap/
-data/claims_table_*.parquet
 paper/*.aux
 paper/*.log
 paper/*.bbl
@@ -16,11 +14,6 @@ paper/*.out
 paper/*.fdb_latexmk
 paper/*.fls
 paper/*.synctex.gz
-data/other_reviews.parquet
-data/other_pass1.parquet
-data/icml2025_reviews.parquet
-data/icml2026_reviews.parquet
-data/noq_reviews.parquet
-data/nocq_reviews.parquet
-data/meld_input.parquet
-data/paper_reviews/raw/
+data/**
+!data/**/
+!data/**/*.md

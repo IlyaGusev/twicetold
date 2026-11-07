@@ -7,22 +7,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fire
 import numpy as np
 import pandas as pd
-import pyarrow as pa
-import pyarrow.compute as pc
-import pyarrow.parquet as pq
 import statsmodels.api as sm
 from scipy import stats
 from tqdm import tqdm
 
+import hub
 from ai import PAIR_PREFIX, REWRITE_CONDITIONS
 from extract import read_jsonl
 from meld import WRITTEN_TASK
 from metrics import assign, load_jsonl, mean_overlap, review_groups
 from metrics import overlap as pair_overlap
-from outcomes import ICLR_FROM, SOURCE_FILES, excluded_review_ids, in_window
+from outcomes import ICLR_FROM, ICLR_LAST, excluded_review_ids, in_window
 from settings import settings
 
-BATCH_ROWS = 20000
 ML_VENUES = ["ICLR", "NeurIPS", "ICML"]
 REMOVED_FIELD_TAGS = ("_nocq", "_noq")
 MIN_DIRECT_PAPERS = 10
@@ -38,6 +35,10 @@ FIELD_LABELS = {
     "questions": "questions",
     "clarity, quality, novelty and reproducibility": r"\textbf{clarity, quality, novelty and reproducibility}",
     "summary of the review": "review summary",
+    "paper_summary": "summary",
+    "critical_strengths": "critical strengths",
+    "critical_weaknesses": "critical weaknesses",
+    "questions_for_authors": "questions",
 }
 
 
@@ -52,23 +53,24 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     wd = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_wd.parquet").query("n_claims > 0")
     with_wd = pd.concat([main, wd.assign(year=2026)])
     checks = [
-        ("Main overlap rate", main, "hit_rate_strict", 2023),
-        ("Specific claims only", specific, "hit_spec", 2023),
-        ("Same part of paper (lenient)", main, "hit_rate_lenient", 2023),
-        ("3-review subsets, grouped again", sub3, "hit_rate_strict", 2023),
-        ("Questions field removed", noq, "hit_rate_strict", 2024),
-        ("Withdrawn 2026 papers added", with_wd, "hit_rate_strict", 2023),
+        ("Main overlap rate", main, "hit_rate_strict", 2023, ICLR_LAST),
+        ("Specific claims only", specific, "hit_spec", 2023, ICLR_LAST),
+        ("Same part of paper (lenient)", main, "hit_rate_lenient", 2023, ICLR_LAST),
+        ("3-review subsets, grouped again", sub3, "hit_rate_strict", 2023, ICLR_LAST),
+        ("Questions field removed", noq, "hit_rate_strict", 2024, ICLR_LAST),
+        ("Withdrawn 2026 papers added", with_wd, "hit_rate_strict", 2023, 2026),
     ]
     rows = []
-    for name, df, col, base_year in checks:
+    for name, df, col, base_year, last_year in checks:
         base = df[df.year == base_year][col].dropna() * 100
-        last = df[df.year == 2026][col].dropna() * 100
+        last = df[df.year == last_year][col].dropna() * 100
         rows.append(
             {
                 "check": name,
                 "base_year": base_year,
                 "base": base.mean(),
-                "y2026": last.mean(),
+                "last_year": last_year,
+                "last": last.mean(),
                 "change": last.mean() - base.mean(),
                 "se": np.hypot(base.sem(), last.sem()),
             }
@@ -76,9 +78,15 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     out = pd.DataFrame(rows)
     out.round(3).to_csv(Path(reports) / f"robust_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    lines = [r"\begin{tabular}{lrrrr}", r"\toprule", r"Check & Base year & Base & 2026 & Change (SE) \\", r"\midrule"]
+    lines = [
+        r"\begin{tabular}{lrrrrr}",
+        r"\toprule",
+        r"Check & Base year & Base & Last year & Last & Change (SE) \\",
+        r"\midrule",
+    ]
     lines += [
-        f"{r.check} & {r.base_year} & {r.base:.1f} & {r.y2026:.1f} & {r.change:+.1f} ({r.se:.1f}) \\\\" for r in out.itertuples()
+        f"{r.check} & {r.base_year} & {r.base:.1f} & {r.last_year} & {r.last:.1f} & {r.change:+.1f} ({r.se:.1f}) \\\\"
+        for r in out.itertuples()
     ]
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
@@ -106,8 +114,8 @@ def forms(
     main = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").query(
         f"conf == 'ICLR' and year >= {ICLR_FROM} and n_claims > 0"
     )
-    claims = {rid: row["claims"] for rid, row in load_jsonl(data / f"claims_{model}.jsonl", "review_id").items()}
-    clusters = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
+    clusters = hub.clusters(model, panel_ids=main.panel_id)
+    claims = hub.panel_claims(model, clusters)
     panels = pd.DataFrame(
         [
             dict(year=p.year, **form_panel(clusters[p.panel_id], claims, p.n_reviews))
@@ -123,7 +131,7 @@ def forms(
     )
     panels["hit_removed"] = removed.set_index("paper_id").hit_rate_strict.reindex(panels.index)
     panels["removed_change"] = panels.hit_removed - panels.hit
-    reviews = pd.read_parquet(data / "reviews.parquet", columns=["conf", "year", "form"]).query("conf == 'ICLR'")
+    reviews = hub.corpus_reviews(["conf", "year", "form"]).query("conf == 'ICLR'")
     form_of_year = reviews.groupby("year").form.agg(lambda f: f.mode()[0])
     cols = ["hit", "hit_removed", "hit_without", "hit_spec", "form_share"]
     by_year = panels.groupby("year")[cols + ["removed_change"]]
@@ -165,10 +173,8 @@ def fe_gap(design, flag, controls=()):
     }
 
 
-def meld_flags(data):
-    return pd.read_parquet(
-        Path(data) / "meld_flags.parquet", columns=["review_id", "year", "score", "flag", "written"]
-    ).set_index("review_id")
+def meld_flags():
+    return hub.meld_flags(["review_id", "year", "score", "flag", "written"]).set_index("review_id")
 
 
 def meld_flag_at(meld, quantile):
@@ -181,7 +187,7 @@ def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.DAT
         settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
     )
     iclr_pairs = iclr_pairs[iclr_pairs.conf == "ICLR"]
-    scores = meld_flags(data)
+    scores = meld_flags()
     periods = {
         str(ICLR_FROM): (ICLR_FROM, ICLR_FROM),
         "2021-2022": (2021, 2022),
@@ -205,38 +211,24 @@ def short_long_logs(values, design):
     return np.minimum(log_a, log_b), np.maximum(log_a, log_b)
 
 
-def batches(path, columns, ids, desc):
-    parquet = pq.ParquetFile(path)
-    wanted = pa.array(list(ids), type=parquet.schema_arrow.field("review_id").type)
-    n_batches = -(-parquet.metadata.num_rows // BATCH_ROWS)
-    for batch in tqdm(parquet.iter_batches(batch_size=BATCH_ROWS, columns=columns), total=n_batches, desc=desc):
-        yield batch.filter(pc.is_in(batch.column("review_id"), value_set=wanted))
+def review_chars(ids):
+    return pd.Series({review_id: len(text) for review_id, text in hub.texts(ids).items()})
 
 
-def review_chars(data, ids):
-    parts = []
-    for name in ["reviews.parquet", *SOURCE_FILES.values()]:
-        for batch in batches(data / name, ["review_id", "text"], ids, name):
-            lengths = pc.utf8_length(batch.column("text")).to_numpy()
-            parts.append(pd.Series(lengths, index=batch.column("review_id").to_pandas()))
-    chars = pd.concat(parts)
-    return chars[~chars.index.duplicated()]
-
-
-def pair_design(model, data):
+def pair_design(model):
     design = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
-    chars = review_chars(data, set(design.a) | set(design.b))
+    chars = review_chars(set(design.a) | set(design.b))
     design["log_short"], design["log_long"] = short_long_logs(chars, design)
     return design
 
 
 def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     data, reports = Path(data), Path(reports)
-    meld = meld_flags(data)
+    meld = meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
-    design = pair_design(model, data)
+    design = pair_design(model)
     claim_counts = pd.read_parquet(data / f"claims_table_{model}.parquet", columns=["review_id"]).groupby("review_id").size()
     design["claims_short"], design["claims_long"] = short_long_logs(claim_counts, design)
     iclr = design[(design.conf == "ICLR") & (design.year >= 2024)]
@@ -247,7 +239,7 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
 
     pipe = "Pipeline"
     for label, subset_pairs, pair_flags, controls in [
-        ("ICLR 2024–26", iclr, flag, ()),
+        ("ICLR 2024–27", iclr, flag, ()),
         ("+ length and claim count", iclr.dropna(), flag, ("log_short", "log_long", "claims_short", "claims_long")),
         ("NeurIPS 2024–25", design[(design.conf == "NeurIPS") & (design.year >= 2024)], flag, ()),
         ("ICML 2025–26", design[design.conf == "ICML"], flag, ()),
@@ -269,7 +261,7 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
 
 
 def journal_gaps(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR, first_year=2024):
-    flag = meld_flags(data).flag.astype(int)
+    flag = meld_flags().flag.astype(int)
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
@@ -333,7 +325,7 @@ def venue_pairs(pairs):
 
 
 def pair_types(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    meld = meld_flags(data)
+    meld = meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
@@ -375,7 +367,7 @@ def pair_type_sizes(
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "pair_type_sizes.tex",
 ):
-    meld = meld_flags(data)
+    meld = meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
     pairs = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet"))
     cell = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)].assign(hit=lambda d: d.hit * 100)
@@ -440,13 +432,13 @@ def detector_choices(
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "detector_choices.tex",
 ):
-    meld = pd.read_parquet(Path(data) / "meld_flags.parquet", columns=["review_id", "conf", "year", "score", "task"])
+    meld = hub.meld_flags(["review_id", "conf", "year", "score", "task"])
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
     pairs = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)]
     iclr_last = meld[(meld.conf == "ICLR") & (meld.year == pairs.year.max())].review_id
-    iclr_last = iclr_last[~iclr_last.isin(excluded_review_ids(data))]
+    iclr_last = iclr_last[~iclr_last.isin(excluded_review_ids())]
     calibration = meld[meld.year <= settings.MELD_CALIBRATION_LAST_YEAR].score
     rows = []
     for quantile in DETECTOR_QUANTILES:
@@ -460,7 +452,9 @@ def detector_choices(
     lines = [
         r"\begin{tabular}{lrrrrrr}",
         r"\toprule",
-        r"Label & Percentile & Pre-2023 max (\%) & ICLR 2026 (\%) & Two vs.\ none (SE) & Two pairs & Papers \\",
+        r"Label & Percentile & Pre-2023 max (\%) & ICLR "
+        + str(pairs.year.max())
+        + r" (\%) & Two vs.\ none (SE) & Two pairs & Papers \\",
         r"\midrule",
     ]
     for k, r in enumerate(out.itertuples()):
@@ -483,7 +477,7 @@ def journal_subsets(
     tex=settings.TABLES_DIR / "journal_subsets.tex",
 ):
     data = Path(data)
-    flag = meld_flags(data).flag.astype(int)
+    flag = meld_flags().flag.astype(int)
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
@@ -492,11 +486,9 @@ def journal_subsets(
     texts = pd.concat(
         [journals[["panel_id", "a"]].rename(columns={"a": "r"}), journals[["panel_id", "b"]].rename(columns={"b": "r"})]
     ).drop_duplicates()
-    chars = review_chars(data, set(texts.r))
+    chars = review_chars(set(texts.r))
     wanted = set(texts.r)
-    claims = pd.Series(
-        {r["review_id"]: len(r["claims"]) for r in read_jsonl(data / f"claims_{model}.jsonl") if r["review_id"] in wanted}
-    )
+    claims = pd.Series({r: len(c) for r, c in hub.claims(model, wanted).items()})
     texts = texts.assign(
         chars=texts.r.map(chars) / 1000, claims=texts.r.map(claims).fillna(0), flagged=texts.r.map(flag).fillna(0) * 100
     )
@@ -554,7 +546,7 @@ def identification(
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "identification.tex",
 ):
-    meld = meld_flags(data)
+    meld = meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
@@ -562,8 +554,8 @@ def identification(
     iclr = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)]
     journals = pairs[~pairs.conf.isin(ML_VENUES) & (pairs.year >= 2024)]
     cells = [
-        ("ICLR 2024–26", iclr, flag),
-        ("ICLR 2024–26, LLM-written", iclr, written),
+        ("ICLR 2024–27", iclr, flag),
+        ("ICLR 2024–27, LLM-written", iclr, written),
         ("NeurIPS 2024–25", pairs[(pairs.conf == "NeurIPS") & (pairs.year >= 2024)], flag),
         ("ICML 2025–26", pairs[pairs.conf == "ICML"], flag),
         *[(f"{source} 2024–26", cell, flag) for source, cell in journals.groupby("conf")],
@@ -619,8 +611,8 @@ def coverage(
     sub3 = pd.read_parquet(settings.ANALYSIS_DIR / f"sub3_outcomes_{model}.parquet").query(
         f"conf == 'ICLR' and year >= {ICLR_FROM}"
     )
-    claims = {rid: row["claims"] for rid, row in load_jsonl(data / f"claims_{model}.jsonl", "review_id").items()}
-    clusters = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
+    clusters = hub.clusters(model, panel_ids=sub3.panel_id)
+    claims = hub.panel_claims(model, clusters)
     panels = pd.DataFrame(
         [dict(year=p.year, **coverage_panel(clusters[p.panel_id], claims)) for p in tqdm(sub3.itertuples(), total=len(sub3))]
     )
@@ -647,27 +639,19 @@ def coverage(
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
-PASS1_INPUTS = {
-    "ml": ["sample_reviews.parquet", "icml_sample.parquet", "noq_reviews.parquet", "nocq_reviews.parquet", "wd_reviews.parquet"],
-    "journal": ["other_pass1.parquet"],
-}
+PASS1_SAMPLES = {"ml": ["main", "icml", "withdrawn"], "journal": ["journal"]}
+PASS1_VARIANTS = {"ml": ["noq", "nocq"], "journal": []}
 
 
-def repro(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    data = Path(data)
+def repro(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
     values = {}
-    for kind, names in PASS1_INPUTS.items():
-        lengths = pd.concat(pd.read_parquet(data / name, columns=["text"]).text.str.len() for name in names)
-        values[f"truncated_{kind}"] = 100 * (lengths > settings.REVIEW_TEXT_MAX_CHARS).mean()
-        values[f"pass1_{kind}_reviews"] = len(lengths)
-    claim_rows = list(read_jsonl(data / f"claims_{model}.jsonl"))
-    values["pass1_error_rows"] = sum("error" in row for row in claim_rows)
-    values["pass1_empty"] = sum(not row.get("claims") for row in claim_rows if "error" not in row)
-    cluster_rows = list(read_jsonl(data / f"clusters_{model}.jsonl"))
-    values["pass2_error_rows"] = sum("error" in row for row in cluster_rows)
-    values["pass2_rows"] = len(cluster_rows)
+    for kind, names in PASS1_SAMPLES.items():
+        values[f"pass1_{kind}_reviews"] = sum(len(hub.sample(name, ["review_id"])) for name in names) + sum(
+            len(hub.variant(name, ["review_id"])) for name in PASS1_VARIANTS[kind]
+        )
+    values.update(hub.extraction_counts(model))
     pairs = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["a", "b", "conf", "year"]))
-    flags = pd.read_parquet(data / "meld_flags.parquet", columns=["review_id", "conf", "year"])
+    flags = hub.meld_flags(["review_id", "conf", "year"])
     calibration = flags[flags.year <= settings.MELD_CALIBRATION_LAST_YEAR]
     in_analysis = calibration.review_id.isin(set(pairs.a) | set(pairs.b))
     values["calibration_reviews"] = len(calibration)
@@ -733,8 +717,9 @@ def preservation(clusters, claims, preserve_prefix):
 def standalone_change(clusters, claims, papers, panel_prefix):
     rows = []
     for p in papers:
-        before, after = clusters.get(f"{PAIR_PREFIX}rw0_{p['panel_id']}"), clusters.get(
-            f"{PAIR_PREFIX}{panel_prefix}{p['panel_id']}"
+        before, after = (
+            clusters.get(f"{PAIR_PREFIX}rw0_{p['panel_id']}"),
+            clusters.get(f"{PAIR_PREFIX}{panel_prefix}{p['panel_id']}"),
         )
         if before and after:
             group = "ICLR" if p["conf"] == "ICLR" else "Journals"
@@ -761,11 +746,7 @@ def rewrite_test(
     claims = {rid: row["claims"] for rid, row in load_jsonl(out / f"claims_{model}.jsonl", "review_id").items()}
     clusters = load_jsonl(out / f"clusters_{model}.jsonl", "panel_id")
     papers = list(read_jsonl(out / "papers.jsonl"))
-    main = {
-        pid: row
-        for pid, row in load_jsonl(settings.DATA_DIR / f"clusters_{model}.jsonl", "panel_id").items()
-        if pid in {p["panel_id"] for p in papers}
-    }
+    main = hub.clusters(model, panel_ids={p["panel_id"] for p in papers})
     audited = {p["panel_id"] for p in read_jsonl(out / "panels_audit.jsonl")}
     audit = {pid: row for pid, row in load_jsonl(out / f"clusters_{matcher}.jsonl", "panel_id").items() if pid in audited}
     rows, all_pairs = [], []
@@ -905,10 +886,11 @@ def audit(
     tex=settings.TABLES_DIR / "audit.tex",
 ):
     data, gold, audit_dir, written_dir = Path(data), Path(gold), Path(audit_dir), Path(written_dir)
-    labels = meld_flags(data)
+    labels = meld_flags()
     flag, written = labels.flag.to_dict(), labels.written.to_dict()
-    model_claims = {rid: row["claims"] for rid, row in load_jsonl(data / f"claims_{model}.jsonl", "review_id").items()}
-    main_clusters = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
+    tunes = {d: list(read_jsonl(d / "panels_tune.jsonl")) for d in [gold, audit_dir, written_dir]}
+    model_claims = hub.claims(model, {r for panels in tunes.values() for panel in panels for r in panel["review_ids"]})
+    main_clusters = hub.clusters(model, panel_ids=[panel["panel_id"] for panel in tunes[gold]])
     audit_clusters = load_jsonl(audit_dir / f"clusters_{model}.jsonl", "panel_id")
     written_clusters = load_jsonl(written_dir / f"clusters_{model}.jsonl", "panel_id")
     pairs = pd.concat(
@@ -1042,10 +1024,11 @@ def reference(
     matches = load_jsonl(data / f"match_{model}" / f"clusters_{matcher}.jsonl", "panel_id")
     ref_claims = {rid: row["claims"] for rid, row in load_jsonl(gold / "adjudicate" / "out.jsonl", "review_id").items()}
     ref_clusters = load_jsonl(gold / "adjudicate2" / "out.jsonl", "panel_id")
-    model_claims = {rid: row["claims"] for rid, row in load_jsonl(data / f"claims_{model}.jsonl", "review_id").items()}
-    model_clusters = load_jsonl(data / f"clusters_{model}.jsonl", "panel_id")
+    tune = list(read_jsonl(gold / "panels_tune.jsonl"))
+    model_clusters = hub.clusters(model, panel_ids=[panel["panel_id"] for panel in tune])
+    model_claims = hub.panel_claims(model, model_clusters)
     rows = []
-    for panel in read_jsonl(gold / "panels_tune.jsonl"):
+    for panel in tune:
         ids, ours = panel["review_ids"], model_clusters[panel["panel_id"]]
         assert sorted(ours["review_ids"]) == sorted(ids), panel["panel_id"]
         matched_ids = [r for r in ids if r in matches]

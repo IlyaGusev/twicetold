@@ -198,6 +198,14 @@ def merge_rows(paths, key):
     return list(kept.values())
 
 
+def review_key(row):
+    return row["review_id"]
+
+
+def panel_key(row):
+    return row["panel_id"], tuple(row["review_ids"])
+
+
 def reasoning_efforts(model):
     if model not in settings.REASONING_EFFORTS:
         raise SystemExit(f"{model} has no entry in settings.REASONING_EFFORTS; each effort setting needs its own short name")
@@ -214,15 +222,15 @@ def done_ids(path, key, effort):
             if row.get("effort", effort) != effort:
                 raise SystemExit(f"{path} has rows made at effort {row['effort']}, not {effort}; use a new short name")
             if "error" not in row:
-                done.add(row[key])
+                done.add(key(row))
     return done
 
 
-def run(items, worker, out_path, merged_path, key, model, effort, threads, budget):
+def run(items, worker, out_path, merged_path, key, model, effort, threads, budget, redo=False):
     if model not in settings.PRICES_USD_PER_MTOK:
         raise SystemExit(f"{model} has no entry in settings.PRICES_USD_PER_MTOK, so the budget cap would not count its calls")
-    done = done_ids(out_path, key, effort) | done_ids(merged_path, key, effort)
-    todo = [item for item in items if item[key] not in done]
+    done = done_ids(out_path, key, effort) | (set() if redo else done_ids(merged_path, key, effort))
+    todo = [item for item in items if key(item) not in done]
     print(f"{model}: {len(done)} done, {len(todo)} to do -> {out_path}", flush=True)
 
     def capped(item):
@@ -253,8 +261,7 @@ def run(items, worker, out_path, merged_path, key, model, effort, threads, budge
 
 
 def pass1_worker(item, model, instructions, effort):
-    review_text = item["text"][: settings.REVIEW_TEXT_MAX_CHARS]
-    out = call(instructions, review_text, PASS1_SCHEMA, "claims", model=model, effort=effort)
+    out = call(instructions, item["text"], PASS1_SCHEMA, "claims", model=model, effort=effort)
     return dict(review_id=item["review_id"], model=model, effort=effort, **out)
 
 
@@ -280,6 +287,7 @@ def pass1(
     budget=60.0,
     paper_kind="ml",
     data=str(settings.DATA_DIR),
+    redo=False,
 ):
     effort = reasoning_efforts(model).pass1
     items = pd.read_parquet(reviews, columns=["review_id", "text"]).to_dict("records")
@@ -292,11 +300,12 @@ def pass1(
         worker,
         data / f"claims_{model}{tag}.jsonl",
         data / f"claims_{model}.jsonl",
-        "review_id",
+        review_key,
         model,
         effort,
         threads,
         budget,
+        redo,
     )
 
 
@@ -309,6 +318,7 @@ def pass2(
     paper_kind="ml",
     claims_file=None,
     data=str(settings.DATA_DIR),
+    redo=False,
 ):
     effort = reasoning_efforts(model).pass2
     data = Path(data)
@@ -336,11 +346,12 @@ def pass2(
         worker,
         data / f"clusters_{model}{tag}.jsonl",
         data / f"clusters_{model}.jsonl",
-        "panel_id",
+        panel_key,
         model,
         effort,
         threads,
         budget,
+        redo,
     )
 
 

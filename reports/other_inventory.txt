@@ -1,4 +1,4 @@
-data/other_reviews.parquet: 41069 reviews, 17520 papers; sources: scipost, f1000, bmc, plos, copernicus
+data/other_reviews.parquet: 105488 reviews, 45718 papers; sources: scipost, f1000, bmc, plos, copernicus
 
 Per source x year
                  papers  reviews  rev_per_paper  median_chars  share_rated
@@ -9,34 +9,34 @@ BMC-Med    2018     178      442           2.48        2521.5          0.0
            2021     327      893           2.73        2321.0          0.0
            2022     463     1159           2.50        2406.0          0.0
            2023     485     1265           2.61        2321.0          0.0
-           2024     500     1275           2.55        2119.0          0.0
+           2024     576     1479           2.57        2121.0          0.0
            2025     132      331           2.51        2126.0          0.0
-Copernicus 2018     300      673           2.24        4322.0          1.0
-           2019     300      664           2.21        4262.5          1.0
-           2020     300      653           2.18        4524.0          1.0
-           2021     300      649           2.16        4442.0          1.0
-           2022     500     1092           2.18        4389.0          1.0
-           2023     500     1077           2.15        4460.0          1.0
-           2024     500     1099           2.20        4228.0          1.0
-           2025     500     1082           2.16        4552.5         0.98
-           2026     500     1074           2.15        4871.5         0.99
-F1000      2018     450     1094           2.43        1991.5          1.0
-           2019     500     1174           2.35        2182.5          1.0
-           2020     500     1159           2.32        1875.0          1.0
-           2021     500     1130           2.26        1750.5          1.0
-           2022     450     1003           2.23        1751.0         0.99
-           2023     500     1202           2.40        1716.5         0.98
-           2024     500     1235           2.47        1455.0         0.96
-           2025     500     1264           2.53        1506.0         0.98
-           2026     500     1244           2.49        1779.0         0.99
-PLOS       2019     500     1174           2.35        2208.5         0.75
-           2020     500     1206           2.41        2222.5         0.77
-           2021     500     1181           2.36        2074.0         0.76
-           2022     500     1176           2.35        1965.5         0.81
-           2023     500     1208           2.42        1855.0          0.8
-           2024     500     1191           2.38        1937.0         0.77
-           2025     500     1242           2.48        2260.0         0.69
-           2026     256      637           2.49        2397.0         0.73
+Copernicus 2018    2000     4431           2.22        4494.0          1.0
+           2019    2000     4399           2.20        4415.0          1.0
+           2020    2000     4389           2.19        4540.0          1.0
+           2021    2000     4380           2.19        4366.0          1.0
+           2022    2000     4381           2.19        4271.0          1.0
+           2023    2000     4335           2.17        4182.0          1.0
+           2024    2000     4390           2.19        4323.0          1.0
+           2025    2000     4317           2.16        4473.0         0.98
+           2026    2000     4304           2.15        4968.0         0.99
+F1000      2018     487     1189           2.44        1989.0          1.0
+           2019     520     1217           2.34        2167.0          1.0
+           2020     654     1512           2.31        1875.5          1.0
+           2021     840     1898           2.26        1747.0          1.0
+           2022     810     1808           2.23        1749.0         0.99
+           2023    1040     2504           2.41        1715.5         0.98
+           2024    1408     3489           2.48        1477.0         0.97
+           2025    1076     2670           2.48        1586.5         0.97
+           2026     763     1905           2.50        1833.0         0.99
+PLOS       2019    1278     3001           2.35        2226.0         0.76
+           2020    2000     4733           2.37        2193.0         0.78
+           2021    2000     4700           2.35        2114.0         0.77
+           2022    1981     4617           2.33        1984.0          0.8
+           2023    2000     4696           2.35        1841.0         0.81
+           2024    1976     4757           2.41        1892.0          0.8
+           2025    2000     4944           2.47        2178.5         0.74
+           2026    1125     2792           2.48        2464.5         0.73
 SciPost    2018     110      246           2.24        2783.5          1.0
            2019     136      301           2.21        2965.0          0.9
            2020     229      518           2.26        2545.5         0.81
@@ -44,80 +44,82 @@ SciPost    2018     110      246           2.24        2783.5          1.0
            2022     433      955           2.21        2711.0         0.77
            2023     412      915           2.22        2640.0         0.78
            2024     449      996           2.22        2642.0         0.77
-           2025     500     1123           2.25        2715.0         0.78
-           2026     407      917           2.25        3024.0          0.8
+           2025     510     1143           2.24        2697.0         0.78
+           2026     417      937           2.25        3024.0          0.8
 
 Totals by source
             papers  reviews
 conf                       
-BMC-Med       2612     6666
-Copernicus    3700     8063
-F1000         4400    10505
-PLOS          3756     9015
-SciPost       3052     6820
+BMC-Med       2688     6870
+Copernicus   18000    39326
+F1000         7598    18192
+PLOS         14360    34240
+SciPost       3072     6860
 
 Exact-duplicate texts within a paper in the merged file: 0 (dropped)
-  scipost fetch stats: {'api_missing': 3, 'parsed_reviews': 8603, 'short_dropped': 209, 'dup_dropped': 15}
-  f1000 fetch stats: {'parsed_reviews': 11846, 'short_dropped': 0, 'dup_dropped': 0}
+  scipost fetch stats: {'api_missing': 6, 'parsed_reviews': 8635, 'short_dropped': 209, 'dup_dropped': 15}
+  f1000 fetch stats: {'parsed_reviews': 18910, 'short_dropped': 0, 'dup_dropped': 2}
   bmc fetch stats: {'parsed_reviews': 8109, 'short_dropped': 302, 'dup_dropped': 2}
-  plos fetch stats: {'resubmission': 138, 'earlier_reviews': 3, 'letters': 5086, 'letters_split_2plus': 4500, 'parsed_reviews': 11251, 'short_dropped': 0, 'dup_dropped': 1}
-  copernicus fetch stats: {'pdf with manuscript pages': 92, 'parsed_reviews': 9682, 'short_dropped': 34, 'dup_dropped': 0}
-PLOS: letters where reviewer splitting found 2+ reviewers: 4500/5086 = 88.5%
+  plos fetch stats: {'resubmission': 398, 'earlier_reviews': 6, 'letters': 17013, 'letters_split_2plus': 15153, 'parsed_reviews': 37525, 'short_dropped': 0, 'dup_dropped': 2}
+  copernicus fetch stats: {'pdf with manuscript pages': 508, 'no page': 4, 'parsed_reviews': 47224, 'short_dropped': 132, 'dup_dropped': 0}
+PLOS: letters where reviewer splitting found 2+ reviewers: 15153/17013 = 89.1%
 
 Licences (papers)
-conf        licence               
-BMC-Med     CC BY 4.0                 2612
-Copernicus  CC BY 4.0                 3700
-F1000       CC BY (stated in text)    2496
-            CC BY 3.0                    5
-            CC BY 4.0                 1899
-PLOS        CC BY 4.0                 3622
-            CC0 1.0                    134
-SciPost     CC BY 4.0                 3052
+conf        licence                                                                         
+BMC-Med     CC BY 4.0                                                                            2688
+Copernicus  CC BY 4.0                                                                           18000
+F1000       CC BY (stated in text)                                                               4325
+            CC BY 3.0                                                                               6
+            CC BY 4.0                                                                            3266
+            This is an open access article, made available under the Creative Commons Public        1
+PLOS        CC BY 3.0                                                                               4
+            CC BY 4.0                                                                           13873
+            CC0 1.0                                                                               483
+SciPost     CC BY 4.0                                                                            3072
 
 Journals
 conf        journal                          
-PLOS        PLOS ONE                             2875
-SciPost     SciPost Physics                      2634
-BMC-Med     BMC Medicine                         2612
-F1000       F1000Research                        2452
-            Wellcome Open Research               1499
-Copernicus  ACP                                   697
-F1000       Open Research Europe                  449
-Copernicus  EGUsphere                             350
-            AMT                                   340
-            GMD                                   309
-            BG                                    293
-            ESSD                                  276
-PLOS        PLOS Computational Biology            208
-            PLOS Neglected Tropical Diseases      138
-SciPost     SciPost Physics Core                  138
-PLOS        PLOS Global Public Health             135
-            PLOS Pathogens                        129
-            PLOS Genetics                          98
-SciPost     SciPost Physics Lecture Notes          89
-            SciPost Physics Codebases              74
-            SciPost Physics Proceedings            51
-            SciPost Physics Community Reports      23
+PLOS        PLOS ONE                             11125
+F1000       F1000Research                         4025
+Copernicus  ACP                                   3467
+BMC-Med     BMC Medicine                          2688
+SciPost     SciPost Physics                       2650
+F1000       Wellcome Open Research                2648
+Copernicus  AMT                                   1682
+            GMD                                   1505
+            BG                                    1453
+            EGUsphere                             1410
+            HESS                                  1343
+F1000       Open Research Europe                   925
+PLOS        PLOS Computational Biology             737
+            PLOS Global Public Health              559
+            PLOS Neglected Tropical Diseases       517
+            PLOS Pathogens                         432
+            PLOS Genetics                          342
+SciPost     SciPost Physics Core                   141
+            SciPost Physics Lecture Notes           90
+            SciPost Physics Codebases               74
+            SciPost Physics Proceedings             51
+            SciPost Physics Community Reports       23
 
 Random snippets (first 300 chars)
-[BMC-Med 2020 10.1186/s12916-020-01828-y Reviewer 5 rating=<NA>] What a beautiful study. The number of patients participating in this study is great.Nocebo is for a lot of readers stil new, use one sentence to explain this and give a reference.I did studies with gluten challence 10-20 years ago.There are differences between the suplliers, so mention your supplier
-[BMC-Med 2024 10.1186/s12916-024-03808-y Reviewer 2 rating=<NA>] This is a multi-database cohort study using data from the United Kingdom and Hong Kong to assess the risk of all-cause and cause-specific mortality associated with use of warfarin compared with use of direct oral anticoagulants (DOACs). The secondary objective was to assess the same associations aft
-[BMC-Med 2021 10.1186/s12916-021-01963-0 Reviewer 2 rating=<NA>] The present study is a review of the recent practice guidelines in hypertension. The authors did systematic literature search appropriately, and extracted information on the diagnosis and treatment of hypertension. I would comment the followings which should be addressed. 1) It is regrettable that t
+[BMC-Med 2021 10.1186/s12916-021-02118-x Reviewer 1 rating=<NA>] The present manuscript reports on the development and validation of a nomogram for predicting benefit from bevacizumab plus 1st gen EGFR TKIs in EGFR-mutated NSCLC. This is a veryinteresting and timely topic. Some comments: *The addition of bevacizumab to 1st gen EGFR TKIs is supported by preclinica
+[BMC-Med 2020 10.1186/s12916-020-01815-3 Reviewer 3 rating=<NA>] This study comb ined men and pre/post -menopausal women. There are known differences between these groups in both relevant exposures, underlying biology, and risk of the various outcomes. While the authors stratified by sex, overall result were combined without addressing possible interactions and e
+[BMC-Med 2025 10.1186/s12916-025-04296-4 Reviewer 1 rating=<NA>] Thank you for the opportunity to review this manuscript. This study explores the longitudinal relationship between accelerometer-based sleep metrics and mental health symptoms, contributing to an important area of developmental research. Overall, the study is well-motivated and methodologically stro
 
-[Copernicus 2023 10.5194/egusphere-2023-1428 Referee 101 rating=minor-revision] General comments: Zhou et al. present in their manuscript a framework to determine the migration rate of drainage divide and apply the methods to two study cases in the Wutai Shan and Loess Plateau. The authors developed new methods of drainage divide migration rate estimation using high-topographic
-[Copernicus 2026 10.5194/egusphere-2026-1702 Referee 1 rating=major-revision] The manuscript describes a spatial interpolation method applied over North America. The method is described in detail and is suitable for the described applications. The validation is carried out in a reasonable way and the results are correctly interpreted by the authors. However, there are a numbe
-[Copernicus 2018 10.5194/gmd-2018-251 Referee 3 rating=major-revision] Review for “Development of a dynamic dust-source map for NMME-DREAM v1.0 model based on MODIS 1 NDVI over the Arabian Peninsula” by Stavros et al. The authors developed a dynamic dust source map based on MODIS Normalized Digital Vegetation Index (NDVI) for the dust emission scheme in the NMME-DREAM 
+[Copernicus 2020 10.5194/amt-2020-216 Referee 101 rating=minor-revision] The authors present a snowfall retrieval based on radar reflectivity and temperature. While similar retrievals have been developed before, the focus of using only a single radar reflectivity and the extraordinary detailed error analysis makes it nevertheless an important contribution. The paper is w
+[Copernicus 2024 10.5194/egusphere-2024-945 Referee 1 rating=minor-revision] In this manuscript, Riva et al. introduced a newly developed medium-pressure chemical ionization reactor, Vocus AIM, utilizing adduct ionization for the detection of gaseous inorganic and organic compounds. The performance of the Vocus AIM reactor in terms of time response, sensitivity, and selectiv
+[Copernicus 2025 10.5194/egusphere-2025-784 Referee 101 rating=minor-revision] See attached pdf file. Review of, “Exploring the conditions conducive to convection within the Greenland Ice Sheet”, by Law et al. Review by Michael Wolovick Summary In this paper, Law and coauthors use geodynamic modeling techniques to explore the possibility that local thermal convection may occur
 
-[F1000 2020 10.12688/f1000research.27096 Reviewer 3 rating=Approved with Reservations] This is an excellent genetic study of comparisons between AD and DS-related AD by Delprato and collaborators. Overall, this is an interesting and timely publication. The GeneSet overlay in Figure 1 is an excellent demonstration of the findings. There are only a few comments to be made and these are 
-[F1000 2018 10.12688/wellcomeopenres.14241 Reviewer 3 rating=Approved with Reservations] This is a well-conducted set of preregistered analyses, addressing important research questions, and using an impressive longitudinal data set. While the chosen latent growth model generally is standard for analyzing questions pertaining average longitudinal change (and individual differences therei
-[F1000 2021 10.12688/f1000research.28033 Reviewer 3 rating=approve] HGNChelper is a particularly valuable tool in the toolbox of a bioinformatics practicioneer. It addresses a real problem, which while superficially trivial, actually affects the quality of analyses. I use HGNChelper ALL THE TIME especially if a dataset ends up being garbled by Excel. It is easy to u
+[F1000 2025 10.12688/wellcomeopenres.24324 Reviewer 3 rating=Approved (from confirmation statement)] In this Data Note, Hutchinson, Crowley, Broad and colleagues report the genome assembly of the Brown Moss-moth, Bryotropha terrella. No genome annotation is presented. I will note, really as a counterpoint to other data notes I have reviewed or read, that this makes little comment on the natural his
+[F1000 2024 10.12688/f1000research.142012 Reviewer 1 rating=Approved (from confirmation statement)] The study design is appropriate. The justification and background are adequately presented. The study objectives are clear and in measurable terms. Randomization method, The method of generation of allocation is clear and appropriate. Sample size with statistical formula is appropriate for study des
+[F1000 2026 10.12688/wellcomeopenres.24920 Reviewer 3 rating=Approved with Reservations (from confirmation statement)] This manuscript presents a chromosome-level genome assembly of Viscum album, an obligate hemiparasitic plant with an exceptionally large genome (~94 Gb). The study represents a significant technical achievement, and the generation and analysis of genomic data at this scale is clearly a non-trivial e
 
-[PLOS 2020 10.1371/journal.pmed.1003300 Reviewer 2 rating=<NA>] PLOS Medicine Colbourn SpO2 Malawi review The lowest denomination of low-cost factors to determine poor outcome is required. Oxygen saturation monitors will be increasingly available for use in developing health and an assessment of their impact is required. This first report is very useful for info
-[PLOS 2025 10.1371/journal.pcbi.1014020 Reviewer 2 rating=Q2=Yes] In this paper, the authors develop a novel software to identify benign and pathogenic mutations from amino acid sequences ranging 1-10 residues. The developed algorithm relied on a deep learning framework trained and tested on a curated database of deletions. The particular framework to generate the
-[PLOS 2019 10.1371/journal.pone.0229948 Reviewer 2 rating=Q1=Partly;Q2=Yes;Q3=No;Q4=Yes] The integrated stress response (ISR), a mechanism by which cells modulate protein synthesis in response to cellular stress, is controlled by the phosphorylation of translation initiation factor eIF2alpha. Four eIF2 kinases (HRI, GCN2, PERK, and PKR) each sense and are activated in response to differ
+[PLOS 2024 10.1371/journal.pone.0324442 Reviewer 1 rating=Q1=Yes;Q2=N/A;Q3=Yes;Q4=Yes] Authors addressed clearly aspects related on the Gender perspectives on zoonotic disease epidemiology using a SWOT analysis in Bundibugyo a district of Uganda. The methodology is fitting the results presented in the manuscript and the topic is actually relevant for the control of zoonotic diseases i
+[PLOS 2022 10.1371/journal.pone.0273929 Reviewer 1 rating=Q1=Yes;Q2=I Don't Know;Q3=Yes;Q4=No] This article examines compare acceptance of evolution in high school students in Italy and Brazil, specifically looking at 1) the overall differences in acceptance between countries 2) whether level of acceptance is associated more strongly with a specific Christian denomination (Roman Catholic) in 
+[PLOS 2021 10.1371/journal.pone.0252868 Reviewer 1 rating=Q1=Partly;Q2=Yes;Q3=Yes;Q4=Yes] Comments for the Author: In the present manuscript authors intends to elucidate the non-redundant role of Semaphorin 3E (Sema3E) in Dendritic cell migration and antigen uptake during allergen sensitization in mice. They have shown increased migratory phenotype of Sema3E deficient BMDCs with increase
 
-[SciPost 2025 2502.01582v2 Reviewer 3 rating=validity=good;significance=good;originality=good;clarity=top;formatting=perfect;grammar=excellent] [STRENGTHS] - Timely topic - Accurate presentation of the work and of the results - Scientifically sound [WEAKNESSES] - It is a purely numerical work and does not attempt to improve me methodology, nor to interpret (analytically) the results [REPORT] This manuscript provides a very detailed analysis
-[SciPost 2023 scipost_202309_00006v1 Reviewer 1 rating=validity=high;significance=good;originality=good;clarity=top;formatting=excellent;grammar=excellent] [STRENGTHS] 1. Solid assessment of the electronic structure of the system. 2. Adequate comparison between FLEX and RPA approaches to the superconducting instability in LK-99. 3. Clear discussion of the pros and cons of the methods. 4. Clear presentation of the results and the overall physics problem
-[SciPost 2024 scipost_202406_00036v1 Reviewer 2 rating=validity=high;significance=good;originality=good;clarity=good] [REPORT] This work studies unitary QFTs on a two-dimensional Euclidean sphere and on de Sitter space. The main result is a proof of existence of two functions of the radius $R$ of the sphere (de Sitter), $c_1(R)$ and $c_2(R)$, which interpolate between the UV ($mR\rightarrow 0$) and the IR ($mR\righ
+[SciPost 2024 2305.10475v2 Reviewer 2 rating=validity=high;significance=ok;originality=ok;clarity=good;formatting=excellent;grammar=excellent] [STRENGTHS] The paper tries to apply some modern methods, transformer networks and diffusion models to LHC event generation. Event generation is important and a computationally expensive bottleneck in many experimental and theoretical analysis (although in reality it's the detector simulation that i
+[SciPost 2025 2412.20287v2 Reviewer 2 rating=validity=high;significance=high;originality=high;clarity=ok;formatting=perfect;grammar=perfect] [STRENGTHS] 1- The discussion is very thorough, no steps are skipped in the mathematical handling, and the results are very deeply analysed 2 - The dynamics as well as the steady-state profiles are studied 3- A novel boundary effect was identified when the average particle direction is kept fixed at
+[SciPost 2023 scipost_202303_00025v1 Reviewer 1 rating=validity=ok;significance=low;originality=low;clarity=ok;formatting=good;grammar=good] [STRENGTHS] - Pedagogical discussion on some free fermionic techniques for non-unitary evolution [WEAKNESSES] - Lack of novelty and impact (see report) - The physical aspects beyond the authors' model dynamics are only touched but not systematically investigated. [REPORT] Dear Editor, This manuscrip
 

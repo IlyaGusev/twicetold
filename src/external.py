@@ -7,6 +7,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fire
 import pandas as pd
 
+import hub
 from settings import settings
 
 INTEL_FIELDS = [
@@ -29,7 +30,7 @@ def intel_text(row, columns):
     return " ".join(parts)
 
 
-def intel(out, data=str(settings.DATA_DIR)):
+def intel(out):
     rows = []
     for path in sorted(settings.INTEL_DIR.glob("test/*/ICLR*.csv")):
         llm = path.parent.name
@@ -44,7 +45,7 @@ def intel(out, data=str(settings.DATA_DIR)):
         rows.append(d[columns].rename(columns={"review-id": "orig_review_id", "paperid": "intel_paper"}))
     reviews = pd.concat(rows, ignore_index=True)
     reviews = reviews[reviews.text.str.len() > MIN_TEXT_CHARS]
-    ours = pd.read_parquet(Path(data) / "reviews.parquet", columns=["review_id", "paper_id"])
+    ours = hub.corpus_reviews(["review_id", "paper_id"])
     human = reviews[reviews.label == 0].merge(ours, left_on="orig_review_id", right_on="review_id", suffixes=("", "_r"))
     paper_map = human.drop_duplicates("intel_paper").set_index(["year", "intel_paper"]).paper_id
     reviews["paper_id"] = reviews.set_index(["year", "intel_paper"]).index.map(paper_map)

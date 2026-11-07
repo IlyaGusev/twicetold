@@ -9,8 +9,8 @@
    reasoning efforts, prices, OpenRouter routes, API keys from `.env`. No module defines a path, a model name or
    reads `os.environ`.
 3. Prompts are jinja2 templates in `src/prompts/`, rendered by `src/prompts.py`. No prompt text in Python.
-4. Run chains are `scripts/extract_all.sh` and `scripts/post.sh`. A new pass or post step goes there, not in a
-   scratch script.
+4. Run chains are `scripts/extract_all.sh`, `scripts/release.sh` and `scripts/post.sh`. A new pass or post step goes
+   there, not in a scratch script.
 5. Always UV: `uv run python -I src/<module>.py <command>`. Keep CPU use low (`nice -n 19`, `OMP_NUM_THREADS=2`).
 6. Model outputs are named by model short name (`claims_<model>.jsonl`, `clusters_<model>.jsonl`,
    `reports/<name>_<model>.csv`). One model has one claims file and one clusters file. A new model or effort setting
@@ -18,6 +18,9 @@
 7. All imports sit at the top of the file. No import inside a function or a class. The only code allowed
    between imports is the `sys.path.insert` line that makes `src/` importable. CI runs ruff with `E402` and
    `PLC0415` and fails on the first one.
+8. The Hugging Face dataset `settings.HF_DATASET_REPO` holds the reviews, papers, claims, panels and MELD scores, plus
+   the working files under `artifacts/`. Analysis code reads them through `src/hub.py`; only the producer steps
+   (`fetch`, `corpus`, `panels`, `extract`, `meld`, `areas`, `release`) read or write the local copies in `data/`.
 
 
 ## Writing guide

@@ -36,7 +36,7 @@ def test_deterministic_steps_rebuild_data_gold(tmp_path):
     gold.sample(tmp_path)
     same_files(tmp_path, "panels_tune.jsonl")
     rebuilt = pd.read_parquet(tmp_path / "tune_reviews.parquet")
-    assert rebuilt.equals(pd.read_parquet(GOLD / "tune_reviews.parquet"))
+    assert rebuilt.reset_index(drop=True).equals(pd.read_parquet(GOLD / "tune_reviews.parquet").reset_index(drop=True))
 
     copy(tmp_path, "claims_council.jsonl")
     gold.claim_inputs(tmp_path)
