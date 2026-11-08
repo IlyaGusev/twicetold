@@ -1,6 +1,5 @@
 import json
 import urllib.request
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import fire
@@ -11,7 +10,6 @@ from huggingface_hub import hf_hub_download
 import extract
 import hub
 from jsonl import read_jsonl, write_jsonl
-from prompts import render
 from settings import settings
 
 SAME_PANELS = {
@@ -26,10 +24,7 @@ CROSS_YEARS = (2018, 2022, 2024, 2026, 2027)
 CROSS_PER_YEAR = 4
 CROSS_PER_JOURNAL = 2
 TEST_SHARE = 0.3
-MAX_CLAIM_WORDS = 25
-JUDGE_ATTEMPTS = 3
 COUNCIL_RUNS = 2
-GOLD_CLAIM_KEYS = ("quote", "claim", "category", "target", "specific", "support")
 AUDIT_REVIEWS = 4
 AUDIT_PER_STRATUM = {"same2023": 10, "flag": 15}
 AUDIT_JOURNALS_PER_SOURCE = 3
@@ -37,25 +32,6 @@ AUDIT_FLAG_YEARS = (2024, 2026)
 AUDIT_JOURNAL_FROM = 2024
 AUDIT_WRITTEN_PANELS = 60
 PAPER_KINDS = ("ml", "general")
-
-GOLD_CLAIMS_SCHEMA = extract.strict_object(
-    claims={
-        "type": "array",
-        "items": extract.strict_object(**extract.CLAIM_SCHEMA["properties"], support={"type": "integer", "enum": [0, 1, 2, 3]}),
-    }
-)
-
-
-def council_names(council):
-    return ", ".join(settings.OPENROUTER_ROUTES[model] for model in council)
-
-
-def by_model(path, key, field):
-    rows = {}
-    for row in read_jsonl(path):
-        if field in row:
-            rows.setdefault(row["model"], {})[row[key]] = row[field]
-    return rows
 
 
 def merge_council(out, kind, key, tag, council):
@@ -247,6 +223,12 @@ def split_council(out, kind, tag, council):
         write_jsonl(out / f"{kind}_{model}{tag}.jsonl", [row for row in rows if row["model"] == model])
 
 
+def model_claims(out, model=settings.DEFAULT_MODEL, threads=64, budget=5.0):
+    out = Path(out)
+    for kind, path in kind_files(out, "tune_reviews", ".parquet"):
+        extract.pass1(str(path), model=model, threads=threads, budget=budget, paper_kind=kind, data=out)
+
+
 def council_claims(out, council=settings.GOLD_COUNCIL, threads=16, budget=15.0):
     out = Path(out)
     split_council(out, "claims", "_tune", council)
@@ -257,7 +239,11 @@ def council_claims(out, council=settings.GOLD_COUNCIL, threads=16, budget=15.0):
     merge_council(out, "claims", "review_id", "_tune", council)
 
 
-def drop_incomplete(out, missing):
+def drop_incomplete(out, model, council):
+    reviews = set(pd.read_parquet(out / "tune_reviews.parquet", columns=["review_id"]).review_id)
+    done = {(row["model"], row["review_id"]) for row in read_jsonl(out / "claims_council.jsonl") if "claims" in row}
+    missing = reviews - set(extract.load_claims(out / f"claims_{model}.jsonl"))
+    missing |= {r for member in council for r in reviews if (member, r) not in done}
     if not missing:
         return
     for path in [out / "panels_tune.jsonl", *[p for _, p in kind_files(out, "panels_tune", ".jsonl")]]:
@@ -267,92 +253,33 @@ def drop_incomplete(out, missing):
         print(f"{path.name}: dropped {len(panels) - len(kept)} panels with missing claims")
 
 
-def claim_inputs(out, council=settings.GOLD_COUNCIL):
+def model_groups(out, model=settings.DEFAULT_MODEL, council=settings.GOLD_COUNCIL, threads=16, budget=5.0):
     out = Path(out)
-    folder = out / "adjudicate"
-    folder.mkdir(exist_ok=True)
-    texts = pd.read_parquet(out / "tune_reviews.parquet").set_index("review_id").text
-    claims = by_model(out / "claims_council.jsonl", "review_id", "claims")
-    drop_incomplete(out, {r for model in council for r in texts.index if r not in claims[model]})
-    order = [r for p in read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]]
-    items = [dict(review_id=r, text=texts[r], council={model: claims[model][r] for model in council}) for r in order]
-    write_jsonl(folder / "in.jsonl", items)
-    (folder / "INSTRUCTIONS.md").write_text(render("gold_claims", council=council_names(council)))
+    drop_incomplete(out, model, council)
+    for kind, path in kind_files(out, "panels_tune", ".jsonl"):
+        extract.pass2(
+            str(path), model=model, claims_file=f"claims_{model}.jsonl", threads=threads, budget=budget, paper_kind=kind, data=out
+        )
 
 
-def valid_claims(item, reply):
-    return all(
-        len(c["claim"].split()) <= MAX_CLAIM_WORDS and extract.quote_in_text(c["quote"], item["text"]) for c in reply["claims"]
-    )
-
-
-def judge(folder, schema, name, key, keys, valid, model, effort, threads, budget):
-    instructions = (folder / "INSTRUCTIONS.md").read_text()
-    out_path = folder / "out.jsonl"
-
-    def one(item):
-        for _ in range(JUDGE_ATTEMPTS):
-            if extract.cost() > budget:
-                return None
-            reply = extract.call(instructions, json.dumps(item), schema, name, model=model, effort=effort)
-            if "error" not in reply and valid(item, reply):
-                return [{k: entry[k] for k in keys} for entry in reply[name]]
-        return None
-
-    items = list(read_jsonl(folder / "in.jsonl"))
-    done = {row[key]: row for row in read_jsonl(out_path)} if out_path.exists() else {}
-    todo = [item for item in items if item[key] not in done]
-    with ThreadPoolExecutor(threads) as pool:
-        replies = list(pool.map(one, todo))
-    done.update({item[key]: {key: item[key], name: reply} for item, reply in zip(todo, replies) if reply is not None})
-    write_jsonl(out_path, [done[item[key]] for item in items if item[key] in done])
-    failed = len(items) - len(done)
-    print(f"{out_path}: {len(done)} of {len(items)} items, ${extract.cost():.2f}", flush=True)
-    if failed:
-        print(f"{failed} items failed or hit the budget; run again to retry them")
-
-
-def judge_claims(out, model=settings.GOLD_CLAIM_JUDGE_MODEL, threads=8, budget=15.0):
-    effort = extract.reasoning_efforts(model).pass1
-    judge(
-        Path(out) / "adjudicate",
-        GOLD_CLAIMS_SCHEMA,
-        "claims",
-        "review_id",
-        GOLD_CLAIM_KEYS,
-        valid_claims,
-        model,
-        effort,
-        threads,
-        budget,
-    )
-
-
-def council_groups(out, council=settings.GOLD_COUNCIL, threads=12, budget=15.0):
+def council_groups(out, model=settings.DEFAULT_MODEL, council=settings.GOLD_COUNCIL, threads=12, budget=15.0):
     out = Path(out)
-    split_council(out, "clusters", "_tune_gold", council)
+    drop_incomplete(out, model, council)
+    split_council(out, "clusters", "_tune", council)
     for _ in range(COUNCIL_RUNS):
-        for model in council:
+        for member in council:
             for kind, path in kind_files(out, "panels_tune", ".jsonl"):
                 extract.pass2(
                     str(path),
-                    model=model,
-                    tag="_tune_gold",
-                    claims_file="adjudicate/out.jsonl",
+                    model=member,
+                    tag="_tune",
+                    claims_file=f"claims_{model}.jsonl",
                     threads=threads,
                     budget=budget,
                     paper_kind=kind,
                     data=out,
                 )
-    merge_council(out, "clusters", "panel_id", "_tune_gold", council)
-
-
-def model_groups(out=settings.AUDIT_DIR, model=settings.DEFAULT_MODEL, threads=16, budget=5.0):
-    out = Path(out)
-    for kind, path in kind_files(out, "panels_tune", ".jsonl"):
-        extract.pass2(
-            str(path), model=model, claims_file=f"claims_{model}.jsonl", threads=threads, budget=budget, paper_kind=kind, data=out
-        )
+    merge_council(out, "clusters", "panel_id", "_tune", council)
 
 
 def kim_sample(out):
@@ -410,41 +337,16 @@ def external_claims(out, name, paper_kind, model=settings.DEFAULT_MODEL, threads
     )
 
 
-def match_claims(
-    model=settings.DEFAULT_MODEL,
-    matcher=settings.GOLD_CLAIM_JUDGE_MODEL,
-    threads=12,
-    budget=15.0,
-    data=str(settings.DATA_DIR),
-    gold=str(settings.GOLD_DIR),
-    folder=None,
-):
-    gold = Path(gold)
-    folder = Path(folder) if folder else Path(data) / f"match_{model}"
-    folder.mkdir(exist_ok=True)
-    reference = extract.load_claims(gold / "adjudicate" / "out.jsonl")
-    ours = hub.claims(model)
-    order = [r for p in read_jsonl(gold / "panels_tune.jsonl") for r in p["review_ids"]]
-    claims = [dict(review_id=f"ref_{r}", claims=reference[r]) for r in order] + [dict(review_id=r, claims=ours[r]) for r in order]
-    write_jsonl(folder / "claims.jsonl", claims)
-    write_jsonl(folder / "panels.jsonl", [dict(panel_id=r, review_ids=[f"ref_{r}", r]) for r in order])
-    extract.pass2(
-        str(folder / "panels.jsonl"), model=matcher, claims_file="claims.jsonl", threads=threads, budget=budget, data=folder
-    )
-
-
 if __name__ == "__main__":
     fire.Fire(
         dict(
             sample=sample,
             sample_audit=sample_audit,
             sample_written=sample_written,
-            model_groups=model_groups,
+            model_claims=model_claims,
             council_claims=council_claims,
-            claim_inputs=claim_inputs,
-            judge_claims=judge_claims,
+            model_groups=model_groups,
             council_groups=council_groups,
-            match_claims=match_claims,
             kim_sample=kim_sample,
             claimcheck_sample=claimcheck_sample,
             external_claims=external_claims,

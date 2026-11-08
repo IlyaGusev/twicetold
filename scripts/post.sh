@@ -33,7 +33,6 @@ step src/validate.py rq1_evidence --model "$MODEL"
 step src/validate.py journal_gaps --model "$MODEL"
 step src/validate.py pair_types --model "$MODEL"
 step src/validate.py pair_type_sizes --model "$MODEL"
-step src/validate.py council_agreement --model "$MODEL"
 step src/validate.py repro --model "$MODEL"
 step src/validate.py quotes --model "$MODEL"
 step src/validate.py external --name kim --model "$MODEL"
@@ -41,7 +40,8 @@ step src/validate.py external --name claimcheck --model "$MODEL"
 if [ -z "$OUT_DIR" ]; then
   step src/validate.py robust --model "$MODEL"
   step src/validate.py forms --model "$MODEL"
-  step src/validate.py reference --model "$MODEL"
+  step src/validate.py extraction --model "$MODEL"
+  step src/validate.py council_agreement --model "$MODEL"
   for check in identification journal_subsets coverage rewrite_test detector_choices; do
     step src/validate.py "$check" --model "$MODEL"
   done
@@ -53,7 +53,8 @@ else
   mkdir -p "$OUT_DIR/figs" "$OUT_DIR/tables"
   step src/validate.py robust --model "$MODEL" --tex "$OUT_DIR/tables/robust.tex"
   step src/validate.py forms --model "$MODEL" --tex "$OUT_DIR/tables/forms.tex"
-  step src/validate.py reference --model "$MODEL" --tex "$OUT_DIR/tables/reference.tex"
+  step src/validate.py extraction --model "$MODEL" --tex "$OUT_DIR/tables/extraction.tex"
+  step src/validate.py council_agreement --model "$MODEL" --tex "$OUT_DIR/tables/council.tex"
   for check in identification journal_subsets coverage rewrite_test detector_choices; do
     step src/validate.py "$check" --model "$MODEL" --tex "$OUT_DIR/tables/$check.tex"
   done

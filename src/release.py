@@ -97,7 +97,6 @@ ARTIFACTS = {
         "gold",
         "gold_audit",
         "gold_audit_written",
-        f"match_{settings.DEFAULT_MODEL}",
         "rewrite_test",
         "paper_reviews",
     ],

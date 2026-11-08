@@ -24,14 +24,10 @@ step() {
 }
 
 step "$SAMPLER" --out "$OUT"
+step model_claims --out "$OUT" --budget "$BUDGET"
 step council_claims --out "$OUT" --budget "$BUDGET"
-step claim_inputs --out "$OUT"
-step judge_claims --out "$OUT" --budget "$BUDGET"
+step model_groups --out "$OUT" --budget "$BUDGET"
 step council_groups --out "$OUT" --budget "$BUDGET"
-if [ "$SAMPLER" != sample ]; then
-  step model_groups --out "$OUT"
-  step match_claims --gold "$OUT" --folder "$OUT/match" --budget "$BUDGET"
-fi
 step kim_sample --out "$OUT"
 step external_claims --out "$OUT" --name kim --paper_kind general --budget "$BUDGET"
 step claimcheck_sample --out "$OUT"

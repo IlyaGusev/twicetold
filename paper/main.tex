@@ -88,7 +88,7 @@ and $o(A,B)=0$ for an empty set. Full overlap means containment of the smaller s
 MELD \citep{li2026meld} scores reviews for LLM-generated or edited text. \textbf{LLM-flagged} means above one common threshold: the 99.9th percentile of \MeldCalibrationReviews{} pre-2023 scores. \textbf{LLM-written} means flagged with MELD's generation label. Other flagged texts are LLM-edited. These are detector outputs, not known authorship. MELD flags at most \MeldPreSourceMax\% of each source's pre-2023 reviews and \MeldIntelAiRecall\% of \MeldIntelAiReviews{} generated ICLR reviews \citep{yu2026reviewed}. It labels \PolishWritten\% of Luna-polished human reviews LLM-written (Appendix~\ref{app:ai}).
 
 \paragraph{Reference labels.}
-Sol 6.1, Opus 5.5 and Kimi K3.1 Pro propose reference claims. Opus checks the claims against source text. Each member independently groups the shared claim list. On \RefPanels{} same-paper ICLR panels, Luna matches \RefRecall\% of reference claims, with \RefPrecision\% precision. For one-to-one aligned claim pairs with three unanimous raw council votes, Luna's grouping has \RefPairPrecision\% precision and \RefPairRecall\% recall across \RefPairPanels{} panels (Appendix~\ref{app:reference}). These scores exclude disputed pairs.
+Sol 6.1, Opus 5.5 and Kimi K3.1 Pro extract claims from the same \RefReviews{} reviews with the pass-1 prompt, and each groups Luna's claim list with the pass-2 prompt. Luna's quoted spans reach a span F1 of \RefSpanFOne\% with a council member, against \RefCouncilSpanFOne\% between two members, across \RefPanels{} same-paper panels from every venue, year and detector stratum (Table~\ref{tab:extraction}). Where all three members agree on a claim pair, Luna's grouping has \RefPairPrecision\% precision and \RefPairRecall\% recall across \RefPairPanels{} panels (Appendix~\ref{app:reference}). These scores exclude disputed pairs.
 
 \section{Results}
 \label{sec:results}
@@ -155,7 +155,7 @@ Against the 2019--2023 mean, journal overlap rose most at F1000 ($+\FResearchCha
 
 \section{Discussion}
 
-Detector-flagged pairs of one paper overlap more, LLM-written pairs most, in ML venues and pooled journals. Our reference set has no 2027 panels, so it does not test measurement drift in the 2027 rise.
+Detector-flagged pairs of one paper overlap more, LLM-written pairs most, in ML venues and pooled journals. The reference panels include ICLR 2027, so Table~\ref{tab:extraction} shows whether extraction agreement moves with the new form.
 
 Higher overlap does not yet mean that panels find clearly fewer problems: an ICLR three-review panel found \CovProblemsBase{} distinct problems in 2023 and \CovProblemsLast{} in 2027, because each review raised slightly more. A third review added fewer new problems, \CovNewLast{} against \CovNewBase{} (Appendix~\ref{app:robust}). Venues that assess review diversity should count distinct problems, not differences in wording.
 
@@ -163,7 +163,7 @@ Higher overlap does not yet mean that panels find clearly fewer problems: an ICL
 
 \clearpage
 \section*{Limitations}
-\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference also uses LLMs, not humans, and does not rule out shared model errors. Extraction and grouping errors can affect measured levels and changes over time. The grouping check covers only unanimous raw council labels on aligned claims, not disputed cases or full-panel overlap. The reference set has no 2027 panels, so it cannot rule out drift from the new 2027 form. No human annotator checked the labels. Our 95\% intervals treat the LLM labels as fixed: they show sampling error over papers, not extraction or grouping error, and a larger corpus does not reduce that error.
+\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference also uses LLMs, not humans, and does not rule out shared model errors. Extraction and grouping errors can affect measured levels and changes over time. The grouping check covers only unanimous council labels, not disputed cases or full-panel overlap. No human annotator checked the labels. Our 95\% intervals treat the LLM labels as fixed: they show sampling error over papers, not extraction or grouping error, and a larger corpus does not reduce that error.
 
 \textbf{Containment, not identity.} Full overlap means that the smaller critique set is contained in the other set, not that the two reviews are identical. We measure repeated problems, not correctness or overall review quality.
 
@@ -220,25 +220,30 @@ Saved requests record API model names and settings. Providers do not expose date
 
 
 \FloatBarrier
-\section{Council Reference Labels}
+\section{Council Reference}
 \label{app:reference}
 
 \begin{table*}[!tp]
 \centering\small
-\input{tables/reference}
-\caption{Luna matches most reference claims. Each row gives panels of one kind and year. Claims diff.\ is Luna minus reference, averaged over panels, with its SE. The row for 2026 minus earlier years compares that difference in 2026 with 2018--2024 (Welch $t$ test). Recall is the share of reference claims with a Luna match, and precision is the share of Luna claims with a reference match. Opus 5.5 matches the claims.}
-\label{tab:reference}
+\input{tables/extraction}
+\caption{Luna's claim extraction agrees with the council as closely as council members agree with each other. Rows are panels of one kind, source, year or detector stratum; $n$ counts panels. Claims: mean claims per review. Span F1 Luna: word-span F1 between Luna's quotes and one member's quotes in a review, averaged over members, reviews and panels, with the SE over panels. Span F1 council: the same between two members. Prec.\ pooled: share of Luna's quoted words that at least one member quotes. Rec.\ unanimous: share of the words all three members quote that Luna quotes.}
+\label{tab:extraction}
 \end{table*}
 
-Sol 6.1, Claude Opus 5.5 and Kimi K3.1 Pro independently extract claims. Opus 5.5 checks these claims against review texts, with proposal model names visible. It retains supported majority claims and adds minority or missing claims only with clear textual support. Each council member independently groups this common claim list. We retain a claim-pair label only when all three raw outputs contain both claim IDs exactly once and agree whether they belong to one group. Split votes and missing or repeated IDs leave a pair unlabeled. Same-paper and cross-paper panels, development/test splits, reviews, raw council outputs and claim labels live in the released dataset. These are LLM labels, not human annotations or independent ground truth.
+\begin{table*}[!tp]
+\centering\small
+\input{tables/council}
+\caption{Luna's grouping agrees with unanimous council votes. Pairs: claim pairs from different reviews of one panel. Unanimous: pairs on which all three members cast the same vote. Precision, recall and F1 take the unanimous vote as truth; intervals resample whole panels.}
+\label{tab:council}
+\end{table*}
 
-Table~\ref{tab:reference} compares claim extraction across all panels post hoc, with $t$ intervals over panels. Opus 5.5 groups each review's reference and Luna claims as two reviews under the grouping prompt. A claim matches if its group contains a claim from the other list. Recall and precision are the matched shares of reference and Luna claims, pooling reviews within panels. Matches allow different granularity: splitting one reference claim into two can count as a match on both sides. Matching succeeded for \RefMatchedReviews{} of \RefReviews{} reviews. The rest failed all attempts. Opus also checked the reference claims, so matching is not independent.
+Sol 6.1, Claude Opus 5.5 and Kimi K3.1 Pro extract claims from the \RefReviews{} reference reviews with the pass-1 prompt. We fixed the prompts and then drew \RefPanels{} same-paper and \RefCrossPanels{} cross-paper panels, stratified by source (ICLR 2018--2027, NeurIPS 2024--2025, ICML 2025--2026 and five journals 2024--2026) and, from 2024 on, by detector labels: panels with no flagged review, panels with at least two flagged and one unflagged review, and panels with at least two LLM-written reviews. Each cell splits 70/30 into development and test panels. Panels, reviews, raw council outputs and Luna's claims and groupings live in the released dataset. These are LLM labels, not human annotations or independent ground truth.
 
-On \RefPanels{} same-paper panels, claim recall is \RefRecall\% (95\% CI \RefRecallLow--\RefRecallHigh) and precision \RefPrecision\% (\RefPrecisionLow--\RefPrecisionHigh). Neither, nor the excess Luna claim count, changes clearly in 2026 (Table~\ref{tab:reference}). The pair-level check below tests grouping separately from claim extraction.
+\paragraph{Claim extraction.} Each claim carries a quote copied from the review, so we compare extractors by the words they quote. For one review, the span F1 between two extractors is the F1 between the sets of word positions their quotes cover; it gives partial credit to partial overlaps and does not depend on how finely either side splits claims. Luna's span F1 with a member is \RefSpanFOne\% (95\% CI \RefSpanFOneLow--\RefSpanFOneHigh); two members reach \RefCouncilSpanFOne\% (\RefCouncilSpanFOneLow--\RefCouncilSpanFOneHigh). \RefPrecisionPooled\% of the words Luna quotes, at least one member quotes too. Luna quotes \RefRecallUnanimous\% of the words all three members quote and \RefRecallMajority\% of the words two or more quote. Luna extracts \RefClaimsLuna{} claims per review, the members \RefClaimsCouncil{}. Table~\ref{tab:extraction} gives every stratum; intervals are $t$ intervals over panels.
 
-\paragraph{Claim-pair detection.} We use the saved Opus matches to align reference and Luna claims within each review. We retain only matches with exactly one claim from each list, then compare Luna with the unanimous raw council label for claims from different reviews. This check covers \RefPairCandidates{} claim pairs from \RefPairAligned{} aligned claims in \RefPairReviews{} reviews across \RefPairPanels{} same-paper panels. Luna agrees with \RefPairTp{} council links, misses \RefPairFn{} and adds \RefPairFp{}. Pooling pair counts gives precision \RefPairPrecision\% (95\% CI \RefPairPrecisionLow--\RefPairPrecisionHigh), recall \RefPairRecall\% (\RefPairRecallLow--\RefPairRecallHigh) and F1 \RefPairFOne\% (\RefPairFOneLow--\RefPairFOneHigh). Intervals resample whole panels.
+Quotes locate claims but do not show that the paraphrases agree. We align a Luna claim with a member claim when at least half of its quoted words lie inside the member's quote, and compare the aligned claims. \RefAligned\% of Luna's claims align with a claim of a given member, against \RefCouncilAligned\% between two members. Aligned claims share the category in \RefCategory\% of pairs (members: \RefCouncilCategory\%), the target in \RefTarget\% (\RefCouncilTarget\%) and the specificity flag in \RefSpecific\% (\RefCouncilSpecific\%). Their claim sentences have a token F1 of \RefClaimFOne\% (\RefCouncilClaimFOne\%).
 
-The unanimity rule retains \RefPairCoverage\% of \RefPairAllCandidates{} aligned candidate pairs. It excludes \RefPairSplit{} split-vote pairs and \RefPairInvalid{} pairs without three valid votes. It retains \RefPairLunaPositive{} of \RefPairAllLunaPositive{} merges predicted by Luna. This post hoc check measures agreement only on aligned claims with unanimous votes. It excludes unmatched claims, split or merged matches, failed matching calls and disputed labels, so it does not measure end-to-end pair detection or accuracy on all cases. Unlabeled pairs do not define complete reference groups, so this check does not validate full-panel overlap levels or time trends. The council and matcher share Opus, and neither supplies human ground truth.
+\paragraph{Claim grouping.} Each member groups Luna's claim list for every panel with the pass-2 prompt, so the grouping check uses the claims Luna groups. We keep a claim-pair label only when all three raw outputs contain both claim ids exactly once and agree whether they belong to one group. Split votes and missing or repeated ids leave a pair unlabeled. The rule keeps \RefPairCandidates{} of \RefPairAllCandidates{} cross-review claim pairs in \RefPairPanels{} same-paper panels (\RefPairCoverage\%); \RefPairSplit{} pairs have split votes and \RefPairInvalid{} lack three valid votes. Luna agrees with \RefPairTp{} unanimous links, misses \RefPairFn{} and adds \RefPairFp{}. Precision is \RefPairPrecision\% (95\% CI \RefPairPrecisionLow--\RefPairPrecisionHigh), recall \RefPairRecall\% (\RefPairRecallLow--\RefPairRecallHigh) and F1 \RefPairFOne\% (\RefPairFOneLow--\RefPairFOneHigh). Intervals resample whole panels. The rule keeps \RefPairLunaPositive{} of \RefPairAllLunaPositive{} merges that Luna predicts. Table~\ref{tab:council} gives every stratum. Agreement among four models does not rule out shared errors. Unlabeled pairs do not define complete reference groups, so this check does not validate full-panel overlap levels or trends.
 
 \FloatBarrier
 \section{Measure and Robustness}

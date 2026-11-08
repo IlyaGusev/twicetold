@@ -57,7 +57,6 @@ p2() { run_pass pass2 "$@"; }
 
 wait
 uv run python src/extract.py merge --model "$MODEL"
-uv run python src/gold.py match_claims --model "$MODEL" > "$LOG_DIR/match.log" 2>&1
 
 if [ -f "data/overlap/panel_outcomes_$MODEL.parquet" ]; then
   RW=data/rewrite_test

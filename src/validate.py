@@ -1,6 +1,6 @@
 import re
 from collections import Counter
-from itertools import combinations
+from itertools import combinations, permutations
 from pathlib import Path
 
 import fire
@@ -20,6 +20,9 @@ from outcomes import excluded_review_ids, in_window
 from settings import settings
 
 REMOVED_FIELD_TAGS = ("_nocq", "_noq")
+HALF_SPAN = 0.5
+LABEL_FIELDS = ("category", "target", "specific")
+PAIR_COUNTS = ["pair_tp", "pair_fp", "pair_fn", "pair_candidates"]
 MIN_DIRECT_PAPERS = 10
 FORM_CATEGORIES = ("clarity/presentation", "novelty", "reproducibility/details")
 FIELD_LABELS = {
@@ -735,7 +738,7 @@ WRITER_LABELS = {settings.AI_REFERENCE_MODEL: "Luna", settings.REWRITE_SECOND_WR
 
 def rewrite_test(
     model=settings.DEFAULT_MODEL,
-    matcher=settings.GOLD_CLAIM_JUDGE_MODEL,
+    matcher=settings.REWRITE_AUDIT_MODEL,
     out=settings.REWRITE_TEST_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "rewrite_test.tex",
@@ -838,33 +841,12 @@ def matched_claims(clusters, n_ref, n_ours):
     return sum(cid.startswith("R0") for cid in hit), sum(cid.startswith("R1") for cid in hit)
 
 
-def aligned_claim_ids(ids, ref_claims, model_claims, model_panel, matches):
-    model_positions = {rid: i for i, rid in enumerate(model_panel["review_ids"])}
-    aligned = []
-    for i, rid in enumerate(ids):
-        if rid not in matches:
-            continue
-        match = assign(
-            dict(review_ids=["ref", "ours"], clusters=matches[rid]["clusters"]),
-            {"ref": ref_claims[rid], "ours": model_claims[rid]},
-        )
-        if match.empty:
-            continue
-        for _, group in match.groupby("cluster"):
-            left, right = group[group.review == 0], group[group.review == 1]
-            if len(left) == len(right) == 1:
-                ref_id = f"R{i}-" + left.cid.iloc[0].split("-", 1)[1]
-                model_id = f"R{model_positions[rid]}-" + right.cid.iloc[0].split("-", 1)[1]
-                aligned.append((rid, ref_id, model_id))
-    return aligned
-
-
 def pair_detection_summary(panels):
-    counts = panels[["pair_tp", "pair_fp", "pair_fn", "pair_candidates", "pair_aligned"]].to_numpy()
-    row = dict(zip(["pair_tp", "pair_fp", "pair_fn", "pair_candidates", "pair_aligned"], counts.sum(axis=0)))
+    counts = panels[PAIR_COUNTS].to_numpy()
+    row = dict(zip(PAIR_COUNTS, counts.sum(axis=0)))
     rng = np.random.default_rng(settings.REFERENCE_BOOTSTRAP_SEED)
     draws = rng.integers(len(counts), size=(settings.REFERENCE_BOOTSTRAPS, len(counts)))
-    tp, fp, fn, candidates, _ = np.vstack([counts.sum(axis=0), counts[draws].sum(axis=1)]).T
+    tp, fp, fn, candidates = np.vstack([counts.sum(axis=0), counts[draws].sum(axis=1)]).T
     for name, numerator, denominator in [
         ("precision", tp, tp + fp),
         ("recall", tp, tp + fn),
@@ -889,17 +871,6 @@ def mean_interval(values, name):
     }
 
 
-def welch_interval(late, early, name):
-    result = stats.ttest_ind(late.dropna(), early.dropna(), equal_var=False)
-    low, high = result.confidence_interval(0.95)
-    return {
-        name: (low + high) / 2,
-        f"{name}_se": (high - low) / 2 / stats.t.ppf(0.975, result.df),
-        f"{name}_low": low,
-        f"{name}_high": high,
-    }
-
-
 def report_cells(df):
     cells = [(dict(conf="all", years="all", stratum="all", split="all"), df)]
     cells += [
@@ -914,94 +885,134 @@ def report_cells(df):
     return cells
 
 
-def paired_summary(df, label):
-    row = dict(
-        **label,
-        panels=len(df),
-        reviews=df.reviews.sum(),
-        matched_reviews=df.matched_reviews.sum(),
-        claims_ref=df.claims_ref.mean(),
-        claims_model=df.claims_model.mean(),
-    )
-    row.update(mean_interval(df.claims_model - df.claims_ref, "claims_bias"))
-    for name in ("recall", "precision"):
-        row.update(mean_interval(df[name], name))
+def write_cell_table(out, tex, columns):
+    names = {"same": "Same-paper", "cross": "Cross-paper"}
+    header = "Panels & Source & Years or flags & $n$ & " + " & ".join(title for _, title, _, _ in columns) + r" \\"
+    lines = [r"\begin{tabular}{lll" + "r" * (len(columns) + 1) + "}", r"\toprule", header, r"\midrule"]
+    for r in out[out.split == "all"].itertuples():
+        cell = (r.years if r.stratum == "all" else r.stratum).replace("all", "All")
+        values = []
+        for name, _, digits, with_se in columns:
+            text = f"{getattr(r, name):.{digits}f}"
+            values.append(text + f" ({getattr(r, name + '_se'):.{digits}f})" if with_se else text)
+        lines.append(f"{names[r.kind]} & {r.conf.replace('all', 'All')} & {cell} & {r.panels} & " + " & ".join(values) + r" \\")
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
+def gold_dir(gold):
+    path = Path(gold)
+    return path if path.exists() else hub.root() / "artifacts" / "experiments" / path.name
+
+
+def panel_meta(panel):
+    return {key: panel[key] for key in ("panel_id", "kind", "conf", "year", "stratum", "split")}
+
+
+def quote_spans(text, claims):
+    norm = extract.normalize_quote(text)
+    spans = []
+    for claim in claims:
+        quote = extract.normalize_quote(claim["quote"])
+        start = norm.find(quote) if quote else -1
+        first = norm.count(" ", 0, start)
+        spans.append(frozenset(range(first, first + len(quote.split()))) if start >= 0 else frozenset())
+    return spans
+
+
+def span_f1(a, b):
+    return 100 * 2 * len(a & b) / (len(a) + len(b)) if a or b else np.nan
+
+
+def share_in(a, b):
+    return 100 * len(a & b) / len(a) if a else np.nan
+
+
+def token_f1(a, b):
+    a, b = Counter(extract.normalize_quote(a).split()), Counter(extract.normalize_quote(b).split())
+    return 100 * 2 * sum((a & b).values()) / (sum(a.values()) + sum(b.values()))
+
+
+def aligned_claims(spans_a, claims_a, spans_b, claims_b):
+    pairs = []
+    for span, claim in zip(spans_a, claims_a):
+        best, j = max(((len(span & other), j) for j, other in enumerate(spans_b)), default=(0, None))
+        if span and best >= HALF_SPAN * len(span):
+            pairs.append((claim, claims_b[j]))
+    return pairs
+
+
+def pair_scores(pairs, n_claims):
+    row = {"aligned": 100 * len(pairs) / n_claims if n_claims else np.nan}
+    for field in LABEL_FIELDS:
+        row[field] = 100 * np.mean([a[field] == b[field] for a, b in pairs]) if pairs else np.nan
+    row["claim_f1"] = np.mean([token_f1(a["claim"], b["claim"]) for a, b in pairs]) if pairs else np.nan
     return row
 
 
-def bias_change(late, early, label):
-    row = dict(**label, panels=len(late) + len(early))
-    row.update(welch_interval(late.claims_model - late.claims_ref, early.claims_model - early.claims_ref, "claims_bias"))
-    for name in ("recall", "precision"):
-        row.update(welch_interval(late[name], early[name], name))
+def extraction_row(text, claims, model, council):
+    spans = {m: quote_spans(text, claims[m]) for m in claims}
+    words = {m: set().union(*spans[m]) for m in claims}
+    counts = Counter(w for m in council for w in words[m])
+    row = dict(claims_model=len(claims[model]), claims_council=np.mean([len(claims[m]) for m in council]))
+    row["f1_model"] = pd.Series([span_f1(words[model], words[m]) for m in council]).mean()
+    row["f1_council"] = pd.Series([span_f1(words[a], words[b]) for a, b in combinations(council, 2)]).mean()
+    row["precision_pooled"] = share_in(words[model], set(counts))
+    row["recall_majority"] = share_in({w for w, n in counts.items() if n >= 2}, words[model])
+    row["recall_unanimous"] = share_in({w for w, n in counts.items() if n == len(council)}, words[model])
+    model_pairs = [p for m in council for p in aligned_claims(spans[model], claims[model], spans[m], claims[m])]
+    council_pairs = [p for a, b in permutations(council, 2) for p in aligned_claims(spans[a], claims[a], spans[b], claims[b])]
+    row.update({f"{k}_model": v for k, v in pair_scores(model_pairs, len(council) * len(claims[model])).items()})
+    n_council = sum(len(claims[a]) for a, _ in permutations(council, 2))
+    row.update({f"{k}_council": v for k, v in pair_scores(council_pairs, n_council).items()})
     return row
 
 
-def reference(
+def extraction(
     model=settings.DEFAULT_MODEL,
     gold=settings.GOLD_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
-    tex=settings.TABLES_DIR / "reference.tex",
-    matcher=settings.GOLD_CLAIM_JUDGE_MODEL,
+    tex=settings.TABLES_DIR / "extraction.tex",
+    council=settings.GOLD_COUNCIL,
 ):
-    experiments = hub.root() / "artifacts" / "experiments"
-    gold = experiments / Path(gold).name
-    matches = load_jsonl(experiments / f"match_{model}" / f"clusters_{matcher}.jsonl", "panel_id")
-    ref_claims = {rid: row["claims"] for rid, row in load_jsonl(gold / "adjudicate" / "out.jsonl", "review_id").items()}
-    tune = list(read_jsonl(gold / "panels_tune.jsonl"))
-    model_claims = hub.claims(model, {rid for panel in tune for rid in panel["review_ids"]})
+    gold = gold_dir(gold)
+    panels = list(read_jsonl(gold / "panels_tune.jsonl"))
+    texts = pd.read_parquet(gold / "tune_reviews.parquet").set_index("review_id").text
+    claims = {m: {} for m in council}
+    for row in read_jsonl(gold / "claims_council.jsonl"):
+        if "claims" in row:
+            claims[row["model"]][row["review_id"]] = row["claims"]
+    claims[model] = extract.load_claims(gold / f"claims_{model}.jsonl")
     rows = []
-    for panel in tune:
-        ids = panel["review_ids"]
-        matched_ids = [r for r in ids if r in matches]
-        matched = [matched_claims(matches[r]["clusters"], len(ref_claims[r]), len(model_claims[r])) for r in matched_ids]
-        n_ref = sum(len(ref_claims[r]) for r in matched_ids)
-        n_ours = sum(len(model_claims[r]) for r in matched_ids)
-        rows.append(
-            dict(
-                panel_id=panel["panel_id"],
-                kind=panel["kind"],
-                conf=panel["conf"],
-                year=panel["year"],
-                stratum=panel["stratum"],
-                split=panel["split"],
-                claims_ref=np.mean([len(ref_claims[r]) for r in ids]),
-                claims_model=np.mean([len(model_claims[r]) for r in ids]),
-                recall=100 * sum(m[0] for m in matched) / n_ref if n_ref else np.nan,
-                precision=100 * sum(m[1] for m in matched) / n_ours if n_ours else np.nan,
-                reviews=len(ids),
-                matched_reviews=len(matched_ids),
-            )
-        )
-    panels = pd.DataFrame(rows)
-    panels.to_csv(Path(reports) / f"reference_panels_{model}.csv", index=False)
+    for panel in panels:
+        for rid in panel["review_ids"]:
+            if all(rid in claims[m] for m in claims):
+                scores = extraction_row(texts[rid], {m: claims[m][rid] for m in claims}, model, council)
+                rows.append(dict(**panel_meta(panel), review_id=rid, **scores))
+    reviews = pd.DataFrame(rows)
+    reviews.to_csv(Path(reports) / f"extraction_reviews_{model}.csv", index=False)
+    keys = list(panel_meta(panels[0]))
+    metrics = [c for c in reviews.columns if c not in keys + ["review_id"]]
+    by_panel = reviews.groupby(keys, sort=False)
+    panels = by_panel[metrics].mean().reset_index().assign(reviews=by_panel.size().to_numpy())
     summary = []
     for kind, by_kind in panels.groupby("kind", sort=False):
-        summary += [paired_summary(cell, dict(kind=kind, **label)) for label, cell in report_cells(by_kind)]
-        for conf, by_conf in by_kind[by_kind.conf.isin(settings.ML_VENUES)].groupby("conf", sort=False):
-            last = by_conf.year.max()
-            if (by_conf.year < last).any():
-                label = dict(kind=kind, conf=conf, years=f"{last} minus earlier", stratum="all", split="all")
-                summary.append(bias_change(by_conf[by_conf.year == last], by_conf[by_conf.year < last], label))
+        for label, cell in report_cells(by_kind):
+            row = dict(kind=kind, **label, panels=len(cell), reviews=int(cell.reviews.sum()))
+            for name in metrics:
+                row.update(mean_interval(cell[name], name))
+            summary.append(row)
     out = pd.DataFrame(summary)
-    out.round(3).to_csv(Path(reports) / f"reference_{model}.csv", index=False)
+    out.round(3).to_csv(Path(reports) / f"extraction_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    lines = [
-        r"\begin{tabular}{lllrrrr}",
-        r"\toprule",
-        r"Panels & Source & Years or flags & $n$ & Claims diff. (SE) & Recall (SE) & Precision (SE) \\",
-        r"\midrule",
+    columns = [
+        ("claims_model", "Claims Luna", 1, False),
+        ("claims_council", "Claims council", 1, False),
+        ("f1_model", "Span F1 Luna (SE)", 1, True),
+        ("f1_council", "Span F1 council (SE)", 1, True),
+        ("precision_pooled", r"Prec.\ pooled (SE)", 1, True),
+        ("recall_unanimous", r"Rec.\ unanimous (SE)", 1, True),
     ]
-    names = {"same": "Same-paper", "cross": "Cross-paper"}
-    for r in out[out.split == "all"].itertuples():
-        cell = r.years if r.stratum == "all" else r.stratum
-        cell = cell.replace(" minus earlier", r" $-$ earlier").replace("all", "All")
-        lines.append(
-            f"{names[r.kind]} & {r.conf.replace('all', 'All')} & {cell} & {r.panels} & "
-            f"{r.claims_bias:+.2f} ({r.claims_bias_se:.2f}) & "
-            f"{r.recall:.1f} ({r.recall_se:.1f}) & {r.precision:.1f} ({r.precision_se:.1f}) " + r"\\"
-        )
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    write_cell_table(out, tex, columns)
 
 
 def unique_claim_group_ids(clusters):
@@ -1016,97 +1027,90 @@ def council_pair_label(groupings, a, b):
     return ("unanimous", votes[0]) if len(set(votes)) == 1 else ("split", None)
 
 
-def council_agreement(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, split=None):
-    experiments = hub.root() / "artifacts" / "experiments"
-    gold = experiments / settings.GOLD_DIR.name
-    panels = [p for p in read_jsonl(gold / "panels_tune.jsonl") if split is None or p["split"] == split]
-    claims = {rid: row["claims"] for rid, row in load_jsonl(gold / "adjudicate" / "out.jsonl", "review_id").items()}
+def council_agreement(
+    model=settings.DEFAULT_MODEL,
+    gold=settings.GOLD_DIR,
+    reports=settings.ANALYSIS_REPORTS_DIR,
+    tex=settings.TABLES_DIR / "council.tex",
+    council=settings.GOLD_COUNCIL,
+):
+    gold = gold_dir(gold)
+    panels = list(read_jsonl(gold / "panels_tune.jsonl"))
+    claims = extract.load_claims(gold / f"claims_{model}.jsonl")
     raw = {(row["panel_id"], row["model"]): row for row in read_jsonl(gold / "clusters_council.jsonl")}
-    matches = load_jsonl(experiments / f"match_{model}" / f"clusters_{settings.GOLD_CLAIM_JUDGE_MODEL}.jsonl", "panel_id")
-    ours = hub.clusters(model, panel_ids=[p["panel_id"] for p in panels])
-    model_claims = hub.panel_claims(model, ours)
+    ours = load_jsonl(gold / f"clusters_{model}.jsonl", "panel_id")
     rows = []
     for panel in panels:
         pid, ids = panel["panel_id"], panel["review_ids"]
-        council = []
-        for member in settings.GOLD_COUNCIL:
+        if "clusters" not in ours.get(pid, {}):
+            continue
+        votes = []
+        for member in council:
             proposal = raw.get((pid, member), {})
             if "clusters" in proposal:
                 assert proposal["review_ids"] == ids, (pid, member)
-            council.append(unique_claim_group_ids(proposal.get("clusters", [])))
-        assert sorted(ours[pid]["review_ids"]) == sorted(ids), pid
+            votes.append(unique_claim_group_ids(proposal.get("clusters", [])))
         model_groups = claim_group_ids(ours[pid]["clusters"])
-        aligned = aligned_claim_ids(ids, claims, model_claims, ours[pid], matches)
-        for a, b in combinations(aligned, 2):
-            if a[0] == b[0]:
+        cids = [(i, f"R{i}-{k}") for i, rid in enumerate(ids) for k in range(len(claims[rid]))]
+        for (ia, a), (ib, b) in combinations(cids, 2):
+            if ia == ib:
                 continue
-            status, consensus = council_pair_label(council, a[1], b[1])
+            status, consensus = council_pair_label(votes, a, b)
             rows.append(
                 dict(
-                    panel_id=pid,
-                    kind=panel["kind"],
-                    conf=panel["conf"],
-                    year=panel["year"],
-                    stratum=panel["stratum"],
-                    split=panel["split"],
-                    ref_a=a[1],
-                    ref_b=b[1],
-                    review_a=a[0],
-                    review_b=b[0],
-                    model_a=a[2],
-                    model_b=b[2],
+                    **panel_meta(panel),
+                    claim_a=a,
+                    claim_b=b,
                     status=status,
                     consensus=consensus,
-                    luna=model_groups.get(a[2], a[2]) == model_groups.get(b[2], b[2]),
-                    **{
-                        member: g[a[1]] == g[b[1]] if a[1] in g and b[1] in g else None
-                        for member, g in zip(settings.GOLD_COUNCIL, council)
-                    },
+                    predicted=model_groups.get(a, a) == model_groups.get(b, b),
+                    **{member: g[a] == g[b] if a in g and b in g else None for member, g in zip(council, votes)},
                 )
             )
     pairs = pd.DataFrame(rows)
     pairs.to_csv(Path(reports) / f"council_agreement_pairs_{model}.csv", index=False)
+    n_reviews = {p["panel_id"]: len(p["review_ids"]) for p in panels}
     summary = []
     for kind, by_kind in pairs.groupby("kind", sort=False):
         for label, cell in report_cells(by_kind):
             unanimous = cell[cell.status == "unanimous"]
-            coverage = dict(
-                source_panels=cell.panel_id.nunique(),
-                aligned_pairs=len(cell),
-                invalid_pairs=int((cell.status == "invalid").sum()),
-                split_pairs=int((cell.status == "split").sum()),
-                unanimous_pairs=len(unanimous),
-                unanimous_reviews=len(set(unanimous.review_a) | set(unanimous.review_b)),
-                aligned_reviews=len(set(cell.review_a) | set(cell.review_b)),
-                source_reviews=sum(len(p["review_ids"]) for p in panels if p["panel_id"] in set(cell.panel_id)),
-                all_luna_positives=int(cell.luna.sum()),
-                retained_luna_positives=int(unanimous.luna.sum()),
-            )
             counts = []
-            for pid, paper in unanimous.groupby("panel_id", sort=False):
-                truth, predicted = paper.consensus.astype(bool), paper.luna
+            for _, paper in unanimous.groupby("panel_id", sort=False):
+                truth, predicted = paper.consensus.astype(bool), paper.predicted
                 counts.append(
                     dict(
                         pair_tp=int((truth & predicted).sum()),
                         pair_fp=int((~truth & predicted).sum()),
                         pair_fn=int((truth & ~predicted).sum()),
                         pair_candidates=len(paper),
-                        pair_aligned=len(set(paper.ref_a) | set(paper.ref_b)),
                     )
                 )
             summary.append(
                 dict(
                     kind=kind,
                     **label,
-                    reference="unanimous",
-                    panels=len(counts),
-                    **coverage,
-                    **pair_detection_summary(pd.DataFrame(counts)),
+                    panels=cell.panel_id.nunique(),
+                    reviews=sum(n_reviews[pid] for pid in set(cell.panel_id)),
+                    candidate_pairs=len(cell),
+                    invalid_pairs=int((cell.status == "invalid").sum()),
+                    split_pairs=int((cell.status == "split").sum()),
+                    unanimous_pairs=len(unanimous),
+                    model_positives=int(cell.predicted.sum()),
+                    retained_model_positives=int(unanimous.predicted.sum()),
+                    **pair_detection_summary(pd.DataFrame(counts, columns=PAIR_COUNTS)),
                 )
             )
     out = pd.DataFrame(summary)
     out.round(3).to_csv(Path(reports) / f"council_agreement_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
+    columns = [
+        ("candidate_pairs", "Pairs", 0, False),
+        ("unanimous_pairs", "Unanimous", 0, False),
+        ("pair_precision", "Precision", 1, False),
+        ("pair_recall", "Recall", 1, False),
+        ("pair_f1", "F1", 1, False),
+    ]
+    write_cell_table(out, tex, columns)
 
 
 QUOTE_CHUNK = 20000
@@ -1178,7 +1182,7 @@ def item_alignment(items, claims):
 
 
 def external(name, model=settings.DEFAULT_MODEL, gold=settings.GOLD_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    gold = hub.root() / "artifacts" / "experiments" / Path(gold).name
+    gold = gold_dir(gold)
     items = {row["review_id"]: row["items"] for row in read_jsonl(gold / f"{name}_items.jsonl")}
     claims = extract.load_claims(gold / f"claims_{model}_{name}.jsonl")
     df = pd.DataFrame([dict(review_id=rid, **item_alignment(items[rid], claims[rid])) for rid in items if rid in claims])
@@ -1209,7 +1213,7 @@ if __name__ == "__main__":
             "detector_placebo": detector_placebo,
             "rq1_evidence": rq1_evidence,
             "journal_gaps": journal_gaps,
-            "reference": reference,
+            "extraction": extraction,
             "council_agreement": council_agreement,
             "identification": identification,
             "pair_types": pair_types,

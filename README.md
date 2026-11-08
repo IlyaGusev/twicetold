@@ -64,7 +64,8 @@ reasoning effort needs a different short name. The extraction chains write part 
 panels with a fixed seed: 170 same-paper panels (ICLR 2018–2027, NeurIPS 2024–2025, ICML 2025–2026 and five journals
 2024–2026) and 30 cross-paper placebo panels. From 2024 on, half of each cell holds at least two flagged and one
 unflagged review, and a quarter of each ML cell holds at least two LLM-written reviews. Each cell splits 70/30 into
-dev and test. `adjudicate/` holds the claim checks and their inputs. `kim_items.jsonl` and `kim_reviews.parquet` hold the 218 human-split Nature-family reviews from
+dev and test. `claims_<model>.jsonl` and `clusters_<model>.jsonl` hold Luna's claims and groupings for the same
+reviews and panels; the council groups Luna's claim list. `kim_items.jsonl` and `kim_reviews.parquet` hold the 218 human-split Nature-family reviews from
 `settings.KIM_DATASET_REPO`; `claimcheck_items.jsonl` and `claimcheck_reviews.parquet` hold the 60 NeurIPS reviews with
 expert weakness spans from `settings.CLAIMCHECK_REPO`; `claims_<model>_<name>.jsonl` holds the claims extracted from each. The dataset holds these files under
 `artifacts/experiments/`. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new
@@ -107,10 +108,10 @@ Use only unanimous raw votes from Sol, Opus and Kimi for grouping checks. Keep b
 unanimous separations. Exclude split votes and pairs with a missing
 member, missing claim ID or repeated claim ID. Do not treat excluded pairs as separate problems.
 
-Run `scripts/post.sh --council-agreement` to score the saved production outputs. The command writes scores and
-per-member pair votes to `reports/overlap/council_agreement*_MODEL.csv`. It makes no model calls. The claim lists
-and one-to-one claim matches still use the saved adjudication. Agreement is not human-ground-truth accuracy.
-Unlabeled pairs do not define complete groups. Do not use this check to infer reference overlap levels or trends.
+`validate.py extraction` compares the quoted spans and the aligned claims of Luna and the council (`reports/overlap/extraction*_MODEL.csv`).
+Run `scripts/post.sh --council-agreement` to score Luna's groupings against the unanimous votes. Both commands read
+the gold folder and make no model calls. Agreement is not human-ground-truth accuracy. Unlabeled pairs do not define
+complete groups. Do not use this check to infer reference overlap levels or trends.
 
 ## Reproduce the detector-conditioned results
 

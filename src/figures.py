@@ -785,35 +785,49 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(prefix + "Change", change["overlap_change"], change["se"], change["papers"])
         shifts.append(dict(source=conf, **change))
     pd.DataFrame(shifts).to_csv(reports / f"journal_changes_{model}.csv", index=False)
-    ref = pd.read_csv(reports / f"reference_{model}.csv").set_index(["kind", "years", "split"])
-    same, cross = ref.loc[("same", "all", "all")], ref.loc[("cross", "all", "all")]
-    change = ref.loc[("same", "2026 minus earlier", "all")]
+    index = ["kind", "conf", "years", "stratum", "split"]
+    total = ("all", "all", "all", "all")
+    ref = pd.read_csv(reports / f"extraction_{model}.csv").set_index(index)
+    same, cross = ref.loc[("same", *total)], ref.loc[("cross", *total)]
     values["RefPanels"] = f"{int(same.panels)}"
     values["RefCrossPanels"] = f"{int(cross.panels)}"
     values["RefReviews"] = f"{int(same.reviews + cross.reviews)}"
-    values["RefMatchedReviews"] = f"{int(same.matched_reviews + cross.matched_reviews)}"
-    values["RefClaims"] = f"{same.claims_ref:.1f}"
     values["RefClaimsLuna"] = f"{same.claims_model:.1f}"
-    council = pd.read_csv(reports / f"council_agreement_{model}.csv").set_index(["kind", "split"])
-    pairs = council.loc[("same", "all")]
+    values["RefClaimsCouncil"] = f"{same.claims_council:.1f}"
+    for name, prefix in [
+        ("f1_model", "RefSpanFOne"),
+        ("f1_council", "RefCouncilSpanFOne"),
+        ("precision_pooled", "RefPrecisionPooled"),
+        ("recall_majority", "RefRecallMajority"),
+        ("recall_unanimous", "RefRecallUnanimous"),
+        ("aligned_model", "RefAligned"),
+        ("aligned_council", "RefCouncilAligned"),
+        ("category_model", "RefCategory"),
+        ("category_council", "RefCouncilCategory"),
+        ("target_model", "RefTarget"),
+        ("target_council", "RefCouncilTarget"),
+        ("specific_model", "RefSpecific"),
+        ("specific_council", "RefCouncilSpecific"),
+        ("claim_f1_model", "RefClaimFOne"),
+        ("claim_f1_council", "RefCouncilClaimFOne"),
+    ]:
+        for suffix in ("", "_low", "_high"):
+            values[prefix + suffix.title()[1:]] = f"{same[name + suffix]:.1f}"
+    council = pd.read_csv(reports / f"council_agreement_{model}.csv").set_index(index)
+    pairs = council.loc[("same", *total)]
     values["RefPairPanels"] = f"{int(pairs.panels)}"
-    for name in ["tp", "fp", "fn", "candidates", "aligned"]:
+    for name in ["tp", "fp", "fn", "candidates"]:
         values["RefPair" + name.title()] = f"{int(pairs['pair_' + name]):,}"
-    values["RefPairReviews"] = f"{int(pairs.unanimous_reviews):,}"
-    values["RefPairAllReviews"] = f"{int(pairs.source_reviews):,}"
-    values["RefPairAllCandidates"] = f"{int(pairs.aligned_pairs):,}"
-    values["RefPairCoverage"] = f"{100 * pairs.unanimous_pairs / pairs.aligned_pairs:.1f}"
+    values["RefPairAllReviews"] = f"{int(pairs.reviews):,}"
+    values["RefPairAllCandidates"] = f"{int(pairs.candidate_pairs):,}"
+    values["RefPairCoverage"] = f"{100 * pairs.unanimous_pairs / pairs.candidate_pairs:.1f}"
     values["RefPairSplit"] = f"{int(pairs.split_pairs):,}"
     values["RefPairInvalid"] = f"{int(pairs.invalid_pairs):,}"
-    values["RefPairLunaPositive"] = f"{int(pairs.retained_luna_positives)}"
-    values["RefPairAllLunaPositive"] = f"{int(pairs.all_luna_positives)}"
+    values["RefPairLunaPositive"] = f"{int(pairs.retained_model_positives)}"
+    values["RefPairAllLunaPositive"] = f"{int(pairs.model_positives)}"
     for name in ["precision", "recall", "f1"]:
         for suffix in ["", "_low", "_high"]:
             values["RefPair" + name.title().replace("1", "One") + suffix.title()[1:]] = f"{pairs['pair_' + name + suffix]:.1f}"
-    for row, prefix in [(same, "Ref"), (change, "RefChange")]:
-        for name, digits in [("claims_bias", 2), ("recall", 1), ("precision", 1)]:
-            for suffix in ("", "_low", "_high"):
-                values[prefix + name.title().replace("_", "") + suffix.title()[1:]] = f"{row[name + suffix]:.{digits}f}"
     ident = pd.read_csv(reports / f"identification_{model}.csv").set_index("label")
     for label, prefix in [
         ("ICLR 2024–27", "IdIclr"),
