@@ -13,6 +13,7 @@ from tqdm import tqdm
 import ai
 import extract
 import hub
+from between import normalize_rows, openai_embed
 from jsonl import load_jsonl, read_jsonl
 from metrics import assign, mean_overlap, review_groups
 from metrics import overlap as pair_overlap
@@ -949,7 +950,11 @@ def pair_scores(pairs, n_claims):
     return row
 
 
-def extraction_row(text, claims, model, council):
+def soft_cover(a, b):
+    return 100 * (a @ b.T).max(axis=1).mean() if len(a) and len(b) else np.nan
+
+
+def extraction_row(text, claims, vectors, model, council):
     spans = {m: quote_spans(text, claims[m]) for m in claims}
     words = {m: set().union(*spans[m]) for m in claims}
     counts = Counter(w for m in council for w in words[m])
@@ -964,7 +969,17 @@ def extraction_row(text, claims, model, council):
     row.update({f"{k}_model": v for k, v in pair_scores(model_pairs, len(council) * len(claims[model])).items()})
     n_council = sum(len(claims[a]) for a, _ in permutations(council, 2))
     row.update({f"{k}_council": v for k, v in pair_scores(council_pairs, n_council).items()})
+    row["soft_precision_model"] = pd.Series([soft_cover(vectors[model], vectors[m]) for m in council]).mean()
+    row["soft_recall_model"] = pd.Series([soft_cover(vectors[m], vectors[model]) for m in council]).mean()
+    row["soft_council"] = pd.Series([soft_cover(vectors[a], vectors[b]) for a, b in permutations(council, 2)]).mean()
     return row
+
+
+def claim_vectors(claims):
+    texts = sorted({c["claim"] for by_review in claims.values() for cl in by_review.values() for c in cl})
+    vectors = normalize_rows(openai_embed(texts, settings.EMBED_MODEL, batch=256, threads=8, desc="embed claims"))
+    index = {text: i for i, text in enumerate(texts)}
+    return lambda cl: vectors[[index[c["claim"]] for c in cl]]
 
 
 def extraction(
@@ -982,11 +997,15 @@ def extraction(
         if "claims" in row:
             claims[row["model"]][row["review_id"]] = row["claims"]
     claims[model] = extract.load_claims(gold / f"claims_{model}.jsonl")
+    vectors = claim_vectors(claims)
     rows = []
     for panel in panels:
         for rid in panel["review_ids"]:
             if all(rid in claims[m] for m in claims):
-                scores = extraction_row(texts[rid], {m: claims[m][rid] for m in claims}, model, council)
+                review_claims = {m: claims[m][rid] for m in claims}
+                scores = extraction_row(
+                    texts[rid], review_claims, {m: vectors(cl) for m, cl in review_claims.items()}, model, council
+                )
                 rows.append(dict(**panel_meta(panel), review_id=rid, **scores))
     reviews = pd.DataFrame(rows)
     reviews.to_csv(Path(reports) / f"extraction_reviews_{model}.csv", index=False)
@@ -1011,6 +1030,9 @@ def extraction(
         ("f1_council", "Span F1 council (SE)", 1, True),
         ("precision_pooled", r"Prec.\ pooled (SE)", 1, True),
         ("recall_unanimous", r"Rec.\ unanimous (SE)", 1, True),
+        ("soft_precision_model", r"Soft prec.\ Luna (SE)", 1, True),
+        ("soft_recall_model", r"Soft rec.\ Luna (SE)", 1, True),
+        ("soft_council", "Soft council (SE)", 1, True),
     ]
     write_cell_table(out, tex, columns)
 

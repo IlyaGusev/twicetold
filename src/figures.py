@@ -810,6 +810,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         ("specific_council", "RefCouncilSpecific"),
         ("claim_f1_model", "RefClaimFOne"),
         ("claim_f1_council", "RefCouncilClaimFOne"),
+        ("soft_precision_model", "RefSoftPrecision"),
+        ("soft_recall_model", "RefSoftRecall"),
+        ("soft_council", "RefCouncilSoft"),
     ]:
         for suffix in ("", "_low", "_high"):
             values[prefix + suffix.title()[1:]] = f"{same[name + suffix]:.1f}"
