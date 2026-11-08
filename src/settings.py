@@ -83,7 +83,9 @@ class Settings(BaseSettings):
     AI_REFERENCE_MODEL: str = "gpt-6-luna"
     REWRITE_SECOND_WRITER: str = "kimi-k3.1-pro"
     GOLD_COUNCIL: list[str] = ["sol-or", "opus-5.5", "kimi-k3.1-pro"]
-    GOLD_JUDGE_MODEL: str = "opus-5.5"
+    GOLD_CLAIM_JUDGE_MODEL: str = "opus-5.5"
+    REFERENCE_BOOTSTRAPS: int = 5000
+    REFERENCE_BOOTSTRAP_SEED: int = 0
     REVIEW_TEXT_MAX_CHARS: int = 14000
     PAPER_TEXT_MAX_CHARS: int = 60000
     PAPER_REVIEW_PAPERS: int = 100

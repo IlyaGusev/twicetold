@@ -33,12 +33,6 @@ GOLD_CLAIMS_SCHEMA = extract.strict_object(
         "items": extract.strict_object(**extract.CLAIM_SCHEMA["properties"], support={"type": "integer", "enum": [0, 1, 2, 3]}),
     }
 )
-GOLD_GROUPS_SCHEMA = extract.strict_object(
-    clusters={
-        "type": "array",
-        "items": extract.strict_object(problem={"type": "string"}, claim_ids={"type": "array", "items": {"type": "string"}}),
-    }
-)
 
 
 def council_names(council):
@@ -243,11 +237,6 @@ def valid_claims(item, reply):
     return all(len(c["claim"].split()) <= MAX_CLAIM_WORDS for c in reply["claims"])
 
 
-def valid_groups(item, reply):
-    given = sorted(x for cluster in reply["clusters"] for x in cluster["claim_ids"])
-    return given == sorted(c["id"] for c in item["claims"])
-
-
 def judge(folder, schema, name, key, keys, valid, model, effort, threads, budget):
     instructions = (folder / "INSTRUCTIONS.md").read_text()
     out_path = folder / "out.jsonl"
@@ -274,7 +263,7 @@ def judge(folder, schema, name, key, keys, valid, model, effort, threads, budget
         print(f"{failed} items failed or hit the budget; run again to retry them")
 
 
-def judge_claims(out, model=settings.GOLD_JUDGE_MODEL, threads=8, budget=15.0):
+def judge_claims(out, model=settings.GOLD_CLAIM_JUDGE_MODEL, threads=8, budget=15.0):
     effort = extract.reasoning_efforts(model).pass1
     judge(
         Path(out) / "adjudicate",
@@ -309,56 +298,6 @@ def council_groups(out, council=settings.GOLD_COUNCIL, threads=12, budget=15.0):
     merge_council(out, "clusters", "panel_id", "_tune_gold", council)
 
 
-def group_inputs(out, council=settings.GOLD_COUNCIL):
-    out = Path(out)
-    folder = out / "adjudicate2"
-    folder.mkdir(exist_ok=True)
-    gold = extract.load_claims(out / "adjudicate" / "out.jsonl")
-    reviews = {r for p in read_jsonl(out / "panels_tune.jsonl") for r in p["review_ids"]}
-    drop_incomplete(out, reviews - set(gold))
-    clusters = by_model(out / "clusters_council.jsonl", "panel_id", "clusters")
-    items = []
-    for panel in read_jsonl(out / "panels_tune.jsonl"):
-        claims = [
-            dict(id=f"R{j}-{k}", claim=c["claim"], category=c["category"], specific=c["specific"])
-            for j, review_id in enumerate(panel["review_ids"])
-            for k, c in enumerate(gold[review_id])
-        ]
-        votes = {
-            model: [dict(problem=c["problem"], claim_ids=c["claim_ids"]) for c in clusters[model][panel["panel_id"]]]
-            for model in council
-            if panel["panel_id"] in clusters[model]
-        }
-        items.append(
-            dict(
-                panel_id=panel["panel_id"],
-                kind=panel["kind"],
-                year=panel["year"],
-                n_reviews=len(panel["review_ids"]),
-                claims=claims,
-                council=votes,
-            )
-        )
-    write_jsonl(folder / "in.jsonl", items)
-    (folder / "INSTRUCTIONS.md").write_text(render("gold_groups", council=council_names(council)))
-
-
-def judge_groups(out, model=settings.GOLD_JUDGE_MODEL, threads=8, budget=15.0):
-    effort = extract.reasoning_efforts(model).pass2
-    judge(
-        Path(out) / "adjudicate2",
-        GOLD_GROUPS_SCHEMA,
-        "clusters",
-        "panel_id",
-        ("problem", "claim_ids"),
-        valid_groups,
-        model,
-        effort,
-        threads,
-        budget,
-    )
-
-
 def model_groups(out=settings.AUDIT_DIR, model=settings.DEFAULT_MODEL, threads=16, budget=5.0):
     out = Path(out)
     for kind, path in kind_files(out, "panels_tune", ".jsonl"):
@@ -369,7 +308,7 @@ def model_groups(out=settings.AUDIT_DIR, model=settings.DEFAULT_MODEL, threads=1
 
 def match_claims(
     model=settings.DEFAULT_MODEL,
-    matcher=settings.GOLD_JUDGE_MODEL,
+    matcher=settings.GOLD_CLAIM_JUDGE_MODEL,
     threads=12,
     budget=15.0,
     data=str(settings.DATA_DIR),
@@ -401,8 +340,6 @@ if __name__ == "__main__":
             claim_inputs=claim_inputs,
             judge_claims=judge_claims,
             council_groups=council_groups,
-            group_inputs=group_inputs,
-            judge_groups=judge_groups,
             match_claims=match_claims,
         )
     )

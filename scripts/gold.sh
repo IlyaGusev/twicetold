@@ -28,8 +28,6 @@ step council_claims --out "$OUT" --budget "$BUDGET"
 step claim_inputs --out "$OUT"
 step judge_claims --out "$OUT" --budget "$BUDGET"
 step council_groups --out "$OUT" --budget "$BUDGET"
-step group_inputs --out "$OUT"
-step judge_groups --out "$OUT" --budget "$BUDGET"
 if [ "$SAMPLER" != sample ]; then
   step model_groups --out "$OUT"
   step match_claims --gold "$OUT" --folder "$OUT/match" --budget "$BUDGET"

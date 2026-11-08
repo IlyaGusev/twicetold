@@ -60,8 +60,8 @@ reasoning effort needs a different short name. The extraction chains write part 
 `extract.py merge` joins them. The dataset holds both files as the `claims` column and the `panels` config.
 
 `data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs (`claims_council.jsonl`,
-`clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `adjudicate/` holds the claim judge
-input and output; `adjudicate2/` holds the grouping judge input and output. The dataset holds them under
+`clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `adjudicate/` holds the claim checks
+and their inputs. The dataset holds these files under
 `artifacts/experiments/`. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new
 folder (`src/gold.py`); it calls paid APIs and never writes into `data/gold/`. `tests/test_gold.py` checks that the
 steps without model calls rebuild `data/gold/` byte for byte.
@@ -94,6 +94,17 @@ hand-entered values.
 
 `scripts/post.sh MODEL OUT_DIR` writes the paper tables and figures under `OUT_DIR`. Analysis reports still use
 `ANALYSIS_REPORTS_DIR`.
+
+### Grouping reference
+
+Use only unanimous raw votes from Sol, Opus and Kimi for grouping checks. Keep both unanimous merges and
+unanimous separations. Exclude split votes and pairs with a missing
+member, missing claim ID or repeated claim ID. Do not treat excluded pairs as separate problems.
+
+Run `scripts/post.sh --council-agreement` to score the saved production outputs. The command writes scores and
+per-member pair votes to `reports/overlap/council_agreement*_MODEL.csv`. It makes no model calls. The claim lists
+and one-to-one claim matches still use the saved adjudication. Agreement is not human-ground-truth accuracy.
+Unlabeled pairs do not define complete groups. Do not use this check to infer reference overlap levels or trends.
 
 ## Reproduce the detector-conditioned results
 

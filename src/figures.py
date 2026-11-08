@@ -532,23 +532,55 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     save(fig, figs, "figA_cross.pdf", PAGE_WIDTH)
 
 
+def calibrate_embedding(cells):
+    cells = cells.copy()
+    baseline = cells[cells.year.between(settings.ICLR_FROM, 2022)].groupby("conf").inter_area.mean()
+    cells["calibration_baseline"] = cells.conf.map(baseline)
+    for column in ["intra", "inter_area"]:
+        cells["calibrated_" + column] = (cells[column] - cells.calibration_baseline) / (1 - cells.calibration_baseline)
+    cells["calibrated_intra_se"] = cells.intra_se / (1 - cells.calibration_baseline)
+    return cells
+
+
 def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    embed = in_window(pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"embed_{model}.csv"))
+    embed = calibrate_embedding(in_window(pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"embed_{model}.csv")))
+    embed.to_csv(settings.ANALYSIS_REPORTS_DIR / f"embed_calibrated_{model}.csv", index=False)
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 1.0, 2.0))
     shade_chatgpt_period(ax)
     by_conf = {conf: embed[embed.conf == conf].set_index("year") for conf in ["ICLR", "NeurIPS"]}
+    ax.axhline(0, color=COLORS["grey"], lw=0.6, zorder=0)
     for conf, rows in by_conf.items():
-        ax.plot(rows.index, rows.intra, "o-", ms=3, color=COLORS[conf])
-        ax.plot(rows.index, rows.inter_area, "o--", ms=3, mfc="white", color=COLORS[conf])
+        ax.errorbar(rows.index, rows.calibrated_intra, yerr=Z95 * rows.calibrated_intra_se, fmt="o-", ms=3, color=COLORS[conf])
+        ax.plot(rows.index, rows.calibrated_inter_area, "o--", ms=3, mfc="white", color=COLORS[conf])
     iclr, neurips = by_conf["ICLR"], by_conf["NeurIPS"]
-    end_label(ax, settings.ICLR_LAST, iclr.intra.iloc[-1], "ICLR, same paper", COLORS["ICLR"])
-    end_label(ax, 2021, neurips.intra.loc[2021], "NeurIPS, same paper", COLORS["NeurIPS"], dx=-2, dy=7, ha="left", va="bottom")
-    end_label(ax, settings.ICLR_LAST, iclr.inter_area.iloc[-1], "ICLR, different\npapers, same area", COLORS["ICLR"])
-    end_label(ax, 2023, neurips.inter_area.loc[2023], "NeurIPS, different papers", COLORS["NeurIPS"], dx=0, dy=-10, ha="center")
+    end_label(ax, settings.ICLR_LAST, iclr.calibrated_intra.iloc[-1], "ICLR, same paper", COLORS["ICLR"])
+    end_label(
+        ax,
+        2021,
+        neurips.calibrated_intra.loc[2021],
+        "NeurIPS, same paper",
+        COLORS["NeurIPS"],
+        dx=-2,
+        dy=14,
+        ha="left",
+        va="bottom",
+    )
+    end_label(ax, settings.ICLR_LAST, iclr.calibrated_inter_area.iloc[-1], "ICLR, different\npapers, same area", COLORS["ICLR"])
+    end_label(
+        ax,
+        2023,
+        neurips.calibrated_inter_area.loc[2023],
+        "NeurIPS, different papers",
+        COLORS["NeurIPS"],
+        dx=0,
+        dy=-10,
+        ha="center",
+    )
     ax.set_xlim(2019.6, settings.ICLR_LAST + 0.4)
-    ax.set_ylim(0, 0.9)
+    ax.set_ylim(-0.18, 0.75)
+    ax.set_yticks([0, 0.3, 0.6])
     year_ticks(ax)
-    ax.set_ylabel("Cosine similarity")
+    ax.set_ylabel("Baseline-scaled similarity")
     save(fig, figs, "figA_embedding.pdf", COLUMN_WIDTH)
 
 
@@ -729,11 +761,13 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
             * 100
         )
         record(prefix, sample.mean(), sample.sem(), len(sample))
-    embed = pd.read_csv(reports / f"embed_{model}.csv").set_index(["conf", "year"])
+    embed = calibrate_embedding(pd.read_csv(reports / f"embed_{model}.csv")).set_index(["conf", "year"])
     for year, suffix in [(2020, "Base"), (2023, "Mid"), (settings.ICLR_LAST, "Last")]:
         row = embed.loc[("ICLR", year)]
         record("EmbedSame" + suffix, row.intra, row.intra_se, row.papers, digits=2)
         record("EmbedArea" + suffix, row.inter_area, digits=2)
+        record("EmbedScaledSame" + suffix, row.calibrated_intra, row.calibrated_intra_se, row.papers, digits=2)
+        record("EmbedScaledArea" + suffix, row.calibrated_inter_area, digits=2)
     categories = category_shifts(model)
     categories.to_csv(reports / f"category_shift_{model}.csv")
     values["CategoryMaxInterval"] = f"{(Z95 * categories.se).max():.1f}"
@@ -758,14 +792,26 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["RefCrossPanels"] = f"{int(cross.panels)}"
     values["RefReviews"] = f"{int(same.reviews + cross.reviews)}"
     values["RefMatchedReviews"] = f"{int(same.matched_reviews + cross.matched_reviews)}"
-    values["RefOverlap"] = f"{same.overlap_ref:.1f}"
-    values["RefOverlapLuna"] = f"{same.overlap_model:.1f}"
-    values["RefOverlapRho"] = f"{same.overlap_rho:.2f}"
-    values["RefCrossLuna"] = f"{cross.overlap_model:.1f}"
     values["RefClaims"] = f"{same.claims_ref:.1f}"
     values["RefClaimsLuna"] = f"{same.claims_model:.1f}"
+    council = pd.read_csv(reports / f"council_agreement_{model}.csv").set_index(["kind", "split"])
+    pairs = council.loc[("same", "all")]
+    values["RefPairPanels"] = f"{int(pairs.panels)}"
+    for name in ["tp", "fp", "fn", "candidates", "aligned"]:
+        values["RefPair" + name.title()] = f"{int(pairs['pair_' + name]):,}"
+    values["RefPairReviews"] = f"{int(pairs.unanimous_reviews):,}"
+    values["RefPairAllReviews"] = f"{int(pairs.source_reviews):,}"
+    values["RefPairAllCandidates"] = f"{int(pairs.aligned_pairs):,}"
+    values["RefPairCoverage"] = f"{100 * pairs.unanimous_pairs / pairs.aligned_pairs:.1f}"
+    values["RefPairSplit"] = f"{int(pairs.split_pairs):,}"
+    values["RefPairInvalid"] = f"{int(pairs.invalid_pairs):,}"
+    values["RefPairLunaPositive"] = f"{int(pairs.retained_luna_positives)}"
+    values["RefPairAllLunaPositive"] = f"{int(pairs.all_luna_positives)}"
+    for name in ["precision", "recall", "f1"]:
+        for suffix in ["", "_low", "_high"]:
+            values["RefPair" + name.title().replace("1", "One") + suffix.title()[1:]] = f"{pairs['pair_' + name + suffix]:.1f}"
     for row, prefix in [(same, "Ref"), (change, "RefChange")]:
-        for name, digits in [("claims_bias", 2), ("overlap_bias", 1), ("recall", 1), ("precision", 1)]:
+        for name, digits in [("claims_bias", 2), ("recall", 1), ("precision", 1)]:
             for suffix in ("", "_low", "_high"):
                 values[prefix + name.title().replace("_", "") + suffix.title()[1:]] = f"{row[name + suffix]:.{digits}f}"
     ident = pd.read_csv(reports / f"identification_{model}.csv").set_index("label")
@@ -861,27 +907,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(prefix + "Flagged", 100 - row.unflagged, digits=digits)
         record(prefix + "Written", row.written, digits=digits)
         record(prefix + "WrittenOfFlagged", 100 * row.written / (100 - row.unflagged), digits=0)
-    audit = pd.read_csv(reports / f"audit_{model}.csv").set_index("label")
-    for label, prefix in [
-        ("ICLR 2023", "AuditBase"),
-        ("Journals 2024--26", "AuditJournal"),
-        ("Two flagged $-$ none", "AuditGap"),
-        ("Two LLM-written $-$ none", "AuditWritten"),
-        ("ICLR 2024--26 minus 2018--23", "AuditChange"),
-    ]:
-        row = audit.loc[label]
-        values[prefix + "N"] = f"{int(row.panels)}"
-        for suffix in ("", "_low", "_high"):
-            values[prefix + "Diff" + suffix.title()[1:]] = f"{row['diff' + suffix]:+.1f}"
-        if not pd.isna(row.ref):
-            record(prefix + "Ref", row.ref)
-            record(prefix + "Luna", row.luna)
-    values["AuditWrittenPanels"] = f"{int(audit.loc['ICLR 2024--26, LLM-written strata'].panels)}"
-    for label, prefix in [("Two flagged $-$ none", "AuditRefGap"), ("Two LLM-written $-$ none", "AuditWrittenRefGap")]:
-        gap = audit.loc[label]
-        for suffix in ("", "_low", "_high"):
-            values[prefix + suffix.title()[1:]] = f"{gap['ref_gap' + suffix]:+.1f}"
-            values[prefix.replace("Ref", "Luna") + suffix.title()[1:]] = f"{gap['luna_gap' + suffix]:+.1f}"
     repro = pd.read_csv(reports / f"repro_{model}.csv").set_index("name").value
     for name in ["pass1_empty", "pass1_error_rows", "pass2_error_rows", "calibration_in_analysis", "calibration_outside"]:
         values["Repro" + name.title().replace("_", "").replace("1", "One").replace("2", "Two")] = f"{int(repro[name]):,}"

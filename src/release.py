@@ -102,7 +102,7 @@ ARTIFACTS = {
         "paper_reviews",
     ],
 }
-ARTIFACT_SKIPPED_DIRS = {"raw"}
+ARTIFACT_SKIPPED_DIRS = {"raw", "adjudicate2"}
 PANEL_FILES = [
     "panels",
     "panels_icml",
@@ -367,6 +367,10 @@ def artifact_files(data):
 
 def artifacts(data=str(settings.DATA_DIR), out=str(settings.RELEASE_DIR)):
     data, out = Path(data), Path(out)
+    for name in ARTIFACT_SKIPPED_DIRS:
+        for path in (out / "artifacts").rglob(name):
+            if path.is_dir():
+                shutil.rmtree(path)
     for path, target in artifact_files(data):
         (out / target).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, out / target)
@@ -382,7 +386,7 @@ def pull(data=str(settings.DATA_DIR), repo=settings.HF_DATASET_REPO, revision=se
             target = data / name
             target.parent.mkdir(parents=True, exist_ok=True)
             if source.is_dir():
-                shutil.copytree(source, target, dirs_exist_ok=True)
+                shutil.copytree(source, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns(*ARTIFACT_SKIPPED_DIRS))
             else:
                 for suffix in ["", ".md"]:
                     if source.with_name(source.name + suffix).exists():

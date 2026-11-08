@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.." || exit 1
+if [ "${1:-}" = "--council-agreement" ]; then
+  shift
+  OMP_NUM_THREADS=2 nice -n 19 uv run python src/validate.py council_agreement "$@"
+  exit $?
+fi
 if [ $# -lt 1 ] || [ $# -gt 2 ]; then
   echo "usage: $0 MODEL [OUT_DIR]" >&2
   exit 1
@@ -28,12 +33,13 @@ step src/validate.py rq1_evidence --model "$MODEL"
 step src/validate.py journal_gaps --model "$MODEL"
 step src/validate.py pair_types --model "$MODEL"
 step src/validate.py pair_type_sizes --model "$MODEL"
+step src/validate.py council_agreement --model "$MODEL"
 step src/validate.py repro --model "$MODEL"
 if [ -z "$OUT_DIR" ]; then
   step src/validate.py robust --model "$MODEL"
   step src/validate.py forms --model "$MODEL"
   step src/validate.py reference --model "$MODEL"
-  for check in identification journal_subsets coverage rewrite_test audit detector_choices; do
+  for check in identification journal_subsets coverage rewrite_test detector_choices; do
     step src/validate.py "$check" --model "$MODEL"
   done
   step src/measures.py measures --model "$MODEL"
@@ -45,7 +51,7 @@ else
   step src/validate.py robust --model "$MODEL" --tex "$OUT_DIR/tables/robust.tex"
   step src/validate.py forms --model "$MODEL" --tex "$OUT_DIR/tables/forms.tex"
   step src/validate.py reference --model "$MODEL" --tex "$OUT_DIR/tables/reference.tex"
-  for check in identification journal_subsets coverage rewrite_test audit detector_choices; do
+  for check in identification journal_subsets coverage rewrite_test detector_choices; do
     step src/validate.py "$check" --model "$MODEL" --tex "$OUT_DIR/tables/$check.tex"
   done
   step src/measures.py measures --model "$MODEL" --tex "$OUT_DIR/tables/measures.tex"

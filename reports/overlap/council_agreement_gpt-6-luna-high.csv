@@ -1,0 +1,7 @@
+kind,split,reference,panels,source_panels,aligned_pairs,invalid_pairs,split_pairs,unanimous_pairs,unanimous_reviews,aligned_reviews,source_reviews,all_luna_positives,retained_luna_positives,pair_tp,pair_fp,pair_fn,pair_candidates,pair_aligned,pair_precision,pair_precision_low,pair_precision_high,pair_recall,pair_recall_low,pair_recall_high,pair_f1,pair_f1_low,pair_f1_high,pair_accuracy,pair_accuracy_low,pair_accuracy_high
+same,all,unanimous,39,40,9892,130,119,9643,152,155,160,123,97,82,15,14,9643,1006,84.536,72.999,93.335,85.417,76.923,92.453,84.974,76.729,91.111,99.699,99.565,99.813
+same,dev,unanimous,28,28,7463,85,88,7290,109,109,112,90,74,62,12,14,7290,733,83.784,68.332,94.595,81.579,70.27,89.855,82.667,71.211,90.244,99.643,99.472,99.783
+same,test,unanimous,11,12,2429,45,31,2353,43,46,48,33,23,20,3,0,2353,273,86.957,70.0,100.0,100.0,100.0,100.0,93.023,82.353,100.0,99.873,99.737,100.0
+cross,all,unanimous,20,20,5839,0,5,5834,79,79,80,2,1,0,1,1,5834,577,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,99.966,99.917,100.0
+cross,dev,unanimous,12,12,3619,0,2,3617,47,47,48,1,1,0,1,0,3617,357,0.0,0.0,0.0,,,,0.0,0.0,0.0,99.972,99.9,100.0
+cross,test,unanimous,8,8,2220,0,3,2217,32,32,32,1,0,0,0,1,2217,220,,,,0.0,0.0,0.0,0.0,0.0,0.0,99.955,99.889,100.0

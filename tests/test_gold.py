@@ -38,9 +38,3 @@ def test_deterministic_steps_rebuild_data_gold(tmp_path):
     gold.claim_inputs(tmp_path)
     same_files(tmp_path, "adjudicate/in.jsonl")
     same_files(tmp_path, "adjudicate/INSTRUCTIONS.md")
-
-    copy(tmp_path, "adjudicate/out.jsonl")
-    copy(tmp_path, "clusters_council.jsonl")
-    gold.group_inputs(tmp_path)
-    same_files(tmp_path, "adjudicate2/in.jsonl")
-    same_files(tmp_path, "adjudicate2/INSTRUCTIONS.md")
