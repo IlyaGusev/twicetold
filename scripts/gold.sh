@@ -33,5 +33,7 @@ if [ "$SAMPLER" != sample ]; then
   step match_claims --gold "$OUT" --folder "$OUT/match" --budget "$BUDGET"
 fi
 step kim_sample --out "$OUT"
-step kim_claims --out "$OUT" --budget "$BUDGET"
+step external_claims --out "$OUT" --name kim --paper_kind general --budget "$BUDGET"
+step claimcheck_sample --out "$OUT"
+step external_claims --out "$OUT" --name claimcheck --paper_kind ml --budget "$BUDGET"
 echo "GOLD DONE $(date)"

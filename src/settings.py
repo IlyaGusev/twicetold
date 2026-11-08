@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     HF_DATASET_LOCAL: bool = False
     KIM_DATASET_REPO: str = "prometheus-eval/peerreview-bench"
     KIM_DATASET_REVISION: str = "b782d6676fcece1ed33f1eb2c0e27241d19f9f63"
+    CLAIMCHECK_REPO: str = "JHU-CLSP/CLAIMCHECK"
+    CLAIMCHECK_REVISION: str = "788673e0ac214f0e3a5c7d013412fffc63fab9fe"
 
     @property
     def OTHER_REVIEWS_DIR(self):

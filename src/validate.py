@@ -1145,7 +1145,7 @@ def quotes(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
     print(out.round(2).to_string(index=False))
 
 
-def kim_alignment(items, claims):
+def item_alignment(items, claims):
     item_runs = [word_runs(item) for item in items]
     hits = [[i for i, item in enumerate(item_runs) if shares_run(item, word_runs(c["quote"]))] for c in claims]
     counts = Counter(i for hit in hits for i in hit)
@@ -1159,12 +1159,18 @@ def kim_alignment(items, claims):
     )
 
 
-def kim(model=settings.DEFAULT_MODEL, gold=settings.GOLD_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
+def external(name, model=settings.DEFAULT_MODEL, gold=settings.GOLD_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     gold = hub.root() / "artifacts" / "experiments" / Path(gold).name
-    items = {row["review_id"]: row["items"] for row in read_jsonl(gold / "kim_items.jsonl")}
-    claims = extract.load_claims(gold / f"claims_{model}_kim.jsonl")
-    df = pd.DataFrame([dict(review_id=rid, **kim_alignment(items[rid], claims[rid])) for rid in items if rid in claims])
-    summary = dict(reviews=len(df), items=df["items"].sum(), claims=df.claims.sum())
+    items = {row["review_id"]: row["items"] for row in read_jsonl(gold / f"{name}_items.jsonl")}
+    claims = extract.load_claims(gold / f"claims_{model}_{name}.jsonl")
+    df = pd.DataFrame([dict(review_id=rid, **item_alignment(items[rid], claims[rid])) for rid in items if rid in claims])
+    out = pd.DataFrame([external_summary(df)])
+    out.round(3).to_csv(Path(reports) / f"{name}_{model}.csv", index=False)
+    print(out.round(2).T.to_string(header=False))
+
+
+def external_summary(df):
+    summary = dict(reviews=len(df), items=df["items"].sum(), claims=df["claims"].sum())
     shares = [
         ("item_recall", "items_hit", "items"),
         ("item_split", "items_split", "items"),
@@ -1173,10 +1179,8 @@ def kim(model=settings.DEFAULT_MODEL, gold=settings.GOLD_DIR, reports=settings.A
     ]
     for name, numerator, denominator in shares:
         summary.update(mean_interval(100 * df[numerator] / df[denominator], name))
-    summary.update(mean_interval(df.claims - df["items"], "claims_bias"))
-    out = pd.DataFrame([summary])
-    out.round(3).to_csv(Path(reports) / f"kim_{model}.csv", index=False)
-    print(out.round(2).T.to_string(header=False))
+    summary.update(mean_interval(df["claims"] - df["items"], "claims_bias"))
+    return summary
 
 
 if __name__ == "__main__":
@@ -1198,6 +1202,6 @@ if __name__ == "__main__":
             "rewrite_test": rewrite_test,
             "repro": repro,
             "quotes": quotes,
-            "kim": kim,
+            "external": external,
         }
     )

@@ -1,4 +1,5 @@
 import json
+import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -331,10 +332,36 @@ def kim_sample(out):
     print(f"{len(rows)} human reviews, {sum(len(r['items']) for r in rows)} items")
 
 
-def kim_claims(out, model=settings.DEFAULT_MODEL, threads=16, budget=5.0):
+def claimcheck_sample(out):
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    base = f"https://raw.githubusercontent.com/{settings.CLAIMCHECK_REPO}/{settings.CLAIMCHECK_REVISION}/data/texts/source"
+    pairs = {}
+    for name in ["main", "pilot"]:
+        with urllib.request.urlopen(f"{base}/{name}.json") as response:
+            pairs.update(json.load(response))
+    rows = [
+        dict(
+            review_id=f"claimcheck_{key}", items=[w["Weakness span"] for w in pair["response"]["Weakness associated with claims"]]
+        )
+        for key, pair in sorted(pairs.items())
+    ]
+    write_jsonl(out / "claimcheck_items.jsonl", rows)
+    reviews = pd.DataFrame([dict(review_id=f"claimcheck_{key}", text=pairs[key]["meta"]["review"]) for key in sorted(pairs)])
+    reviews.to_parquet(out / "claimcheck_reviews.parquet", index=False)
+    print(f"{len(rows)} reviews, {sum(len(r['items']) for r in rows)} weakness spans")
+
+
+def external_claims(out, name, paper_kind, model=settings.DEFAULT_MODEL, threads=16, budget=5.0):
     out = Path(out)
     extract.pass1(
-        str(out / "kim_reviews.parquet"), model=model, tag="_kim", threads=threads, budget=budget, paper_kind="general", data=out
+        str(out / f"{name}_reviews.parquet"),
+        model=model,
+        tag=f"_{name}",
+        threads=threads,
+        budget=budget,
+        paper_kind=paper_kind,
+        data=out,
     )
 
 
@@ -374,6 +401,7 @@ if __name__ == "__main__":
             council_groups=council_groups,
             match_claims=match_claims,
             kim_sample=kim_sample,
-            kim_claims=kim_claims,
+            claimcheck_sample=claimcheck_sample,
+            external_claims=external_claims,
         )
     )

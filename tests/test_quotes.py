@@ -1,5 +1,5 @@
 from extract import normalize_quote, quote_in_text
-from validate import kim_alignment, quote_row
+from validate import item_alignment, quote_row
 
 TEXT = "[WEAKNESSES]\nThe paper’s  evaluation uses only CIFAR-10 –\nno ImageNet results.\n“Why no error bars?”"
 
@@ -41,7 +41,7 @@ def test_quote_row_ignores_summary_and_strengths():
     assert quote_row(REVIEW, []) == dict(claims=0, found=0, duplicated=0, sentences=3, uncovered=3)
 
 
-def test_kim_alignment():
+def test_item_alignment():
     items = [
         "There is no comparison with the RigL baseline on ImageNet at all.",
         "The proof of Theorem 2 silently assumes bounded gradients everywhere.",
@@ -53,7 +53,7 @@ def test_kim_alignment():
         {"quote": "the RigL baseline on ImageNet at all"},
         {"quote": "something the reviewer never wrote in this review text"},
     ]
-    assert kim_alignment(items, claims) == dict(
+    assert item_alignment(items, claims) == dict(
         items=3, claims=4, items_hit=3, items_split=1, claims_unmatched=1, claims_spanning=1
     )
 
@@ -61,5 +61,5 @@ def test_kim_alignment():
 def test_short_quotes_match_by_their_full_length():
     items = ["Figure 2: the font is too small to read.", "P8, last para, L1: mases -> masses"]
     claims = [{"quote": "font is too small"}, {"quote": "mases -> masses"}, {"quote": "font"}]
-    assert kim_alignment(items, claims)["items_hit"] == 2
-    assert kim_alignment(items, claims)["claims_unmatched"] == 0
+    assert item_alignment(items, claims)["items_hit"] == 2
+    assert item_alignment(items, claims)["claims_unmatched"] == 0

@@ -62,7 +62,8 @@ reasoning effort needs a different short name. The extraction chains write part 
 `data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs (`claims_council.jsonl`,
 `clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `adjudicate/` holds the claim checks
 and their inputs. `kim_items.jsonl` and `kim_reviews.parquet` hold the 218 human-split Nature-family reviews from
-`settings.KIM_DATASET_REPO`, and `claims_<model>_kim.jsonl` the claims extracted from them. The dataset holds these files under
+`settings.KIM_DATASET_REPO`; `claimcheck_items.jsonl` and `claimcheck_reviews.parquet` hold the 60 NeurIPS reviews with
+expert weakness spans from `settings.CLAIMCHECK_REPO`; `claims_<model>_<name>.jsonl` holds the claims extracted from each. The dataset holds these files under
 `artifacts/experiments/`. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new
 folder (`src/gold.py`); it calls paid APIs and never writes into `data/gold/`. `tests/test_gold.py` checks that the
 steps without model calls rebuild `data/gold/` byte for byte.
@@ -82,8 +83,8 @@ scripts/post.sh gpt-6-luna-high
 
 Each run recomputes the analysis from saved model outputs. It does not reuse earlier analysis estimates or make
 model calls. The stages rebuild MELD flags, panel and pair scores, the detector placebo, robustness checks, the quote checks
-(`validate.py quotes`: quotes found in the text, duplicate quotes, critique sentences no quote touches; `validate.py kim`:
-claims aligned to the human-split items), yearly tables, paper numbers and figures.
+(`validate.py quotes`: quotes found in the text, duplicate quotes, critique sentences no quote touches; `validate.py external`:
+claims aligned to the human items of each external set), yearly tables, paper numbers and figures.
 
 - `data/overlap/`: recomputed panel and pair tables.
 - `reports/overlap/`: recomputed statistical summaries and their sample sizes.
