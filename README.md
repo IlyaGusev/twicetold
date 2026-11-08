@@ -60,8 +60,11 @@ reasoning effort needs a different short name. The extraction chains write part 
 `extract.py merge` joins them. The dataset holds both files as the `claims` column and the `panels` config.
 
 `data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs (`claims_council.jsonl`,
-`clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `adjudicate/` holds the claim checks
-and their inputs. `kim_items.jsonl` and `kim_reviews.parquet` hold the 218 human-split Nature-family reviews from
+`clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `gold.py sample` draws 200 production
+panels with a fixed seed: 170 same-paper panels (ICLR 2018–2027, NeurIPS 2024–2025, ICML 2025–2026 and five journals
+2024–2026) and 30 cross-paper placebo panels. From 2024 on, half of each cell holds at least two flagged and one
+unflagged review, and a quarter of each ML cell holds at least two LLM-written reviews. Each cell splits 70/30 into
+dev and test. `adjudicate/` holds the claim checks and their inputs. `kim_items.jsonl` and `kim_reviews.parquet` hold the 218 human-split Nature-family reviews from
 `settings.KIM_DATASET_REPO`; `claimcheck_items.jsonl` and `claimcheck_reviews.parquet` hold the 60 NeurIPS reviews with
 expert weakness spans from `settings.CLAIMCHECK_REPO`; `claims_<model>_<name>.jsonl` holds the claims extracted from each. The dataset holds these files under
 `artifacts/experiments/`. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new

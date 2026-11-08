@@ -14,9 +14,18 @@ from jsonl import read_jsonl, write_jsonl
 from prompts import render
 from settings import settings
 
-CROSS_YEARS = (2018, 2022, 2024, 2026)
-CROSS_PER_YEAR = 5
-TEST_PER_CELL = {"same": 3, "cross": 2}
+SAME_PANELS = {
+    "ICLR": {2018: 5, 2019: 5, 2020: 5, 2021: 5, 2022: 5, 2023: 10, 2024: 15, 2025: 15, 2026: 20, 2027: 20},
+    "NeurIPS": {2024: 10, 2025: 10},
+    "ICML": {2025: 10, 2026: 10},
+}
+JOURNAL_PANELS = 5
+JOURNAL_YEARS = (2024, 2026)
+FLAG_FROM = 2024
+CROSS_YEARS = (2018, 2022, 2024, 2026, 2027)
+CROSS_PER_YEAR = 4
+CROSS_PER_JOURNAL = 2
+TEST_SHARE = 0.3
 MAX_CLAIM_WORDS = 25
 JUDGE_ATTEMPTS = 3
 COUNCIL_RUNS = 2
@@ -56,32 +65,73 @@ def merge_council(out, kind, key, tag, council):
         part.unlink()
 
 
-def sample(out, seed=7, gold=str(settings.GOLD_DIR)):
+def stratum(review_ids, flag, written):
+    n_flagged = sum(flag[r] for r in review_ids)
+    if n_flagged == 0:
+        return "plain"
+    if n_flagged < 2 or n_flagged == len(review_ids):
+        return "other"
+    return "written" if sum(written[r] for r in review_ids) >= 2 else "flagged"
+
+
+def quotas(n, year, conf):
+    if year < FLAG_FROM:
+        return {"plain": n}
+    n_written = n // 4 if conf in settings.ML_VENUES else 0
+    return {"plain": n - n // 2, "flagged": n // 2 - n_written, "written": n_written}
+
+
+def panel_table(definitions, labels):
+    conf, year, flag, written = (labels[c].to_dict() for c in ["conf", "year", "flag", "written"])
+    return pd.DataFrame(
+        [
+            dict(panel_id=p, conf=conf[ids[0]], year=int(year[ids[0]]), stratum=stratum(ids, flag, written))
+            for p, ids in sorted(definitions.items())
+        ]
+    )
+
+
+def draw(rng, table, definitions, kind, cells):
+    panels = []
+    for conf, lo, hi, n in cells:
+        cell = table[(table.conf == conf) & table.year.between(lo, hi)]
+        for name, k in quotas(n, lo, conf).items() if kind == "same" else [("cross", n)]:
+            pool = cell if kind == "cross" else cell[cell.stratum == name]
+            chosen = rng.choice(pool.index.to_numpy(), k, replace=False)
+            n_test = round(k * TEST_SHARE)
+            for i, row in enumerate(table.loc[chosen].itertuples()):
+                panels.append(
+                    dict(
+                        panel_id=row.panel_id,
+                        review_ids=definitions[row.panel_id],
+                        kind=kind,
+                        conf=conf,
+                        year=int(row.year),
+                        stratum=name,
+                        split="test" if i < n_test else "dev",
+                        paper_kind=extract.paper_kind(conf),
+                    )
+                )
+    return panels
+
+
+def sample(out, seed=7):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
-    key = json.loads((Path(gold) / "blind_key.json").read_text())
-    placebo = hub.panel_definitions(["placebo_venue"])
     rng = np.random.default_rng(seed)
-    panels = [dict(panel_id=code, review_ids=v["review_ids"], kind="same", year=v["year"]) for code, v in sorted(key.items())]
-    for year in CROSS_YEARS:
-        ids = sorted(p for p in placebo if p.startswith(f"placebo_ICLR_{year}_"))
-        chosen = rng.choice(ids, CROSS_PER_YEAR, replace=False)
-        panels += [dict(panel_id=p, review_ids=placebo[p], kind="cross", year=year) for p in chosen]
-    cells = {}
-    for panel in panels:
-        cells.setdefault((panel["kind"], panel["year"]), []).append(panel)
-    for (kind, _), cell in cells.items():
-        for i, panel in enumerate(cell):
-            panel["split"] = "test" if i >= len(cell) - TEST_PER_CELL[kind] else "dev"
-    write_jsonl(out / "panels_tune.jsonl", panels)
-
-    reviews = hub.sample("main", ["conf", "year", "paper_id", "review_id", "text"])
-    blind_ids = {r for v in key.values() for r in v["review_ids"]}
-    blind = reviews[reviews.review_id.isin(blind_ids)][["review_id", "text"]]
-    panel_ids = {r for p in panels for r in p["review_ids"]}
-    tune = pd.concat([blind, reviews])
-    tune[tune.review_id.isin(panel_ids)].drop_duplicates("review_id").to_parquet(out / "tune_reviews.parquet")
-    print(len(panels), "panels,", len(panel_ids), "reviews ->", out)
+    labels = hub.meld_flags(["conf", "year", "flag", "written"])
+    same = hub.panel_definitions(["paper", "icml", "journal"])
+    cross = hub.panel_definitions(["placebo_area", "journal_placebo"])
+    same_table, cross_table = panel_table(same, labels), panel_table(cross, labels)
+    journals = sorted(set(same_table.conf) - set(settings.ML_VENUES))
+    same_cells = [(conf, year, year, n) for conf, years in SAME_PANELS.items() for year, n in years.items()]
+    same_cells += [(conf, *JOURNAL_YEARS, JOURNAL_PANELS) for conf in journals]
+    cross_cells = [("ICLR", year, year, CROSS_PER_YEAR) for year in CROSS_YEARS]
+    cross_cells += [(conf, *JOURNAL_YEARS, CROSS_PER_JOURNAL) for conf in journals]
+    panels = draw(rng, same_table, same, "same", same_cells) + draw(rng, cross_table, cross, "cross", cross_cells)
+    reviews = write_sample(out, panels)
+    print(pd.DataFrame(panels).groupby(["kind", "conf", "stratum", "split"]).size().to_string())
+    print(len(panels), "panels,", len(reviews), "reviews ->", out)
 
 
 def flagged_split(review_ids, flag, rng):
@@ -156,27 +206,22 @@ def sample_written(out=settings.AUDIT_WRITTEN_DIR, seed=12, model=settings.DEFAU
     write_audit(out, panels, model)
 
 
-def write_audit(out, panels, model):
-    for i, panel in enumerate(panels):
-        panel.update(panel_id=f"A{i:02d}", kind="same", split="audit", paper_kind=extract.paper_kind(panel["source"]))
+def write_sample(out, panels):
     write_jsonl(out / "panels_tune.jsonl", panels)
-    texts = (
-        pd.concat(
-            [
-                hub.sample("main", ["review_id", "text"]),
-                hub.journal_reviews(["review_id", "text"]),
-            ]
-        )
-        .drop_duplicates("review_id")
-        .set_index("review_id")
-        .text
-    )
+    texts = hub.texts({r for p in panels for r in p["review_ids"]})
     order = [(r, p["paper_kind"]) for p in panels for r in p["review_ids"]]
     reviews = pd.DataFrame([dict(review_id=r, text=texts[r], paper_kind=k) for r, k in order]).drop_duplicates("review_id")
     reviews[["review_id", "text"]].to_parquet(out / "tune_reviews.parquet")
     for kind in PAPER_KINDS:
         reviews[reviews.paper_kind == kind][["review_id", "text"]].to_parquet(out / f"tune_reviews_{kind}.parquet")
         write_jsonl(out / f"panels_tune_{kind}.jsonl", [p for p in panels if p["paper_kind"] == kind])
+    return reviews
+
+
+def write_audit(out, panels, model):
+    for i, panel in enumerate(panels):
+        panel.update(panel_id=f"A{i:02d}", kind="same", split="audit", paper_kind=extract.paper_kind(panel["source"]))
+    reviews = write_sample(out, panels)
     ids = set(reviews.review_id)
     luna = hub.claims(model)
     write_jsonl(out / f"claims_{model}.jsonl", [dict(review_id=r, claims=c) for r, c in luna.items() if r in ids])

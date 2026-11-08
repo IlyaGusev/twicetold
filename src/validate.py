@@ -900,11 +900,23 @@ def welch_interval(late, early, name):
     }
 
 
+def report_cells(df):
+    cells = [(dict(conf="all", years="all", stratum="all", split="all"), df)]
+    cells += [
+        (dict(conf="all", years="all", stratum="all", split=split), cell) for split, cell in df.groupby("split", sort=False)
+    ]
+    cells += [(dict(conf=conf, years="all", stratum="all", split="all"), cell) for conf, cell in df.groupby("conf", sort=False)]
+    by_year = df[df.conf.isin(settings.ML_VENUES)].groupby(["conf", "year"], sort=False)
+    cells += [(dict(conf=conf, years=str(year), stratum="all", split="all"), cell) for (conf, year), cell in by_year]
+    cells += [
+        (dict(conf="all", years="all", stratum=name, split="all"), cell) for name, cell in df.groupby("stratum", sort=False)
+    ]
+    return cells
+
+
 def paired_summary(df, label):
     row = dict(
-        kind=label[0],
-        years=label[1],
-        split=label[2],
+        **label,
         panels=len(df),
         reviews=df.reviews.sum(),
         matched_reviews=df.matched_reviews.sum(),
@@ -918,7 +930,7 @@ def paired_summary(df, label):
 
 
 def bias_change(late, early, label):
-    row = dict(kind=label[0], years=label[1], split="all", panels=len(late) + len(early))
+    row = dict(**label, panels=len(late) + len(early))
     row.update(welch_interval(late.claims_model - late.claims_ref, early.claims_model - early.claims_ref, "claims_bias"))
     for name in ("recall", "precision"):
         row.update(welch_interval(late[name], early[name], name))
@@ -949,7 +961,9 @@ def reference(
             dict(
                 panel_id=panel["panel_id"],
                 kind=panel["kind"],
+                conf=panel["conf"],
                 year=panel["year"],
+                stratum=panel["stratum"],
                 split=panel["split"],
                 claims_ref=np.mean([len(ref_claims[r]) for r in ids]),
                 claims_model=np.mean([len(model_claims[r]) for r in ids]),
@@ -963,26 +977,28 @@ def reference(
     panels.to_csv(Path(reports) / f"reference_panels_{model}.csv", index=False)
     summary = []
     for kind, by_kind in panels.groupby("kind", sort=False):
-        summary += [paired_summary(cell, (kind, str(year), "all")) for year, cell in by_kind.groupby("year")]
-        summary.append(paired_summary(by_kind, (kind, "all", "all")))
-        for name, cell in by_kind.groupby("split", sort=False):
-            summary.append(paired_summary(cell, (kind, "all", name)))
-        last = by_kind.year.max()
-        summary.append(bias_change(by_kind[by_kind.year == last], by_kind[by_kind.year < last], (kind, f"{last} minus earlier")))
+        summary += [paired_summary(cell, dict(kind=kind, **label)) for label, cell in report_cells(by_kind)]
+        for conf, by_conf in by_kind[by_kind.conf.isin(settings.ML_VENUES)].groupby("conf", sort=False):
+            last = by_conf.year.max()
+            if (by_conf.year < last).any():
+                label = dict(kind=kind, conf=conf, years=f"{last} minus earlier", stratum="all", split="all")
+                summary.append(bias_change(by_conf[by_conf.year == last], by_conf[by_conf.year < last], label))
     out = pd.DataFrame(summary)
     out.round(3).to_csv(Path(reports) / f"reference_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     lines = [
-        r"\begin{tabular}{llrrrr}",
+        r"\begin{tabular}{lllrrrr}",
         r"\toprule",
-        r"Panels & Years & $n$ & Claims diff. (SE) & Recall (SE) & Precision (SE) \\",
+        r"Panels & Source & Years or flags & $n$ & Claims diff. (SE) & Recall (SE) & Precision (SE) \\",
         r"\midrule",
     ]
     names = {"same": "Same-paper", "cross": "Cross-paper"}
     for r in out[out.split == "all"].itertuples():
-        years = r.years.replace(" minus earlier", r" $-$ earlier").replace("all", "All")
+        cell = r.years if r.stratum == "all" else r.stratum
+        cell = cell.replace(" minus earlier", r" $-$ earlier").replace("all", "All")
         lines.append(
-            f"{names[r.kind]} & {years} & {r.panels} & {r.claims_bias:+.2f} ({r.claims_bias_se:.2f}) & "
+            f"{names[r.kind]} & {r.conf.replace('all', 'All')} & {cell} & {r.panels} & "
+            f"{r.claims_bias:+.2f} ({r.claims_bias_se:.2f}) & "
             f"{r.recall:.1f} ({r.recall_se:.1f}) & {r.precision:.1f} ({r.precision_se:.1f}) " + r"\\"
         )
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
@@ -1029,8 +1045,10 @@ def council_agreement(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_RE
                 dict(
                     panel_id=pid,
                     kind=panel["kind"],
-                    split=panel["split"],
+                    conf=panel["conf"],
                     year=panel["year"],
+                    stratum=panel["stratum"],
+                    split=panel["split"],
                     ref_a=a[1],
                     ref_b=b[1],
                     review_a=a[0],
@@ -1050,7 +1068,7 @@ def council_agreement(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_RE
     pairs.to_csv(Path(reports) / f"council_agreement_pairs_{model}.csv", index=False)
     summary = []
     for kind, by_kind in pairs.groupby("kind", sort=False):
-        for split, cell in [("all", by_kind), *by_kind.groupby("split", sort=False)]:
+        for label, cell in report_cells(by_kind):
             unanimous = cell[cell.status == "unanimous"]
             coverage = dict(
                 source_panels=cell.panel_id.nunique(),
@@ -1079,7 +1097,7 @@ def council_agreement(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_RE
             summary.append(
                 dict(
                     kind=kind,
-                    split=split,
+                    **label,
                     reference="unanimous",
                     panels=len(counts),
                     **coverage,

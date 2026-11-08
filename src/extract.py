@@ -19,7 +19,7 @@ PASS2_PAPER_WORDING = {"ml": "machine-learning paper", "general": "scientific pa
 
 
 def paper_kind(conf):
-    return "ml" if conf in settings.ML_SOURCES else "general"
+    return "ml" if conf in settings.ML_VENUES else "general"
 
 
 CATEGORIES = [

@@ -80,7 +80,7 @@ def test_repeated_or_missing_claims_cannot_establish_consensus():
 
 
 def test_council_command_uses_only_raw_group_votes(monkeypatch, tmp_path):
-    panel = dict(panel_id="P", review_ids=["a", "b"], kind="same", split="dev", year=2024)
+    panel = dict(panel_id="P", review_ids=["a", "b"], kind="same", conf="ICLR", year=2024, stratum="plain", split="dev")
     claims = {rid: {"claims": [{"claim": "problem"}]} for rid in panel["review_ids"]}
     matches = {rid: {"clusters": groups(("R0-0", "R1-0"))} for rid in panel["review_ids"]}
     raw = [dict(panel, model=model, clusters=groups(("R0-0", "R1-0"))) for model in settings.GOLD_COUNCIL]
