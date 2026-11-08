@@ -29,6 +29,7 @@ REWRITE_MACROS = [
 TEXT_DARKEN = 0.35
 CHATGPT_BAND = (2022.6, settings.ICLR_LAST + 0.5)
 SAME_VENUE_PLACEBO = "shuffled4"
+CATEGORY_YEAR = 2026
 plt.rcParams.update(
     {
         "font.family": "serif",
@@ -375,10 +376,10 @@ def category_shifts(model):
     main_sample_reviews = main_sample_review_ids()
     claims = claims[(claims.conf == "ICLR") & claims.review_id.isin(main_sample_reviews) & (claims.category != "other")]
     pre_years = list(range(settings.ICLR_FROM, 2023))
-    by_year = {year: category_share_by_year(claims, year) for year in pre_years + [settings.ICLR_LAST]}
+    by_year = {year: category_share_by_year(claims, year) for year in pre_years + [CATEGORY_YEAR]}
     pre = sum(by_year[year][0] for year in pre_years) / len(pre_years)
     pre_variance = sum(by_year[year][1] for year in pre_years) / len(pre_years) ** 2
-    post, post_variance = by_year[settings.ICLR_LAST]
+    post, post_variance = by_year[CATEGORY_YEAR]
     shift = pd.DataFrame({"pre": pre, "post": post, "change": post - pre, "se": np.sqrt(pre_variance + post_variance)})
     return shift.sort_values("change")
 
@@ -399,7 +400,7 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     ]
     levels.legend(
         handles,
-        [f"{settings.ICLR_FROM}–22", str(settings.ICLR_LAST)],
+        [f"{settings.ICLR_FROM}–22", str(CATEGORY_YEAR)],
         loc="lower left",
         bbox_to_anchor=(0, 1.0),
         ncol=2,
@@ -414,9 +415,9 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     changes.axvline(0, color=COLORS["grey"], lw=0.6, zorder=0)
     changes.hlines(y, 0, shift.change, color=COLORS["light"], lw=1.4, zorder=1)
     changes.errorbar(shift.change, y, xerr=Z95 * shift.se, fmt="o", ms=3, color=COLORS["ink"], elinewidth=1.0, zorder=2)
-    changes.set_xlim(-15.5, 6.5)
-    changes.set_xticks([-15, -10, -5, 0, 5])
-    changes.spines["bottom"].set_bounds(-15, 5)
+    changes.set_xlim(-12.5, 6.5)
+    changes.set_xticks([-10, 0, 5])
+    changes.spines["bottom"].set_bounds(-10, 5)
     changes.set_xlabel("Change (points)")
     changes.tick_params(axis="y", left=False)
     changes.spines["left"].set_visible(False)
@@ -653,6 +654,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
 
     for conf, prefix, base_year, last_year in [
         ("ICLR", "Iclr", 2023, settings.ICLR_LAST),
+        ("ICLR", "IclrRecent", 2025, 2026),
         ("NeurIPS", "Neurips", 2024, 2025),
         ("ICML", "Icml", 2025, 2026),
     ]:
@@ -714,7 +716,12 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for conf in settings.ML_VENUES:
         values[f"PairWritten{conf.title()}N"] = f"{int(written[conf]):,}"
     placebo = pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet")
-    for year, prefix in [(2023, "CrossBase"), (settings.ICLR_LAST, "CrossLast")]:
+    for year, prefix in [
+        (2023, "CrossBase"),
+        (2025, "CrossRecentBase"),
+        (2026, "CrossRecentLast"),
+        (settings.ICLR_LAST, "CrossLast"),
+    ]:
         sample = (
             placebo[
                 (placebo.conf == "ICLR") & (placebo.year == year) & (placebo.placebo_kind == SAME_VENUE_PLACEBO)
@@ -831,6 +838,15 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(base + "ClaimsRewrite", row.claims_rewrite)
         texts = meld_rates[meld_rates.set == meld_set]
         record(base + "Flagged", (texts.flagged * texts.n).sum() / texts.n.sum())
+    detector_gaps = {
+        "Flag": evidence.loc["ICLR 2024–27"],
+        "Written": evidence.loc["LLM-written, ICLR"],
+        "Ll": types.loc[("ICLR", "LL")],
+    }
+    for condition, base in [("outline", "Rw"), ("outline_second", "Rk")]:
+        effect = rewrite.loc[(condition, "ICLR")]
+        for name, gap in detector_gaps.items():
+            record(f"{base}{name}Diff", gap.est - effect.two, np.hypot(gap.se, effect.two_se))
     labels = pd.read_csv(settings.REPORTS_DIR / "meld_labels.csv").set_index("known")
     for known, prefix, digits in [
         ("polish", "Polish", 1),

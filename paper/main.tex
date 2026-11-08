@@ -25,7 +25,7 @@
 \maketitle
 
 \begin{abstract}
-Peer review relies on several readers finding different problems. We measure critique overlap in 294k conference reviews and 99k journal reports. At ICLR, measured overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2027, with year-on-year rises at NeurIPS and ICML. We apply MELD, a detector of LLM-generated text, to all reviews. Within a paper, two reviews that MELD flags overlap \FlagGap{} points more than two unflagged reviews, and two reviews that it labels LLM-written overlap \WrittenGap{} points more. Clarity critiques fell from \ClarityBase\% to \ClarityLast\% while requests for more experiments rose. Pooled over five journal sources, two flagged reports of one paper overlap \JournalGap{} points more than two unflagged reports. These results provide evidence that LLM-flagged reviews of one paper are less distinct from each other than unflagged reviews, and suggest that the diversity of critiques among reviews of a single paper is falling over time.
+Peer review relies on several readers finding different problems. We measure critique overlap in 294k conference reviews and 99k journal reports. At ICLR, measured overlap rose from \IclrRecentBase\% in 2025 to \IclrRecentLast\% in 2026, with year-on-year rises at NeurIPS and ICML. We apply MELD, a detector of LLM-generated text, to all reviews. Within a paper, two reviews that MELD flags overlap \FlagGap{} points more than two unflagged reviews, and two reviews that it labels LLM-written overlap \WrittenGap{} points more. Clarity critiques fell from \ClarityBase\% to \ClarityLast\% while requests for more experiments rose. Pooled over five journal sources, two flagged reports of one paper overlap \JournalGap{} points more than two unflagged reports. These results provide evidence that LLM-flagged reviews of one paper are less distinct from each other than unflagged reviews, and suggest that the diversity of critiques among reviews of a single paper is falling over time.
 \end{abstract}
 
 \begin{figure}[t]
@@ -44,10 +44,10 @@ Whole-review similarity mixes wording and content \citep{liang2024monitoring,bau
 Our findings are:
 
 \begin{itemize}[nosep]
-\item Measured same-paper overlap rose at ICLR in 2026 and 2027, at ICML in 2026 and at NeurIPS in 2025 (Section~\ref{sec:trends}, Figure~\ref{fig:overlap}).
+\item Measured same-paper overlap rose at ICLR and ICML in 2026 and at NeurIPS in 2025 (Section~\ref{sec:trends}, Figure~\ref{fig:overlap}).
 \item Within a paper, two LLM-flagged reviews overlap \FlagGap{} points more than two unflagged ones, and two reviews that the detector labels LLM-written \WrittenGap{} points more (Section~\ref{sec:ai}, Figure~\ref{fig:ai}).
 \item Clarity and typo critiques fell while requests for more experiments rose (Section~\ref{sec:categories}, Figure~\ref{fig:categories}).
-\item Pooled over five journal sources, two LLM-flagged reports of one paper overlap \JournalGap{} points more than two unflagged ones; alone, only F1000 has an interval above zero (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).
+\item Pooled over five journal sources, two LLM-flagged reports of one paper overlap \JournalGap{} points more than two unflagged ones; alone, F1000, PLOS and Copernicus have intervals above zero (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).
 \end{itemize}
 
 \section{Related Work}
@@ -93,7 +93,7 @@ Sol 6.1, Opus 5.5 and Kimi K3.1 Pro propose reference claims and groups; Opus ju
 
 \paragraph{RQ1: Do reviewers of one paper repeat more of each other's critiques?}
 \label{sec:trends}
-ICLR overlap rose from \IclrBase\% in 2023 to \IclrLast\% in 2027, by $+\IclrChange$ points. Most of this rise came in 2027, the first year of a new review form and the only year whose reviews we collected before the discussion phase. NeurIPS and ICML also rose in their latest cycles (Figure~\ref{fig:overlap}). The ICLR rise survives specific-claim, lenient-grouping, three-review and questions-field checks (Appendix~\ref{app:robust}); cross-paper overlap did not rise (Appendix~\ref{app:cross}). The unusually high 2023 base reflects its separate clarity/quality/novelty/reproducibility field: removing it changes overlap by $\FieldRemovedChange$ points, versus $\QuestionsRemovedChange$ for 2024's questions field (Appendix~\ref{app:forms}).
+ICLR overlap rose from \IclrRecentBase\% in 2025 to \IclrRecentLast\% in 2026, by $+\IclrRecentChange$ points, above every earlier year from 2020. NeurIPS and ICML also rose in their latest cycles (Figure~\ref{fig:overlap}). The ICLR rise survives specific-claim, lenient-grouping, three-review, questions-field and withdrawal checks (Appendix~\ref{app:robust}); cross-paper overlap did not rise (Appendix~\ref{app:cross}). The latest ICLR cycle has a new review form and reviews from before the discussion phase, so we do not compare it with earlier years (Limitations). The unusually high 2023 base reflects its separate clarity/quality/novelty/reproducibility field: removing it changes overlap by $\FieldRemovedChange$ points, versus $\QuestionsRemovedChange$ for 2024's questions field (Appendix~\ref{app:forms}).
 
 \paragraph{RQ2: Do LLM-flagged reviews share a larger fraction of their critiques?}
 \label{sec:ai}
@@ -120,7 +120,7 @@ Against a common unflagged-pair reference, two LLM-written reviews overlap \Type
 
 The flagged-pair gap survives alternate thresholds, separate ICLR years and length/claim-count controls; it is largest in 2027, \FlagGapTwentySeven{} points. Pre-ChatGPT top-45\%-score pairs show no gap (Appendix~\ref{app:robust}). The three-model reference council shows both gaps: $\AuditRefGap$ points for flagged pairs and $\AuditWrittenRefGap$ for LLM-written pairs (Appendix~\ref{app:reference}).
 
-In \RwIclrPapers{} pre-2023 ICLR panels, polishing two reviews changes overlap by $\PlIclrTwo$ points; rewriting from outlines of their points gives $\RwIclrTwo$ ($\RwIclrTwoLow$ to $\RwIclrTwoHigh$). The latter interval includes the flagged-pair gap, not the LLM-written contrast. Standalone-pair checks with Luna and Kimi give smaller changes but differ from the main grouping setup. Style effects thus remain a possible explanation for the smaller gap (Appendix~\ref{app:rewrite}).
+In \RwIclrPapers{} pre-2023 ICLR panels, polishing two reviews changes overlap by $\PlIclrTwo$ points; rewriting from outlines of their points gives $+\RwIclrTwo$ ($\RwIclrTwoLow$ to $\RwIclrTwoHigh$). The flagged-pair gap exceeds this rewrite effect by \RwFlagDiff{} points ($\RwFlagDiffLow$ to $\RwFlagDiffHigh$), and the LLM-written gap by \RwWrittenDiff{} ($\RwWrittenDiffLow$ to $\RwWrittenDiffHigh$). The gap of other two-flagged pairs exceeds it by \RwLlDiff{} ($\RwLlDiffLow$ to $\RwLlDiffHigh$), so style effects remain a possible explanation for that smaller gap, not for the whole flagged-pair gap (Appendix~\ref{app:rewrite}).
 
 \begin{figure}[t]
 \centering
@@ -131,23 +131,23 @@ In \RwIclrPapers{} pre-2023 ICLR panels, polishing two reviews changes overlap b
 
 \paragraph{RQ3: Which kinds of critiques gained or lost share?}
 \label{sec:categories}
-Clarity critiques fell from \ClarityBase\% of ICLR claims in 2020--2022 to \ClarityLast\% in 2027. Typo critiques fell from \TyposBase\% to \TyposLast\%, while requests about experiment scope rose from \ExperimentsBase\% to \ExperimentsLast\% (Figure~\ref{fig:categories}).
+Clarity critiques fell from \ClarityBase\% of ICLR claims in 2020--2022 to \ClarityLast\% in 2026. Typo critiques fell from \TyposBase\% to \TyposLast\%, while requests about experiment scope rose from \ExperimentsBase\% to \ExperimentsLast\% (Figure~\ref{fig:categories}).
 
 \begin{figure}[t]
 \centering
 \includegraphics{figs/fig3_categories.pdf}
-\caption{Clarity and typo critiques fell while requests for more experiments rose. Share of ICLR claims by category: mean of yearly shares for 2020--2022 (open) against 2027 (filled); right: change in percentage points. Sample: ICLR papers in Table~\ref{tab:data}. Shares exclude the ``other'' category. 95\% intervals, clustered by paper, are narrower than the markers (at most $\pm$\CategoryMaxInterval{} points).}
+\caption{Clarity and typo critiques fell while requests for more experiments rose. Share of ICLR claims by category: mean of yearly shares for 2020--2022 (open) against 2026 (filled); right: change in percentage points. Sample: ICLR papers in Table~\ref{tab:data}. Shares exclude the ``other'' category. 95\% intervals, clustered by paper, are narrower than the markers (at most $\pm$\CategoryMaxInterval{} points).}
 \label{fig:categories}
 \end{figure}
 
 \paragraph{RQ4: Do LLM-flagged journal reports also repeat more critiques?}
 \label{sec:journals}
-Against the 2019--2023 mean, journal overlap rose most at F1000 ($+\FResearchChange$ points) and PLOS ($+\PlosChange$; Figure~\ref{fig:overlap}). Within a paper, two flagged reports overlap \JournalGap{} points more than two unflagged reports (\JournalGapN{} papers from 2024 on, \JournalGapBothN{} with a flagged pair). The gap is positive in each source; only the F1000 interval excludes zero (Figure~\ref{fig:fields}). Most journal papers have two reports and one pair, so only \IdJournalVarying{} papers identify the pooled gap. Only \IdJournalDirectN{} have both a flagged and an unflagged pair; the fit links the rest through pairs with one flagged report (Appendix~\ref{app:robust}).
+Against the 2019--2023 mean, journal overlap rose most at F1000 ($+\FResearchChange$ points) and PLOS ($+\PlosChange$; Figure~\ref{fig:overlap}). Within a paper, two flagged reports overlap \JournalGap{} points more than two unflagged reports (\JournalGapN{} papers from 2024 on, \JournalGapBothN{} with a flagged pair). The F1000, PLOS and Copernicus intervals exclude zero; BMC Medicine and SciPost have few identifying papers, and their intervals include zero (Figure~\ref{fig:fields}). Most journal papers have two reports and one pair, so only \IdJournalVarying{} papers identify the pooled gap. Only \IdJournalDirectN{} have both a flagged and an unflagged pair; the fit links the rest through pairs with one flagged report (Appendix~\ref{app:robust}).
 
 \begin{figure}[t]
 \centering
 \includegraphics{figs/fig4_fields.pdf}
-\caption{The pooled journal flagged-pair gap is positive, but only F1000's source-level interval excludes zero. Two-flagged minus no-flagged overlap with paper fixed effects, from 2024 on. Parentheses: identifying papers, with at least three reports and mixed flags (\IdJournalVarying{} pooled); typical two-report panels do not identify this gap. BMC: BMC Medicine. Blue: ICLR estimate and interval. Bars and band: 95\% intervals clustered by paper.}
+\caption{The pooled journal flagged-pair gap is positive, and the F1000, PLOS and Copernicus intervals exclude zero. Two-flagged minus no-flagged overlap with paper fixed effects, from 2024 on. Parentheses: identifying papers, with at least three reports and mixed flags (\IdJournalVarying{} pooled); typical two-report panels do not identify this gap. BMC: BMC Medicine. Blue: ICLR estimate and interval. Bars and band: 95\% intervals clustered by paper.}
 \label{fig:fields}
 \end{figure}
 
@@ -165,9 +165,9 @@ Higher overlap does not yet mean that panels find clearly fewer problems: an ICL
 
 \textbf{Containment, not identity.} Full overlap means that the smaller critique set is contained in the other set, not that the two reviews are identical. We measure repeated problems, not correctness or overall review quality.
 
-\textbf{Final review texts.} Discussion can import a co-reviewer's point into a review; public data do not recover independent first drafts. ICLR 2027 texts predate the discussion phase, while earlier years show final texts, so this import cannot explain the 2027 rise. Herding trials test the effect of discussion on decisions \citep{stelmakh2023herding}, not on critique content.
+\textbf{2027 comparability.} The 2027 rise compares ICLR reviews from before the discussion phase, on a new form, with final reviews from earlier years. This snapshot difference can bias the comparison in either direction. Discussion can import a co-reviewer's point into an earlier final review, which raises earlier overlap; herding trials test the effect of discussion on decisions \citep{stelmakh2023herding}, not on critique content. Reviewers can also strike out a critique or mark it as addressed after the authors answer it, and our extraction drops such text. If reviewers withdraw problems that several of them raised more often, this removal lowers earlier overlap. Neither change affects 2027 reviews, and we do not know which effect is larger. The 2027 form also asks for critical weaknesses, which can change which problems reviewers raise in every field; removing the questions field does not test this change. We did not rerun earlier years on initial review versions where OpenReview keeps them, nor keep struck-out and addressed text in earlier reviews; the second check would still miss deleted text. We therefore read the 2027 rise as a descriptive discontinuity whose comparability with earlier years is open, not as clean evidence of a trend.
 
-\textbf{Detector labels.} Detector labels describe text, not people. MELD trained on peer reviews from sources it does not name; if these include our pre-2023 reviews, the threshold is too low and later flag rates too high. Only MELD supplies the LLM-written label. It labels \PolishWritten\% of our polished reviews as LLM-written, but other tools and prompts can polish differently, and detectors label part of LLM-polished reviews as AI-generated \citep{saha2026policies}. The rewrite control uses two models, two prompts and pre-2023 reviews; its panel-level outline estimate includes the flagged-pair gap, although its standalone pairs do not. We chose the 99.9th percentile threshold and the LLM-written label after we compared three thresholds and two labels on these data (Appendix~\ref{app:ai}). Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates; their labels must not support action against an individual reviewer.
+\textbf{Detector labels.} Detector labels describe text, not people. MELD trained on peer reviews from sources it does not name; if these include our pre-2023 reviews, the threshold is too low and later flag rates too high. Only MELD supplies the LLM-written label. It labels \PolishWritten\% of our polished reviews as LLM-written, but other tools and prompts can polish differently, and detectors label part of LLM-polished reviews as AI-generated \citep{saha2026policies}. The rewrite control uses two models, two prompts and pre-2023 reviews; its outline effect is smaller than the flagged-pair gap, but with Luna it does not clearly differ from the gap of other two-flagged pairs. We chose the 99.9th percentile threshold and the LLM-written label after we compared three thresholds and two labels on these data (Appendix~\ref{app:ai}). Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates; their labels must not support action against an individual reviewer.
 
 \textbf{Other changes.} ICLR changed its reviewing rules in 2026 and its review form in 2022, 2023, 2024 and 2027; the 2027 form asks for critical strengths and critical weaknesses. ICML changed its review form. In 2025, ICLR sent optional LLM feedback on vague comments to more than 20,000 randomly selected reviews \citep{thakkar2026feedback}. The 2023 base year had its own form and a high level. Authors' LLM use can also change the problems reviewers find.
 
@@ -207,8 +207,8 @@ We join all review-form text fields. ICML changed its form between 2025 and 2026
 \label{tab:byyear2}
 \end{table*}
 
-\section{Pipeline and Prompts}
-\label{app:prompts}
+\section{Pipeline}
+\label{app:pipeline}
 
 Both passes use \texttt{gpt-6-luna} through OpenRouter, strict JSON-schema output and high reasoning effort: first extract claims, then group problems. The model sees each review in full. Journal prompts use the generic rather than ML paper type. For same-area controls (Appendix~\ref{app:cross}), title and abstract embeddings predict areas under one taxonomy.
 
@@ -216,7 +216,6 @@ Both passes use \texttt{gpt-6-luna} through OpenRouter, strict JSON-schema outpu
 
 Saved requests record API model names and settings; providers do not expose dated snapshots. Code (\url{https://github.com/anonresearch01/twicetold}) rebuilds results from saved responses without new LLM calls. We release all collected reviews, paper metadata, extracted claims, problem groups and per-review MELD scores and labels. A MELD label is a detector output with a 0.1\% false-positive rate on pre-2023 reviews, not evidence that a given reviewer used an LLM; the dataset card asks users not to judge individual reviewers by it. Reviewer fields hold only the anonymous labels that the sources publish, but some journal reports carry a signature in the text, as published. The repository README gives commands, expected aggregate outputs, the pinned checkpoint and recorded compute needs. Journal reports retain their CC~BY or CC0 terms. All texts were public before collection; each API provider's terms govern request retention.
 
-\input{prompts}
 
 \FloatBarrier
 \section{Council Reference Labels}
@@ -256,7 +255,7 @@ On \RefPanels{} same-paper panels, recall is \RefRecall\% (95\% CI \RefRecallLow
 \toprule
 Estimate & Points [95\% CI] & Pairs compared & Reference pairs & Papers \\
 \midrule
-ICLR rise, 2023 to 2027 & $+\IclrChange$ [\IclrChangeLow, \IclrChangeHigh] & all, 2027 & all, 2023 & \IclrChangeN \\
+ICLR rise, 2025 to 2026 & $+\IclrRecentChange$ [\IclrRecentChangeLow, \IclrRecentChangeHigh] & all, 2026 & all, 2025 & \IclrRecentChangeN \\
 Flagged-pair gap $\beta_2$ & $+\FlagGap$ [\FlagGapLow, \FlagGapHigh] & two flagged & none flagged & \IdIclrVarying \\
 LLM-written gap & $+\WrittenGap$ [\WrittenGapLow, \WrittenGapHigh] & two LLM-written & none LLM-written & \IdWrittenVarying \\
 Both LLM-written & $+\TypeWwIclr$ [\TypeWwIclrLow, \TypeWwIclrHigh] & two LLM-written & none flagged & \TypeWwIclrN \\
@@ -306,7 +305,7 @@ Rewrite control, raw & $\RwIclrTwoDiff$ [\RwIclrTwoDiffLow, \RwIclrTwoDiffHigh] 
 \begin{table*}[!tp]
 \centering\small
 \input{tables/robust}
-\caption{The ICLR overlap comparison under changes to claim scope, grouping, panel size, review fields and exclusions. Overlap percentages use the overlap coefficient throughout. Last year: 2027, except the withdrawal check, which has only 2026 withdrawn papers. SE of each change appears in parentheses.}
+\caption{The ICLR overlap comparison under changes to claim scope, grouping, panel size, review fields and exclusions. Top rows: 2025 to 2026, the main-text comparison; the withdrawal check adds the 2026 withdrawn papers. Bottom rows: 2023 to 2027 (2024 to 2027 for the questions field), not comparable across review snapshots (Limitations). Overlap percentages use the overlap coefficient throughout. SE of each change appears in parentheses.}
 \label{tab:robust}
 \end{table*}
 
@@ -333,7 +332,7 @@ Only papers whose pairs differ in $f_{AB}$ identify $\beta$; two-review papers c
 
 \paragraph{Shared problems by pair type.} Table~\ref{tab:sizes} applies the Figure~\ref{fig:ai} model to ICLR 2024--2027 problem counts. Two LLM-written reviews share more problems with or without set-size controls. Other two-flagged pairs raise fewer problems, so their raw shared count barely changes; with both set sizes as controls, they share more. Higher normalized overlap need not mean more shared problems, so Appendix~\ref{app:measures} repeats each claim with counts at fixed set sizes.
 
-Table~\ref{tab:robust} repeats the trend comparison with specific claims only, lenient grouping by paper element, three-review panels grouped from scratch, the questions field removed, and withdrawn papers included. The questions-field comparison starts in 2024, when that field became separate.
+Table~\ref{tab:robust} repeats the 2025 to 2026 comparison with specific claims only, lenient grouping by paper element, three-review panels grouped from scratch, the questions field removed, and withdrawn papers included. It repeats the same checks, except withdrawal, for 2023 to 2027; the questions-field comparison there starts in 2024, when that field became separate.
 
 \section{Overlap Measures}
 \label{app:measures}
@@ -342,13 +341,13 @@ Any ratio of shared problems to set size depends on set size. Take two reviews t
 
 \paragraph{Measures.} \emph{Overlap coef.}, \emph{Jaccard} and \emph{Dice} are $100\,o$, $100J$ and $100D$. \emph{Shared} is $|G_A\cap G_B|$. \emph{Shared, linear sizes} adds $\min(|G_A|,|G_B|)$ and $\max(|G_A|,|G_B|)$ as controls. \emph{Shared, same sizes} adds one indicator per pair of set sizes, so a four-and-ten pair is compared only with other four-and-ten pairs. \emph{New problems} measures novelty, not repetition, so the claims predict a negative sign. For changes over time, it is the number of problems that a third review adds to two others, averaged over all three-review subsets and all three choices of the third review. For within-paper gaps, it is the number of problems of one review that no other review of the paper raises. The fit compares labeled with unlabeled reviews of one paper, with paper fixed effects and one indicator per set size.
 
-\paragraph{Results.} Every claim keeps its sign under each pair measure, and each 95\% interval excludes zero. Jaccard estimates are about half the overlap-coefficient estimates because the union is larger than the smaller set; compare signs and intervals, not sizes. Shared counts at fixed set sizes rise for two flagged reviews at each ML venue and in pooled journals, so the flagged-pair gaps are not only a result of smaller critique sets. New problems fall wherever overlap rises, with two exceptions: NeurIPS from 2024 to 2025, and the pooled journal gap. In both exceptions the interval includes zero. These checks are post hoc.
+\paragraph{Results.} Every claim keeps its sign under each pair measure, and each 95\% interval excludes zero. Jaccard estimates are about half the overlap-coefficient estimates because the union is larger than the smaller set; compare signs and intervals, not sizes. Shared counts at fixed set sizes rise for two flagged reviews at each ML venue and in pooled journals, so the flagged-pair gaps are not only a result of smaller critique sets. New problems fall wherever overlap rises, except at NeurIPS from 2024 to 2025, where they do not change. At PLOS, new problems fall over time, but the interval includes zero. These checks are post hoc.
 
 \begin{table*}[!tp]
 \centering\small
 \setlength{\tabcolsep}{3pt}
 \input{tables/measures}
-\caption{Every main claim keeps its sign under each pair measure; new problems fall where overlap rises, except at NeurIPS over time and in the journal gap. Estimates with SE in parentheses. The claims predict a positive sign for pair measures and a negative sign for new problems. $^\dagger$: the 95\% interval does not exclude zero in that direction; all other intervals do. Change over time: last year minus the base year, or minus the mean of 2019--2023 for journals; papers weigh equally, and so do base years; SE clustered by paper. Within-paper gap: two labeled minus no labeled pairs of one paper, with paper fixed effects and a one-labeled control, in the years of Table~\ref{tab:estimands}; SE clustered by paper. Shared, same sizes: one indicator per pair of set sizes, with sizes above 25 pooled. New problems: for changes, problems that a third review adds to two others, in papers with at least three reviews; for gaps, problems that no other review of the paper raises, labeled minus unlabeled reviews, with one indicator per set size. Post hoc.}
+\caption{Every main claim keeps its sign under each pair measure; new problems fall where overlap rises, but the NeurIPS and PLOS changes over time have intervals that include zero. Estimates with SE in parentheses. The claims predict a positive sign for pair measures and a negative sign for new problems. $^\dagger$: the 95\% interval does not exclude zero in that direction; all other intervals do. Change over time: last year minus the base year, or minus the mean of 2019--2023 for journals; papers weigh equally, and so do base years; SE clustered by paper. Within-paper gap: two labeled minus no labeled pairs of one paper, with paper fixed effects and a one-labeled control, in the years of Table~\ref{tab:estimands}; SE clustered by paper. Shared, same sizes: one indicator per pair of set sizes, with sizes above 25 pooled. New problems: for changes, problems that a third review adds to two others, in papers with at least three reviews; for gaps, problems that no other review of the paper raises, labeled minus unlabeled reviews, with one indicator per set size. Post hoc.}
 \label{tab:measures}
 \end{table*}
 
@@ -381,9 +380,9 @@ ICLR changed its free-text fields in 2022, 2023, 2024 and 2027 (Table~\ref{tab:f
 \label{fig:cross}
 \end{figure*}
 
-To test drift that adds matches regardless of content, we group one review per paper into cross-paper panels with the same prompt and measure. Panels contain four papers per venue-year or three ICLR papers per predicted area-year (Appendix~\ref{app:prompts}); Figure~\ref{fig:cross} gives sample sizes.
+To test drift that adds matches regardless of content, we group one review per paper into cross-paper panels with the same prompt and measure. Panels contain four papers per venue-year or three ICLR papers per predicted area-year (Appendix~\ref{app:pipeline}); Figure~\ref{fig:cross} gives sample sizes.
 
-ICLR overlap is \CrossBase\% in 2023 (95\% CI \CrossBaseLow--\CrossBaseHigh) and \CrossLast\% in 2027 (\CrossLastLow--\CrossLastHigh). NeurIPS and same-area ICLR panels also show no rise. Same-area overlap is higher and peaks in 2023, the clarity-field year. Journal cross-paper overlap stays far below same-paper overlap in every source-year.
+ICLR overlap is \CrossRecentBase\% in 2025 (95\% CI \CrossRecentBaseLow--\CrossRecentBaseHigh) and \CrossRecentLast\% in 2026 (\CrossRecentLastLow--\CrossRecentLastHigh); it is \CrossBase\% in 2023 (\CrossBaseLow--\CrossBaseHigh) and \CrossLast\% in 2027 (\CrossLastLow--\CrossLastHigh). NeurIPS and same-area ICLR panels also show no rise. Same-area overlap is higher and peaks in 2023, the clarity-field year. Journal cross-paper overlap stays far below same-paper overlap in every source-year.
 
 This check cannot exclude drift confined to same-paper claims, since different papers rarely share one problem. The prompt assumes one paper, so only changes over time, not cross-paper levels as an unrelated-review baseline, carry information.
 
@@ -439,7 +438,7 @@ MELD flags \MeldIntelAiRecall\% of \MeldIntelAiReviews{} LLM reviews of ICLR 202
 \centering\small
 \setlength{\tabcolsep}{4pt}
 \input{tables/rewrite_test}
-\caption{The full-panel outline-rewrite interval includes the flagged-pair gap, but not the larger LLM-written point estimate. Pairs: all pairs in the panels. Before/After: mean overlap (\%) of the pair with both reviews changed. Change: After minus Before, with a $t$ interval over pairs. Writer: rewrite model; Kimi covers ICLR only. FE: pair fixed-effects estimate for two changed reviews, controlling for one changed review and the second grouping; SE clustered by paper. Alone: change when Luna groups only the two changed reviews, with a $t$ interval over papers.}
+\caption{Outline rewriting raises the overlap of two changed ICLR reviews less than the flagged-pair gap (Appendix~\ref{app:rewrite}); polishing does not raise it. Pairs: all pairs in the panels. Before/After: mean overlap (\%) of the pair with both reviews changed. Change: After minus Before, with a $t$ interval over pairs. Writer: rewrite model; Kimi covers ICLR only. FE: pair fixed-effects estimate for two changed reviews, controlling for one changed review and the second grouping; SE clustered by paper. Alone: change when Luna groups only the two changed reviews, with a $t$ interval over papers.}
 \label{tab:rewrite}
 \end{table*}
 
@@ -457,8 +456,16 @@ To test whether style alone aids matching, Luna rewrote the same two random revi
 
 \paragraph{Content retention.} Grouping each original with its rewrite, Luna matches \PlLunaRecall\% of original claims after polishing and \RwLunaRecall\% after outline rewriting. Opus 5.5 matches \PlAuditRecall\% and \RwAuditRecall\% in random audits of \PlAuditN{} and \RwAuditN{} pairs. Claim counts are \PlClaimsRewrite{} and \RwClaimsRewrite{}, against \RwClaimsOriginal{} originally. For Kimi rewrites, Luna matches \PkLunaRecall\% and \RkLunaRecall\%; Opus matches \PkAuditRecall\% and \RkAuditRecall\% in \PkAuditN{} and \RkAuditN{} audited pairs. Counts are \PkClaimsRewrite{} and \RkClaimsRewrite{}, against \RkClaimsOriginal{} originally. All pairs of figures list polished, then outline texts. These are LLM checks, not human validation.
 
-\paragraph{Overlap changes.} Table~\ref{tab:rewrite} gives raw changes, pair fixed-effects estimates and standalone-pair checks. The fit controls for pairs with one changed review and the second grouping. At ICLR, polishing gives $\PlIclrTwo$ points (95\% CI $\PlIclrTwoLow$ to $\PlIclrTwoHigh$). Outline rewriting gives $\RwIclrTwo$ ($\RwIclrTwoLow$ to $\RwIclrTwoHigh$): its interval includes the flagged-pair gap, but excludes zero and the larger LLM-written contrast. The fit exceeds the raw change because unchanged pairs shift by $\RwIclrUnchanged$ points ($\RwIclrUnchangedLow$ to $\RwIclrUnchangedHigh$); it measures changed pairs against that shift. Across all \RwPapers{} papers, the outline estimate is $\RwTwo$ ($\RwTwoLow$ to $\RwTwoHigh$). Regrouping original panels alone changes overlap by $\RwRegroup$ points ($\RwRegroupLow$ to $\RwRegroupHigh$).
+\paragraph{Overlap changes.} Table~\ref{tab:rewrite} gives raw changes, pair fixed-effects estimates and standalone-pair checks. The fit controls for pairs with one changed review and the second grouping. At ICLR, polishing gives $\PlIclrTwo$ points (95\% CI $\PlIclrTwoLow$ to $\PlIclrTwoHigh$). Outline rewriting gives $+\RwIclrTwo$ ($\RwIclrTwoLow$ to $\RwIclrTwoHigh$). The fit exceeds the raw change because unchanged pairs shift by $\RwIclrUnchanged$ points ($\RwIclrUnchangedLow$ to $\RwIclrUnchangedHigh$); it measures changed pairs against that shift. Across all \RwPapers{} papers, the outline estimate is $\RwTwo$ ($\RwTwoLow$ to $\RwTwoHigh$). Regrouping original panels alone changes overlap by $\RwRegroup$ points ($\RwRegroupLow$ to $\RwRegroupHigh$).
 
-For the standalone check, Luna groups only the two changed reviews, before and after rewriting (Alone). All four ICLR intervals lie below the flagged-pair point estimate; both Kimi full-panel intervals exclude the LLM-written point estimate. Standalone pairs remove the unchanged-pair shift but differ from the main full-panel setup. These interval-to-point comparisons are not tests of the difference between effects. The control does not rule out style effects as large as the smaller flagged-pair gap. Two writers, two prompts and pre-2023 texts cannot cover all edits that reviewers make.
+For the standalone check, Luna groups only the two changed reviews, before and after rewriting (Alone). Standalone pairs remove the unchanged-pair shift but differ from the main full-panel setup; at ICLR, their changes are smaller than the full-panel estimates.
+
+\paragraph{Rewrite effect against detector gaps.} We estimate each ICLR detector gap minus the full-panel ICLR outline estimate. The rewrite papers (2020--2022) and the gap papers (2024--2027) do not overlap, so we treat the two estimates as independent, add their variances and give normal 95\% intervals. For Luna rewrites, the flagged-pair gap is larger by \RwFlagDiff{} points ($\RwFlagDiffLow$ to $\RwFlagDiffHigh$), the LLM-written gap by \RwWrittenDiff{} ($\RwWrittenDiffLow$ to $\RwWrittenDiffHigh$), and the gap of other two-flagged pairs by \RwLlDiff{} ($\RwLlDiffLow$ to $\RwLlDiffHigh$). For Kimi rewrites, the three differences are \RkFlagDiff{} ($\RkFlagDiffLow$ to $\RkFlagDiffHigh$), \RkWrittenDiff{} ($\RkWrittenDiffLow$ to $\RkWrittenDiffHigh$) and \RkLlDiff{} ($\RkLlDiffLow$ to $\RkLlDiffHigh$). The two estimands differ: the rewrite fit compares one pair before and after rewriting, while the gaps compare pair types within a paper, on later papers and other review forms. These tests are post hoc. For these writers and prompts, style effects explain at most part of the flagged-pair gap and little of the LLM-written gap; with Luna, they could explain the gap of other two-flagged pairs. Two writers, two prompts and pre-2023 texts cannot cover all edits that reviewers make.
+
+\FloatBarrier
+\section{Prompts}
+\label{app:prompts}
+
+\input{prompts}
 
 \end{document}

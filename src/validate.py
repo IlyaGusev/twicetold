@@ -46,14 +46,16 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     noq = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_noq.parquet").query("n_claims > 0")
     wd = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_wd.parquet").query("n_claims > 0")
     with_wd = pd.concat([main, wd.assign(year=2026)])
-    checks = [
-        ("Main overlap rate", main, "hit_rate_strict", 2023, settings.ICLR_LAST),
-        ("Specific claims only", specific, "hit_spec", 2023, settings.ICLR_LAST),
-        ("Same part of paper (lenient)", main, "hit_rate_lenient", 2023, settings.ICLR_LAST),
-        ("3-review subsets, grouped again", sub3, "hit_rate_strict", 2023, settings.ICLR_LAST),
-        ("Questions field removed", noq, "hit_rate_strict", 2024, settings.ICLR_LAST),
-        ("Withdrawn 2026 papers added", with_wd, "hit_rate_strict", 2023, 2026),
+    variants = [
+        ("Main overlap rate", main, "hit_rate_strict"),
+        ("Specific claims only", specific, "hit_spec"),
+        ("Same part of paper (lenient)", main, "hit_rate_lenient"),
+        ("3-review subsets, grouped again", sub3, "hit_rate_strict"),
+        ("Questions field removed", noq, "hit_rate_strict"),
     ]
+    checks = [(*v, 2025, 2026) for v in variants]
+    checks.append(("Withdrawn 2026 papers added", with_wd, "hit_rate_strict", 2025, 2026))
+    checks += [(*v, 2024 if v[1] is noq else 2023, settings.ICLR_LAST) for v in variants]
     rows = []
     for name, df, col, base_year, last_year in checks:
         base = df[df.year == base_year][col].dropna() * 100
@@ -78,10 +80,12 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
         r"Check & Base year & Base & Last year & Last & Change (SE) \\",
         r"\midrule",
     ]
-    lines += [
-        f"{r.check} & {r.base_year} & {r.base:.1f} & {r.last_year} & {r.last:.1f} & {r.change:+.1f} ({r.se:.1f}) \\\\"
-        for r in out.itertuples()
-    ]
+    for k, r in enumerate(out.itertuples()):
+        if k and r.last_year == settings.ICLR_LAST and out.last_year.iloc[k - 1] != settings.ICLR_LAST:
+            lines.append(r"\midrule")
+        lines.append(
+            f"{r.check} & {r.base_year} & {r.base:.1f} & {r.last_year} & {r.last:.1f} & {r.change:+.1f} ({r.se:.1f}) \\\\"
+        )
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
