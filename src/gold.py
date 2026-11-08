@@ -5,6 +5,7 @@ from pathlib import Path
 import fire
 import numpy as np
 import pandas as pd
+from huggingface_hub import hf_hub_download
 
 import extract
 import hub
@@ -18,7 +19,7 @@ TEST_PER_CELL = {"same": 3, "cross": 2}
 MAX_CLAIM_WORDS = 25
 JUDGE_ATTEMPTS = 3
 COUNCIL_RUNS = 2
-GOLD_CLAIM_KEYS = ("claim", "category", "target", "specific", "support")
+GOLD_CLAIM_KEYS = ("quote", "claim", "category", "target", "specific", "support")
 AUDIT_REVIEWS = 4
 AUDIT_PER_STRATUM = {"same2023": 10, "flag": 15}
 AUDIT_JOURNALS_PER_SOURCE = 3
@@ -234,7 +235,9 @@ def claim_inputs(out, council=settings.GOLD_COUNCIL):
 
 
 def valid_claims(item, reply):
-    return all(len(c["claim"].split()) <= MAX_CLAIM_WORDS for c in reply["claims"])
+    return all(
+        len(c["claim"].split()) <= MAX_CLAIM_WORDS and extract.quote_in_text(c["quote"], item["text"]) for c in reply["claims"]
+    )
 
 
 def judge(folder, schema, name, key, keys, valid, model, effort, threads, budget):
@@ -306,6 +309,35 @@ def model_groups(out=settings.AUDIT_DIR, model=settings.DEFAULT_MODEL, threads=1
         )
 
 
+def kim_sample(out):
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    path = hf_hub_download(
+        settings.KIM_DATASET_REPO,
+        "expert_annotation/eval-00000-of-00001.parquet",
+        repo_type="dataset",
+        revision=settings.KIM_DATASET_REVISION,
+    )
+    columns = ["paper_id", "annotator_source", "reviewer_id", "reviewer_type", "review_item_number", "review_item"]
+    df = pd.read_parquet(path, columns=columns)
+    df = df[(df.reviewer_type == "Human") & (df.annotator_source == "primary")]
+    rows = [
+        dict(review_id=f"kim_{paper}_{reviewer}", items=list(g.sort_values("review_item_number").review_item))
+        for (paper, reviewer), g in df.groupby(["paper_id", "reviewer_id"], sort=True)
+    ]
+    write_jsonl(out / "kim_items.jsonl", rows)
+    reviews = pd.DataFrame([dict(review_id=r["review_id"], text="\n\n".join(r["items"])) for r in rows])
+    reviews.to_parquet(out / "kim_reviews.parquet", index=False)
+    print(f"{len(rows)} human reviews, {sum(len(r['items']) for r in rows)} items")
+
+
+def kim_claims(out, model=settings.DEFAULT_MODEL, threads=16, budget=5.0):
+    out = Path(out)
+    extract.pass1(
+        str(out / "kim_reviews.parquet"), model=model, tag="_kim", threads=threads, budget=budget, paper_kind="general", data=out
+    )
+
+
 def match_claims(
     model=settings.DEFAULT_MODEL,
     matcher=settings.GOLD_CLAIM_JUDGE_MODEL,
@@ -341,5 +373,7 @@ if __name__ == "__main__":
             judge_claims=judge_claims,
             council_groups=council_groups,
             match_claims=match_claims,
+            kim_sample=kim_sample,
+            kim_claims=kim_claims,
         )
     )

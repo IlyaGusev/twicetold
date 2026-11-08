@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
     HF_DATASET_REVISION: str = "3c3e0120177b1e12ff7d507bb3d6e22d80871466"
     HF_DATASET_LOCAL: bool = False
+    KIM_DATASET_REPO: str = "prometheus-eval/peerreview-bench"
+    KIM_DATASET_REVISION: str = "b782d6676fcece1ed33f1eb2c0e27241d19f9f63"
 
     @property
     def OTHER_REVIEWS_DIR(self):

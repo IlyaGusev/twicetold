@@ -1,3 +1,4 @@
+import re
 from collections import Counter
 from itertools import combinations
 from pathlib import Path
@@ -9,6 +10,8 @@ import statsmodels.api as sm
 from scipy import stats
 from tqdm import tqdm
 
+import ai
+import extract
 import hub
 from jsonl import load_jsonl, read_jsonl
 from metrics import assign, mean_overlap, review_groups
@@ -1088,6 +1091,94 @@ def council_agreement(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_RE
     print(out.round(2).to_string(index=False))
 
 
+QUOTE_CHUNK = 20000
+FIELD_SPLIT = re.compile(r"(\[(?:" + "|".join(ai.SECTION_TAGS) + r")\])")
+PRAISE_TAGS = {"[SUMMARY]", "[STRENGTHS]"}
+MIN_SENTENCE_WORDS = 6
+SHINGLE_WORDS = 5
+
+
+def word_runs(text):
+    words = extract.normalize_quote(text).split()
+    return {n: {tuple(words[i : i + n]) for i in range(len(words) - n + 1)} for n in range(1, SHINGLE_WORDS + 1)}
+
+
+def shares_run(a, b):
+    n = min(max((n for n in a if a[n]), default=0), max((n for n in b if b[n]), default=0))
+    return n > 0 and bool(a[n] & b[n])
+
+
+def critique_sentences(text):
+    pieces = FIELD_SPLIT.split(text)
+    bodies = [pieces[0]] + [body for tag, body in zip(pieces[1::2], pieces[2::2]) if tag not in PRAISE_TAGS]
+    sentences = [s for body in bodies for s in re.split(r"(?<=[.!?])\s+|\n+", body)]
+    return [s for s in sentences if len(s.split()) >= MIN_SENTENCE_WORDS]
+
+
+def quote_row(text, claims):
+    quotes = [word_runs(c["quote"]) for c in claims]
+    sentences = [word_runs(s) for s in critique_sentences(text)]
+    return dict(
+        claims=len(claims),
+        found=sum(extract.quote_in_text(c["quote"], text) for c in claims),
+        duplicated=sum(any(shares_run(q, other) for other in quotes[:i] + quotes[i + 1 :]) for i, q in enumerate(quotes)),
+        sentences=len(sentences),
+        uncovered=sum(not any(shares_run(s, q) for q in quotes) for s in sentences),
+    )
+
+
+def quotes(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
+    claims = hub.claims(model)
+    ids = list(claims)
+    rows = []
+    for start in range(0, len(ids), QUOTE_CHUNK):
+        chunk = ids[start : start + QUOTE_CHUNK]
+        texts = hub.texts(chunk)
+        rows += [dict(review_id=rid, **quote_row(texts[rid], claims[rid])) for rid in chunk]
+    df = pd.DataFrame(rows).join(hub.meld_flags(["conf", "year", "flag"]), on="review_id")
+    counts = ["claims", "found", "duplicated", "sentences", "uncovered"]
+    out = df.groupby(["conf", "year", "flag"], dropna=False)[counts].sum().reset_index()
+    out["found_pct"] = 100 * out["found"] / out["claims"]
+    out["duplicated_pct"] = 100 * out["duplicated"] / out["claims"]
+    out["uncovered_pct"] = 100 * out["uncovered"] / out["sentences"]
+    out.to_csv(Path(reports) / f"quotes_{model}.csv", index=False)
+    print(out.round(2).to_string(index=False))
+
+
+def kim_alignment(items, claims):
+    item_runs = [word_runs(item) for item in items]
+    hits = [[i for i, item in enumerate(item_runs) if shares_run(item, word_runs(c["quote"]))] for c in claims]
+    counts = Counter(i for hit in hits for i in hit)
+    return dict(
+        items=len(items),
+        claims=len(claims),
+        items_hit=len(counts),
+        items_split=sum(n > 1 for n in counts.values()),
+        claims_unmatched=sum(not hit for hit in hits),
+        claims_spanning=sum(len(hit) > 1 for hit in hits),
+    )
+
+
+def kim(model=settings.DEFAULT_MODEL, gold=settings.GOLD_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
+    gold = hub.root() / "artifacts" / "experiments" / Path(gold).name
+    items = {row["review_id"]: row["items"] for row in read_jsonl(gold / "kim_items.jsonl")}
+    claims = extract.load_claims(gold / f"claims_{model}_kim.jsonl")
+    df = pd.DataFrame([dict(review_id=rid, **kim_alignment(items[rid], claims[rid])) for rid in items if rid in claims])
+    summary = dict(reviews=len(df), items=df["items"].sum(), claims=df.claims.sum())
+    shares = [
+        ("item_recall", "items_hit", "items"),
+        ("item_split", "items_split", "items"),
+        ("claim_unmatched", "claims_unmatched", "claims"),
+        ("claim_spanning", "claims_spanning", "claims"),
+    ]
+    for name, numerator, denominator in shares:
+        summary.update(mean_interval(100 * df[numerator] / df[denominator], name))
+    summary.update(mean_interval(df.claims - df["items"], "claims_bias"))
+    out = pd.DataFrame([summary])
+    out.round(3).to_csv(Path(reports) / f"kim_{model}.csv", index=False)
+    print(out.round(2).T.to_string(header=False))
+
+
 if __name__ == "__main__":
     fire.Fire(
         {
@@ -1106,5 +1197,7 @@ if __name__ == "__main__":
             "coverage": coverage,
             "rewrite_test": rewrite_test,
             "repro": repro,
+            "quotes": quotes,
+            "kim": kim,
         }
     )

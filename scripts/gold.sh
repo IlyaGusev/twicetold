@@ -32,4 +32,6 @@ if [ "$SAMPLER" != sample ]; then
   step model_groups --out "$OUT"
   step match_claims --gold "$OUT" --folder "$OUT/match" --budget "$BUDGET"
 fi
+step kim_sample --out "$OUT"
+step kim_claims --out "$OUT" --budget "$BUDGET"
 echo "GOLD DONE $(date)"
