@@ -404,5 +404,18 @@ def push(out=str(settings.RELEASE_DIR), repo=settings.HF_DATASET_REPO):
     print(info.commit_url, info.oid)
 
 
+def push_experiment(name, data=str(settings.DATA_DIR), repo=settings.HF_DATASET_REPO):
+    info = HfApi().upload_folder(
+        repo_id=repo,
+        folder_path=str(Path(data) / name),
+        path_in_repo=f"artifacts/experiments/{name}",
+        repo_type="dataset",
+        commit_message=f"Update artifacts/experiments/{name}",
+        delete_patterns=[f"artifacts/experiments/{name}/**"],
+        ignore_patterns=[f"{skipped}/**" for skipped in ARTIFACT_SKIPPED_DIRS],
+    )
+    print(info.commit_url, info.oid)
+
+
 if __name__ == "__main__":
-    fire.Fire({"build": build, "artifacts": artifacts, "push": push, "pull": pull})
+    fire.Fire({"build": build, "artifacts": artifacts, "push": push, "push_experiment": push_experiment, "pull": pull})
