@@ -277,14 +277,53 @@ def markdown_table(df):
     return "\n".join([header, rule, *rows])
 
 
+def raw_variant(data, name, file):
+    variant = pd.read_parquet(data / file).reset_index(drop=True).rename(columns={"conf": "source"})
+    return variant.assign(variant=name, base_review_id=variant.review_id.str.removeprefix(f"{name}_"), sample_row=variant.index)
+
+
 def build(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(settings.RELEASE_DIR)):
-    data, out = Path(data), Path(out)
+    data = Path(data)
+    reviews = all_reviews(data)
+    write_release(
+        model,
+        data,
+        Path(out),
+        ((source, part) for source, part in reviews.groupby("source")),
+        ((name, raw_variant(data, name, file)) for name, file in VARIANTS.items()),
+        all_papers(data, reviews[["paper_id"]]),
+    )
+
+
+def published(path):
+    return pd.read_parquet(path).drop(columns=["claims", "claims_error"])
+
+
+def rebuild(
+    model=settings.DEFAULT_MODEL,
+    data=str(settings.DATA_DIR),
+    out=str(settings.RELEASE_DIR),
+    repo=settings.HF_DATASET_REPO,
+    revision=settings.HF_DATASET_REVISION,
+):
+    patterns = ["reviews/**", "variants/**", "papers/**"]
+    root = Path(snapshot_download(repo, repo_type="dataset", revision=revision, allow_patterns=patterns))
+    write_release(
+        model,
+        Path(data),
+        Path(out),
+        ((path.stem, published(path)) for path in sorted((root / "reviews").glob("*.parquet"))),
+        ((name, published(root / "variants" / f"{name}.parquet")) for name in VARIANTS),
+        pd.read_parquet(root / "papers" / "papers.parquet"),
+    )
+
+
+def write_release(model, data, out, review_parts, variants, papers):
     for folder in ["reviews", "papers", "panels", "variants"]:
         (out / folder).mkdir(parents=True, exist_ok=True)
-    reviews = all_reviews(data)
     claims_path = data / f"claims_{model}.jsonl"
     summary = []
-    for source, part in reviews.groupby("source"):
+    for source, part in review_parts:
         part = with_claims(part, claims_path).sort_values(["year", "paper_id", "review_id"])
         part.to_parquet(out / "reviews" / f"{source}.parquet", index=False)
         summary.append(
@@ -299,14 +338,9 @@ def build(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(set
             )
         )
         print(summary[-1], flush=True)
-    for name, file in VARIANTS.items():
-        variant = pd.read_parquet(data / file).reset_index(drop=True).rename(columns={"conf": "source"})
-        variant = variant.assign(
-            variant=name, base_review_id=variant.review_id.str.removeprefix(f"{name}_"), sample_row=variant.index
-        )
+    for name, variant in variants:
         with_claims(variant, claims_path).to_parquet(out / "variants" / f"{name}.parquet", index=False)
         print(name, len(variant), flush=True)
-    papers = all_papers(data, reviews[["paper_id"]])
     papers.to_parquet(out / "papers" / "papers.parquet", index=False)
     kinds = [kind for _, kind in PANEL_KINDS] + ["paper"]
     current = {(p["panel_id"], tuple(p["review_ids"])) for name in PANEL_FILES for p in read_jsonl(data / f"{name}.jsonl")}
@@ -325,7 +359,7 @@ def build(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(set
         "dataset_card",
         sources=markdown_table(pd.DataFrame(summary)),
         panels=markdown_table(pd.DataFrame(panel_counts)),
-        n_reviews=f"{len(reviews):,}",
+        n_reviews=f"{sum(row['reviews'] for row in summary):,}",
         n_papers=f"{len(papers):,}",
         n_panels=f"{sum(p['panels'] for p in panel_counts):,}",
         threshold=f"{meld.threshold:.4f}",
@@ -433,6 +467,7 @@ if __name__ == "__main__":
     fire.Fire(
         {
             "build": build,
+            "rebuild": rebuild,
             "artifacts": artifacts,
             "push": push,
             "push_experiment": push_experiment,

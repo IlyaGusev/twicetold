@@ -72,8 +72,6 @@ if [ -f "data/overlap/panel_outcomes_$MODEL.parquet" ]; then
     p2 64 $RW/panels_pairs_general.jsonl --tag _pairs_general --paper_kind general --data $RW &
     wait
     uv run python src/extract.py merge --model "$MODEL" --data $RW
-    uv run python src/extract.py pass2 $RW/panels_audit.jsonl --model opus-5.5 --claims_file "claims_$MODEL.jsonl" \
-      --data $RW --threads 12 --budget 30
     echo "CHAIN rewrite DONE $(date)" ) > "$LOG_DIR/rewrite.log" 2>&1
   uv run python src/ai.py polish > "$LOG_DIR/polish.log" 2>&1
   uv run python src/fetch.py arxiv_papers > "$LOG_DIR/arxiv.log" 2>&1

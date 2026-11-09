@@ -740,7 +740,6 @@ WRITER_LABELS = {settings.AI_REFERENCE_MODEL: "Luna", settings.REWRITE_SECOND_WR
 
 def rewrite_test(
     model=settings.DEFAULT_MODEL,
-    matcher=settings.REWRITE_AUDIT_MODEL,
     out=settings.REWRITE_TEST_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "rewrite_test.tex",
@@ -750,14 +749,11 @@ def rewrite_test(
     clusters = load_jsonl(out / f"clusters_{model}.jsonl", "panel_id")
     papers = list(read_jsonl(out / "papers.jsonl"))
     main = hub.clusters(model, panel_ids={p["panel_id"] for p in papers})
-    audited = {p["panel_id"] for p in read_jsonl(out / "panels_audit.jsonl")}
-    audit = {pid: row for pid, row in load_jsonl(out / f"clusters_{matcher}.jsonl", "panel_id").items() if pid in audited}
     rows, all_pairs = [], []
     for condition, c in settings.REWRITE_CONDITIONS.items():
         pairs = rewrite_pairs(out, claims, clusters, main, c.panel).assign(condition=condition)
         all_pairs.append(pairs)
         luna_kept = preservation(clusters, claims, c.preserve)
-        audit_kept = preservation(audit, claims, c.preserve)
         rewritten = [r for p in papers for r in p["rewritten"] if c.text + r in claims]
         alone = standalone_change(clusters, claims, papers, c.panel)
         for group, cell in [*pairs.groupby("group"), ("All", pairs)]:
@@ -782,8 +778,6 @@ def rewrite_test(
                     **mean_interval(alone_cell.change, "alone_diff"),
                     **pair_fe(cell),
                     luna_recall=luna_kept.mean(),
-                    audit_recall=audit_kept.mean(),
-                    audit_reviews=int(audit_kept.notna().sum()),
                     claims_original=np.mean([len(claims.get(r, [])) for r in rewritten]),
                     claims_rewrite=np.mean([len(claims.get(c.text + r, [])) for r in rewritten]),
                 )

@@ -93,7 +93,6 @@ class Settings(BaseSettings):
         "kimi-k3.1-pro": "Kimi K3.1 Pro",
     }
     CONTRAST_YEARS: tuple[int, int] = (2025, 2026)
-    REWRITE_AUDIT_MODEL: str = "opus-5.5"
     REFERENCE_BOOTSTRAPS: int = 5000
     REFERENCE_BOOTSTRAP_SEED: int = 0
     REVIEW_TEXT_MAX_CHARS: int = 14000
@@ -114,7 +113,6 @@ class Settings(BaseSettings):
         "gpt-6-luna": (0.10, 0.50),
         "gpt-6-luna-high": (0.10, 0.50),
         "sol-or": (2.00, 10.00),
-        "opus-5.5": (4.00, 20.00),
         "deepseek-v4.1-flash": (0.30, 1.20),
         "kimi-k3.1-pro": (2.00, 10.00),
     }
@@ -122,7 +120,6 @@ class Settings(BaseSettings):
         "gpt-6-luna": PassEfforts(pass1="low", pass2="medium"),
         "gpt-6-luna-high": PassEfforts(pass1="high", pass2="high"),
         "sol-or": PassEfforts(pass1="medium", pass2="medium"),
-        "opus-5.5": PassEfforts(pass1="medium", pass2="medium"),
         "deepseek-v4.1-flash": PassEfforts(pass1="medium", pass2="medium"),
         "kimi-k3.1-pro": PassEfforts(pass1="medium", pass2="medium"),
     }
@@ -130,7 +127,6 @@ class Settings(BaseSettings):
     OPENROUTER_ROUTES: dict[str, str] = {
         "gpt-6-luna-high": "openai/gpt-6-luna",
         "sol-or": "openai/gpt-6.1-sol",
-        "opus-5.5": "anthropic/claude-opus-5.5",
         "deepseek-v4.1-flash": "deepseek/deepseek-v4.1-flash-1017",
         "kimi-k3.1-pro": "moonshotai/kimi-k3.1-pro",
     }

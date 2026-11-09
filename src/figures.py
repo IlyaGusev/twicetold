@@ -925,8 +925,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         row = rewrite.loc[(condition, "All")]
         record(base + "Regroup", row.regroup_diff, row.regroup_diff_se)
         record(base + "LunaRecall", row.luna_recall)
-        record(base + "AuditRecall", row.audit_recall)
-        values[base + "AuditN"] = f"{int(row.audit_reviews)}"
         record(base + "ClaimsOriginal", row.claims_original)
         record(base + "ClaimsRewrite", row.claims_rewrite)
         texts = meld_rates[meld_rates.set == meld_set]
