@@ -15,3 +15,5 @@ paper/*.fdb_latexmk
 paper/*.fls
 paper/*.synctex.gz
 data/
+
+reports/overlap/council_agreement_pairs_*.csv
