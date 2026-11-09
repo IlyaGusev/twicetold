@@ -411,7 +411,7 @@ def push_experiment(name, data=str(settings.DATA_DIR), repo=settings.HF_DATASET_
         path_in_repo=f"artifacts/experiments/{name}",
         repo_type="dataset",
         commit_message=f"Update artifacts/experiments/{name}",
-        delete_patterns=[f"artifacts/experiments/{name}/**"],
+        delete_patterns=["**"],
         ignore_patterns=[f"{skipped}/**" for skipped in ARTIFACT_SKIPPED_DIRS],
     )
     print(info.commit_url, info.oid)

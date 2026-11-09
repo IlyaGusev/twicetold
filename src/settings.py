@@ -44,7 +44,7 @@ class Settings(BaseSettings):
     RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "other"
     RELEASE_DIR: Path = ROOT / "data" / "release"
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
-    HF_DATASET_REVISION: str = "3c3e0120177b1e12ff7d507bb3d6e22d80871466"
+    HF_DATASET_REVISION: str = "14913a5d5359e8a279f932b7fd8109c0f2af6492"
     HF_DATASET_LOCAL: bool = False
     KIM_DATASET_REPO: str = "prometheus-eval/peerreview-bench"
     KIM_DATASET_REVISION: str = "b782d6676fcece1ed33f1eb2c0e27241d19f9f63"
