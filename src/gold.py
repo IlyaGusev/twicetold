@@ -193,6 +193,24 @@ def council_groups(out, model=settings.DEFAULT_MODEL, council=settings.GOLD_COUN
     merge_council(out, "clusters", "panel_id", "_tune", council)
 
 
+def member_groups(out, council=settings.GOLD_COUNCIL, threads=12, budget=15.0):
+    out = Path(out)
+    rows = [row for row in read_jsonl(out / "claims_council.jsonl") if "claims" in row]
+    for member in council:
+        write_jsonl(out / f"claims_{member}.jsonl", [row for row in rows if row["model"] == member])
+        for kind, path in kind_files(out, "panels_tune", ".jsonl"):
+            extract.pass2(
+                str(path),
+                model=member,
+                tag="_own",
+                claims_file=f"claims_{member}.jsonl",
+                threads=threads,
+                budget=budget,
+                paper_kind=kind,
+                data=out,
+            )
+
+
 def kim_sample(out):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
@@ -256,6 +274,7 @@ if __name__ == "__main__":
             council_claims=council_claims,
             model_groups=model_groups,
             council_groups=council_groups,
+            member_groups=member_groups,
             kim_sample=kim_sample,
             claimcheck_sample=claimcheck_sample,
             external_claims=external_claims,

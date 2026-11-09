@@ -903,7 +903,7 @@ def write_cell_table(out, tex, columns):
 
 def gold_dir(gold):
     path = Path(gold)
-    return path if path.exists() else hub.root() / "artifacts" / "experiments" / path.name
+    return path if path.exists() else hub.root() / settings.HF_GOLD_DIR
 
 
 def panel_meta(panel):
@@ -1042,6 +1042,67 @@ def extraction(
         ("cover_recall_model", r"Cov.\ rec.\ Luna (SE)", 1, True),
         ("cover_precision_model", r"Cov.\ prec.\ Luna (SE)", 1, True),
         ("cover_council", r"Cov.\ council (SE)", 1, True),
+    ]
+    write_cell_table(out, tex, columns)
+
+
+def panel_overlap(panel, claims, clusters):
+    row = clusters.get(panel["panel_id"], {})
+    if "clusters" not in row or any(rid not in claims for rid in panel["review_ids"]):
+        return np.nan
+    return 100 * strict_overlap(panel["review_ids"], claims, row["clusters"])
+
+
+def pipelines(
+    model=settings.DEFAULT_MODEL,
+    gold=settings.GOLD_DIR,
+    reports=settings.ANALYSIS_REPORTS_DIR,
+    tex=settings.TABLES_DIR / "pipelines.tex",
+    council=settings.GOLD_COUNCIL,
+):
+    gold = gold_dir(gold)
+    panels = list(read_jsonl(gold / "panels_tune.jsonl"))
+    runs = {
+        model: (extract.load_claims(gold / f"claims_{model}.jsonl"), load_jsonl(gold / f"clusters_{model}.jsonl", "panel_id"))
+    }
+    for member in council:
+        runs[member] = (
+            extract.load_claims(gold / f"claims_{member}.jsonl"),
+            load_jsonl(gold / f"clusters_{member}_own.jsonl", "panel_id"),
+        )
+    rows = []
+    for panel in panels:
+        overlaps = {name: panel_overlap(panel, claims, clusters) for name, (claims, clusters) in runs.items()}
+        if all(np.isfinite(v) for v in overlaps.values()):
+            rows.append(dict(**panel_meta(panel), **{f"overlap_{name}": v for name, v in overlaps.items()}))
+    panels = pd.DataFrame(rows)
+    panels.to_csv(Path(reports) / f"pipelines_panels_{model}.csv", index=False)
+    summary = []
+    for kind, by_kind in panels.groupby("kind", sort=False):
+        for label, cell in report_cells(by_kind):
+            row = dict(kind=kind, **label, panels=len(cell))
+            ours = cell[f"overlap_{model}"]
+            members = [cell[f"overlap_{m}"] for m in council]
+            row.update(mean_interval(ours, "overlap_model"))
+            row.update(mean_interval(sum(members) / len(members), "overlap_council"))
+            row.update(mean_interval(sum(ours - m for m in members) / len(members), "diff_model"))
+            pair_diffs = [a - b for a, b in combinations(members, 2)]
+            row.update(mean_interval(sum(d.abs() for d in pair_diffs) / len(pair_diffs), "absdiff_council"))
+            row.update(mean_interval(sum((ours - m).abs() for m in members) / len(members), "absdiff_model"))
+            row["corr_model"] = np.mean([ours.corr(m) for m in members]) if len(cell) > 2 else np.nan
+            row["corr_council"] = np.mean([a.corr(b) for a, b in combinations(members, 2)]) if len(cell) > 2 else np.nan
+            summary.append(row)
+    out = pd.DataFrame(summary)
+    out.round(3).to_csv(Path(reports) / f"pipelines_{model}.csv", index=False)
+    print(out.round(2).to_string(index=False))
+    columns = [
+        ("overlap_model", "Overlap Luna (SE)", 1, True),
+        ("overlap_council", "Overlap council (SE)", 1, True),
+        ("diff_model", r"Luna $-$ council (SE)", 1, True),
+        ("absdiff_model", r"$|$Luna $-$ member$|$ (SE)", 1, True),
+        ("absdiff_council", r"$|$member $-$ member$|$ (SE)", 1, True),
+        ("corr_model", "Corr.\\ Luna", 2, False),
+        ("corr_council", "Corr.\\ council", 2, False),
     ]
     write_cell_table(out, tex, columns)
 
@@ -1246,6 +1307,7 @@ if __name__ == "__main__":
             "journal_gaps": journal_gaps,
             "extraction": extraction,
             "council_agreement": council_agreement,
+            "pipelines": pipelines,
             "identification": identification,
             "pair_types": pair_types,
             "pair_type_sizes": pair_type_sizes,

@@ -93,11 +93,7 @@ ARTIFACTS = {
     "openreview": ["icml2025_raw.jsonl", "icml2026_raw.jsonl", "iclr2027_raw.jsonl"],
     "areas": ["paper_areas.parquet"],
     "journals": ["other/stats.json"],
-    "experiments": [
-        "gold",
-        "rewrite_test",
-        "paper_reviews",
-    ],
+    "experiments": ["rewrite_test", "paper_reviews"],
 }
 ARTIFACT_SKIPPED_DIRS = {"raw", "adjudicate2"}
 PANEL_FILES = [
@@ -362,13 +358,20 @@ def artifact_files(data):
                 yield path, Path("artifacts") / group / path.relative_to(local.parent)
 
 
+def gold_files(data):
+    local = data / "gold"
+    for path in sorted(local.rglob("*")):
+        if path.is_file():
+            yield path, Path(settings.HF_GOLD_DIR) / path.relative_to(local)
+
+
 def artifacts(data=str(settings.DATA_DIR), out=str(settings.RELEASE_DIR)):
     data, out = Path(data), Path(out)
     for name in ARTIFACT_SKIPPED_DIRS:
         for path in (out / "artifacts").rglob(name):
             if path.is_dir():
                 shutil.rmtree(path)
-    for path, target in artifact_files(data):
+    for path, target in [*artifact_files(data), *gold_files(data)]:
         (out / target).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, out / target)
         print(target, flush=True)
@@ -376,7 +379,8 @@ def artifacts(data=str(settings.DATA_DIR), out=str(settings.RELEASE_DIR)):
 
 def pull(data=str(settings.DATA_DIR), repo=settings.HF_DATASET_REPO, revision=settings.HF_DATASET_REVISION):
     data = Path(data)
-    root = Path(snapshot_download(repo, repo_type="dataset", revision=revision, allow_patterns=["artifacts/**"]))
+    patterns = ["artifacts/**", f"{settings.HF_GOLD_DIR}/**"]
+    root = Path(snapshot_download(repo, repo_type="dataset", revision=revision, allow_patterns=patterns))
     for group, names in ARTIFACTS.items():
         for name in names:
             source = root / "artifacts" / group / Path(name).name
@@ -389,6 +393,8 @@ def pull(data=str(settings.DATA_DIR), repo=settings.HF_DATASET_REPO, revision=se
                     if source.with_name(source.name + suffix).exists():
                         shutil.copy2(source.with_name(source.name + suffix), target.with_name(target.name + suffix))
             print(target, flush=True)
+    shutil.copytree(root / settings.HF_GOLD_DIR, data / "gold", dirs_exist_ok=True)
+    print(data / "gold", flush=True)
 
 
 def push(out=str(settings.RELEASE_DIR), repo=settings.HF_DATASET_REPO):
@@ -402,18 +408,35 @@ def push(out=str(settings.RELEASE_DIR), repo=settings.HF_DATASET_REPO):
     print(info.commit_url, info.oid)
 
 
-def push_experiment(name, data=str(settings.DATA_DIR), repo=settings.HF_DATASET_REPO):
+def upload_folder(folder, path_in_repo, repo):
     info = HfApi().upload_folder(
         repo_id=repo,
-        folder_path=str(Path(data) / name),
-        path_in_repo=f"artifacts/experiments/{name}",
+        folder_path=str(folder),
+        path_in_repo=path_in_repo,
         repo_type="dataset",
-        commit_message=f"Update artifacts/experiments/{name}",
+        commit_message=f"Update {path_in_repo}",
         delete_patterns=["**"],
         ignore_patterns=[f"{skipped}/**" for skipped in ARTIFACT_SKIPPED_DIRS],
     )
     print(info.commit_url, info.oid)
 
 
+def push_experiment(name, data=str(settings.DATA_DIR), repo=settings.HF_DATASET_REPO):
+    upload_folder(Path(data) / name, f"artifacts/experiments/{name}", repo)
+
+
+def push_gold(data=str(settings.DATA_DIR), repo=settings.HF_DATASET_REPO):
+    upload_folder(Path(data) / "gold", settings.HF_GOLD_DIR, repo)
+
+
 if __name__ == "__main__":
-    fire.Fire({"build": build, "artifacts": artifacts, "push": push, "push_experiment": push_experiment, "pull": pull})
+    fire.Fire(
+        {
+            "build": build,
+            "artifacts": artifacts,
+            "push": push,
+            "push_experiment": push_experiment,
+            "push_gold": push_gold,
+            "pull": pull,
+        }
+    )

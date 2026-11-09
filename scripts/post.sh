@@ -42,6 +42,7 @@ if [ -z "$OUT_DIR" ]; then
   step src/validate.py forms --model "$MODEL"
   step src/validate.py extraction --model "$MODEL"
   step src/validate.py council_agreement --model "$MODEL"
+  step src/validate.py pipelines --model "$MODEL"
   for check in identification journal_subsets coverage rewrite_test detector_choices; do
     step src/validate.py "$check" --model "$MODEL"
   done
@@ -55,6 +56,7 @@ else
   step src/validate.py forms --model "$MODEL" --tex "$OUT_DIR/tables/forms.tex"
   step src/validate.py extraction --model "$MODEL" --tex "$OUT_DIR/tables/extraction.tex"
   step src/validate.py council_agreement --model "$MODEL" --tex "$OUT_DIR/tables/council.tex"
+  step src/validate.py pipelines --model "$MODEL" --tex "$OUT_DIR/tables/pipelines.tex"
   for check in identification journal_subsets coverage rewrite_test detector_choices; do
     step src/validate.py "$check" --model "$MODEL" --tex "$OUT_DIR/tables/$check.tex"
   done
