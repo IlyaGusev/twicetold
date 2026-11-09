@@ -25,12 +25,6 @@ CROSS_PER_YEAR = 4
 CROSS_PER_JOURNAL = 2
 TEST_SHARE = 0.3
 COUNCIL_RUNS = 2
-AUDIT_REVIEWS = 4
-AUDIT_PER_STRATUM = {"same2023": 10, "flag": 15}
-AUDIT_JOURNALS_PER_SOURCE = 3
-AUDIT_FLAG_YEARS = (2024, 2026)
-AUDIT_JOURNAL_FROM = 2024
-AUDIT_WRITTEN_PANELS = 60
 PAPER_KINDS = ("ml", "general")
 
 
@@ -110,78 +104,6 @@ def sample(out, seed=7):
     print(len(panels), "panels,", len(reviews), "reviews ->", out)
 
 
-def flagged_split(review_ids, flag, rng):
-    flagged = [r for r in review_ids if flag.get(r, False)]
-    clean = [r for r in review_ids if r in flag and not flag[r]]
-    if len(flagged) < 2 or len(clean) < 1:
-        return None
-    picked_flagged = list(rng.choice(flagged, 2, replace=False))
-    picked_clean = list(rng.choice(clean, min(len(clean), AUDIT_REVIEWS - 2), replace=False))
-    return [str(r) for r in picked_flagged + picked_clean]
-
-
-def sample_audit(out=settings.AUDIT_DIR, seed=11, model=settings.DEFAULT_MODEL):
-    out = Path(out)
-    out.mkdir(parents=True, exist_ok=True)
-    rng = np.random.default_rng(seed)
-    flag = hub.meld_flags(["flag"]).flag
-    flag = flag.to_dict()
-    clusters = hub.panel_definitions(["paper"])
-    iclr = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["panel_id", "conf", "year"])
-    iclr = iclr[iclr.conf == "ICLR"].sort_values("panel_id")
-    panels = []
-    same = iclr[(iclr.year == 2023) & iclr.panel_id.map(lambda p: len(clusters[p]) >= AUDIT_REVIEWS)]
-    for p in same.sample(AUDIT_PER_STRATUM["same2023"], random_state=seed).itertuples():
-        picked = [str(r) for r in rng.choice(clusters[p.panel_id], AUDIT_REVIEWS, replace=False)]
-        panels.append(dict(source="ICLR", stratum="same2023", year=2023, paper_id=p.panel_id, review_ids=picked))
-    late = iclr[iclr.year.between(*AUDIT_FLAG_YEARS)].sample(frac=1, random_state=seed)
-    for p in late.itertuples():
-        if sum(x["stratum"] == "flag" for x in panels) == AUDIT_PER_STRATUM["flag"]:
-            break
-        picked = flagged_split(clusters[p.panel_id], flag, rng)
-        if picked and len(picked) == AUDIT_REVIEWS:
-            panels.append(dict(source="ICLR", stratum="flag", year=int(p.year), paper_id=p.panel_id, review_ids=picked))
-    journals = hub.panel_definitions(["journal"])
-    meta = hub.journal_reviews(["review_id", "conf", "year"]).set_index("review_id")
-    candidates = pd.DataFrame(
-        [dict(panel_id=k, conf=meta.conf[v[0]], year=int(meta.year[v[0]])) for k, v in journals.items() if v[0] in meta.index]
-    )
-    candidates = candidates[candidates.year >= AUDIT_JOURNAL_FROM].sort_values("panel_id")
-    for source, cell in candidates.groupby("conf"):
-        chosen = 0
-        for p in cell.sample(frac=1, random_state=seed).itertuples():
-            if chosen == AUDIT_JOURNALS_PER_SOURCE:
-                break
-            picked = flagged_split(journals[p.panel_id], flag, rng)
-            if picked:
-                panels.append(dict(source=source, stratum="journal", year=p.year, paper_id=p.panel_id, review_ids=picked))
-                chosen += 1
-    write_audit(out, panels, model)
-
-
-def sample_written(out=settings.AUDIT_WRITTEN_DIR, seed=12, model=settings.DEFAULT_MODEL, n=AUDIT_WRITTEN_PANELS):
-    out = Path(out)
-    out.mkdir(parents=True, exist_ok=True)
-    rng = np.random.default_rng(seed)
-    labels = hub.meld_flags(["flag", "written"])
-    clusters = hub.panel_definitions(["paper"])
-    iclr = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=["panel_id", "conf", "year"])
-    iclr = iclr[(iclr.conf == "ICLR") & iclr.year.between(*AUDIT_FLAG_YEARS)].sort_values("panel_id")
-    panels = []
-    for p in iclr.sample(frac=1, random_state=seed).itertuples():
-        ids = [r for r in clusters[p.panel_id] if r in labels.index]
-        written = [r for r in ids if labels.written[r]]
-        clean = [r for r in ids if not labels.flag[r]]
-        if len(written) >= 2 and len(clean) >= 2:
-            picked = list(rng.choice(written, 2, replace=False)) + list(rng.choice(clean, 2, replace=False))
-            panels.append(
-                dict(source="ICLR", stratum="written", year=int(p.year), paper_id=p.panel_id, review_ids=[str(r) for r in picked])
-            )
-        if len(panels) == n:
-            break
-    write_audit(out, panels, model)
-
-
 def write_sample(out, panels):
     write_jsonl(out / "panels_tune.jsonl", panels)
     texts = hub.texts({r for p in panels for r in p["review_ids"]})
@@ -192,17 +114,6 @@ def write_sample(out, panels):
         reviews[reviews.paper_kind == kind][["review_id", "text"]].to_parquet(out / f"tune_reviews_{kind}.parquet")
         write_jsonl(out / f"panels_tune_{kind}.jsonl", [p for p in panels if p["paper_kind"] == kind])
     return reviews
-
-
-def write_audit(out, panels, model):
-    for i, panel in enumerate(panels):
-        panel.update(panel_id=f"A{i:02d}", kind="same", split="audit", paper_kind=extract.paper_kind(panel["source"]))
-    reviews = write_sample(out, panels)
-    ids = set(reviews.review_id)
-    luna = hub.claims(model)
-    write_jsonl(out / f"claims_{model}.jsonl", [dict(review_id=r, claims=c) for r, c in luna.items() if r in ids])
-    print(pd.DataFrame(panels).groupby(["stratum", "source"]).size().to_string())
-    print(len(panels), "panels,", len(reviews), "reviews ->", out)
 
 
 def load_panels(path):
@@ -341,8 +252,6 @@ if __name__ == "__main__":
     fire.Fire(
         dict(
             sample=sample,
-            sample_audit=sample_audit,
-            sample_written=sample_written,
             model_claims=model_claims,
             council_claims=council_claims,
             model_groups=model_groups,

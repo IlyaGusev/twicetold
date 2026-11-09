@@ -1,13 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.." || exit 1
-if [ $# -lt 1 ] || [ $# -gt 3 ]; then
-  echo "usage: $0 OUT_DIR [STEP_BUDGET_USD=15] [SAMPLER=sample|sample_audit|sample_written]" >&2
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+  echo "usage: $0 OUT_DIR [STEP_BUDGET_USD=15]" >&2
   exit 1
 fi
 OUT=$1
 BUDGET=${2:-15}
-SAMPLER=${3:-sample}
 if [ "$(realpath -m "$OUT")" = "$(realpath data/gold)" ]; then
   echo "refusing to write into data/gold; pick a new OUT_DIR" >&2
   exit 1
@@ -23,7 +22,7 @@ step() {
   fi
 }
 
-step "$SAMPLER" --out "$OUT"
+step sample --out "$OUT"
 step model_claims --out "$OUT" --budget "$BUDGET"
 step council_claims --out "$OUT" --budget "$BUDGET"
 step model_groups --out "$OUT" --budget "$BUDGET"

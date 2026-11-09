@@ -31,8 +31,6 @@ class Settings(BaseSettings):
     DATA_DIR: Path = ROOT / "data"
     REPORTS_DIR: Path = ROOT / "reports"
     GOLD_DIR: Path = ROOT / "data" / "gold"
-    AUDIT_DIR: Path = ROOT / "data" / "gold_audit"
-    AUDIT_WRITTEN_DIR: Path = ROOT / "data" / "gold_audit_written"
     REWRITE_TEST_DIR: Path = ROOT / "data" / "rewrite_test"
     PAPER_REVIEW_DIR: Path = ROOT / "data" / "paper_reviews"
     ANALYSIS_DIR: Path = ROOT / "data" / "overlap"
@@ -44,7 +42,7 @@ class Settings(BaseSettings):
     RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "other"
     RELEASE_DIR: Path = ROOT / "data" / "release"
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
-    HF_DATASET_REVISION: str = "14913a5d5359e8a279f932b7fd8109c0f2af6492"
+    HF_DATASET_REVISION: str = "ea26af3d84e9c271633b4fde1947d64319ed7d54"
     HF_DATASET_LOCAL: bool = False
     KIM_DATASET_REPO: str = "prometheus-eval/peerreview-bench"
     KIM_DATASET_REVISION: str = "b782d6676fcece1ed33f1eb2c0e27241d19f9f63"

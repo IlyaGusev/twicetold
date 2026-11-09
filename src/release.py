@@ -95,8 +95,6 @@ ARTIFACTS = {
     "journals": ["other/stats.json"],
     "experiments": [
         "gold",
-        "gold_audit",
-        "gold_audit_written",
         "rewrite_test",
         "paper_reviews",
     ],
