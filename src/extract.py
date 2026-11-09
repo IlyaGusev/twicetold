@@ -155,12 +155,19 @@ def openai_call(instructions, text, schema, name, model, effort):
     return parse_object(response.output_text)
 
 
+def openrouter_provider(model):
+    provider = {"require_parameters": True}
+    if model in settings.OPENROUTER_PROVIDERS:
+        provider["only"] = [settings.OPENROUTER_PROVIDERS[model]]
+    return provider
+
+
 def openrouter_call(instructions, text, schema, name, model, effort):
     response = openrouter_client().chat.completions.create(
         model=settings.OPENROUTER_ROUTES[model],
         messages=[{"role": "system", "content": instructions}, {"role": "user", "content": text}],
         response_format={"type": "json_schema", "json_schema": {"name": name, "strict": True, "schema": schema}},
-        extra_body={"reasoning": {"effort": effort}, "provider": {"require_parameters": True}},
+        extra_body={"reasoning": {"effort": effort}, "provider": openrouter_provider(model)},
     )
     record(model, response.usage.prompt_tokens, response.usage.completion_tokens)
     return parse_object(response.choices[0].message.content, schema)

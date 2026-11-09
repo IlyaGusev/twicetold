@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "other"
     RELEASE_DIR: Path = ROOT / "data" / "release"
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
-    HF_DATASET_REVISION: str = "a23f803232cefc2b38a548edc6ad8159abf268db"
+    HF_DATASET_REVISION: str = "bad166fe177698c7e2aa877b2023d4c48aadcb26"
     HF_GOLD_DIR: str = "gold"
     HF_DATASET_LOCAL: bool = False
     KIM_DATASET_REPO: str = "prometheus-eval/peerreview-bench"
@@ -85,7 +85,7 @@ class Settings(BaseSettings):
     DEFAULT_MODEL: str = "gpt-6-luna-high"
     AI_REFERENCE_MODEL: str = "gpt-6-luna"
     REWRITE_SECOND_WRITER: str = "kimi-k3.1-pro"
-    GOLD_COUNCIL: list[str] = ["sol-or", "opus-5.5", "kimi-k3.1-pro"]
+    GOLD_COUNCIL: list[str] = ["sol-or", "deepseek-v4.1-flash", "kimi-k3.1-pro"]
     REWRITE_AUDIT_MODEL: str = "opus-5.5"
     REFERENCE_BOOTSTRAPS: int = 5000
     REFERENCE_BOOTSTRAP_SEED: int = 0
@@ -108,6 +108,7 @@ class Settings(BaseSettings):
         "gpt-6-luna-high": (0.10, 0.50),
         "sol-or": (2.00, 10.00),
         "opus-5.5": (4.00, 20.00),
+        "deepseek-v4.1-flash": (0.30, 1.20),
         "kimi-k3.1-pro": (2.00, 10.00),
     }
     REASONING_EFFORTS: dict[str, PassEfforts] = {
@@ -115,12 +116,15 @@ class Settings(BaseSettings):
         "gpt-6-luna-high": PassEfforts(pass1="high", pass2="high"),
         "sol-or": PassEfforts(pass1="medium", pass2="medium"),
         "opus-5.5": PassEfforts(pass1="medium", pass2="medium"),
+        "deepseek-v4.1-flash": PassEfforts(pass1="medium", pass2="medium"),
         "kimi-k3.1-pro": PassEfforts(pass1="medium", pass2="medium"),
     }
+    OPENROUTER_PROVIDERS: dict[str, str] = {"kimi-k3.1-pro": "moonshotai", "deepseek-v4.1-flash": "fireworks"}
     OPENROUTER_ROUTES: dict[str, str] = {
         "gpt-6-luna-high": "openai/gpt-6-luna",
         "sol-or": "openai/gpt-6.1-sol",
         "opus-5.5": "anthropic/claude-opus-5.5",
+        "deepseek-v4.1-flash": "deepseek/deepseek-v4.1-flash-1017",
         "kimi-k3.1-pro": "moonshotai/kimi-k3.1-pro",
     }
 

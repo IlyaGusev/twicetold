@@ -59,10 +59,10 @@ They hold every sample; the panel id prefix names the sample (`icml_`, `other_`,
 reasoning effort needs a different short name. The extraction chains write part files and
 `extract.py merge` joins them. The dataset holds both files as the `claims` column and the `panels` config.
 
-`data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs (`claims_council.jsonl`,
-`clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `gold.py sample` draws 200 production
-panels with a fixed seed: 170 same-paper panels (ICLR 2018–2027, NeurIPS 2024–2025, ICML 2025–2026 and five journals
-2024–2026) and 30 cross-paper placebo panels. From 2024 on, half of each cell holds at least two flagged and one
+`data/gold/` holds the Sol 6.1, DeepSeek V4.1 Flash and Kimi K3.1 Pro council outputs (`claims_council.jsonl`,
+`clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `gold.py sample` draws 600 production
+panels with a fixed seed: 510 same-paper panels (ICLR 2018–2027, NeurIPS 2024–2025, ICML 2025–2026 and five journals
+2024–2026) and 90 cross-paper placebo panels. From 2024 on, half of each cell holds at least two flagged and one
 unflagged review, and a quarter of each ML cell holds at least two LLM-written reviews. Each cell splits 70/30 into
 dev and test. `claims_<model>.jsonl` and `clusters_<model>.jsonl` hold Luna's claims and groupings for the same
 reviews and panels; the council groups Luna's claim list (`clusters_council.jsonl`). `claims_<member>.jsonl` and
@@ -105,7 +105,7 @@ hand-entered values.
 
 ### Grouping reference
 
-Use only unanimous raw votes from Sol, Opus and Kimi for grouping checks. Keep both unanimous merges and
+Use only unanimous raw votes from Sol, DeepSeek and Kimi for grouping checks. Keep both unanimous merges and
 unanimous separations. Exclude split votes and pairs with a missing
 member, missing claim ID or repeated claim ID. Do not treat excluded pairs as separate problems.
 

@@ -13,16 +13,16 @@ from jsonl import read_jsonl, write_jsonl
 from settings import settings
 
 SAME_PANELS = {
-    "ICLR": {2018: 5, 2019: 5, 2020: 5, 2021: 5, 2022: 5, 2023: 10, 2024: 15, 2025: 15, 2026: 20, 2027: 20},
-    "NeurIPS": {2024: 10, 2025: 10},
-    "ICML": {2025: 10, 2026: 10},
+    "ICLR": {2018: 15, 2019: 15, 2020: 15, 2021: 15, 2022: 15, 2023: 30, 2024: 45, 2025: 45, 2026: 60, 2027: 60},
+    "NeurIPS": {2024: 30, 2025: 30},
+    "ICML": {2025: 30, 2026: 30},
 }
-JOURNAL_PANELS = 5
+JOURNAL_PANELS = 15
 JOURNAL_YEARS = (2024, 2026)
 FLAG_FROM = 2024
 CROSS_YEARS = (2018, 2022, 2024, 2026, 2027)
-CROSS_PER_YEAR = 4
-CROSS_PER_JOURNAL = 2
+CROSS_PER_YEAR = 12
+CROSS_PER_JOURNAL = 6
 TEST_SHARE = 0.3
 COUNCIL_RUNS = 2
 PAPER_KINDS = ("ml", "general")
