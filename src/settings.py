@@ -86,6 +86,13 @@ class Settings(BaseSettings):
     AI_REFERENCE_MODEL: str = "gpt-6-luna"
     REWRITE_SECOND_WRITER: str = "kimi-k3.1-pro"
     GOLD_COUNCIL: list[str] = ["sol-or", "deepseek-v4.1-flash", "kimi-k3.1-pro"]
+    MODEL_LABELS: dict[str, str] = {
+        "gpt-6-luna-high": "Luna",
+        "sol-or": "Sol 6.1",
+        "deepseek-v4.1-flash": "DeepSeek V4.1 Flash",
+        "kimi-k3.1-pro": "Kimi K3.1 Pro",
+    }
+    CONTRAST_YEARS: tuple[int, int] = (2025, 2026)
     REWRITE_AUDIT_MODEL: str = "opus-5.5"
     REFERENCE_BOOTSTRAPS: int = 5000
     REFERENCE_BOOTSTRAP_SEED: int = 0

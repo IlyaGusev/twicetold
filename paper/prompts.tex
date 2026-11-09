@@ -38,7 +38,7 @@ Claims in reading order. Return {"claims": []} if the review raises no critique.
 
 Task: group the claims into problems, in two levels.
 
-1. First list the targets. A target is one element of the paper that several reviewers may comment on from different angles: a specific experiment or benchmark, the set of baselines, a theorem or proof, an assumption, a figure or table, a dataset, the method's core design, the writing of one section, the novelty of the contribution, the computational cost, the scope of the evaluation. Give each target an integer target_id from 1 and a short element name. Two claims share a target if they are about the same element, even when the criticism differs.
+1. First list the targets. A target is one element of the paper that several reviewers may comment on from different angles: a specific experiment or benchmark, the set of baselines, a theorem or proof, an assumption, a figure or table, a dataset, the method's core design, the writing of one section, the novelty of the contribution, the computational cost, the scope of the evaluation. Give each target an integer target\_id from 1 and a short element name. Two claims share a target if they are about the same element, even when the criticism differs.
 2. Within a target, group claims by criticism: two claims share a cluster only if they point to the same underlying problem, so the authors would answer both with one fix or one reply. Claims that reach the same criticism through different evidence or wording share a cluster. Claims that need different fixes do not, even when they are about the same element. If you are not sure that one fix answers both, keep them apart. Write one short problem statement per cluster.
 
 3. Every claim id must appear in exactly one cluster. A claim that matches nothing forms its own cluster. Two claims from the same review never share a cluster: a cluster holds at most one claim per review.
@@ -62,4 +62,4 @@ Examples.
 
 Output: one JSON object and nothing else:
 
-{"targets": [{"target_id": 1, "element": "..."}, ...], "clusters": [{"target_id": 1, "problem": "...", "claim_ids": ["R0-2", "R3-1"]}, ...]}\end{quote}
+{"targets": [{"target\_id": 1, "element": "..."}, ...], "clusters": [{"target\_id": 1, "problem": "...", "claim\_ids": ["R0-2", "R3-1"]}, ...]}\end{quote}

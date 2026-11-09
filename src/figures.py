@@ -832,6 +832,35 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for name in ["precision", "recall", "f1"]:
         for suffix in ["", "_low", "_high"]:
             values["RefPair" + name.title().replace("1", "One") + suffix.title()[1:]] = f"{pairs['pair_' + name + suffix]:.1f}"
+    pipes = pd.read_csv(reports / f"pipelines_{model}.csv").set_index(index)
+    same_pipes, cross_pipes = pipes.loc[("same", *total)], pipes.loc[("cross", *total)]
+    values["RefPipePanels"] = f"{int(same_pipes.panels)}"
+    values["RefPipeLuna"] = f"{same_pipes.overlap_model:.1f}"
+    values["RefPipeCouncil"] = f"{same_pipes.overlap_council:.1f}"
+    values["RefPipeCrossLuna"] = f"{cross_pipes.overlap_model:.1f}"
+    values["RefPipeCrossCouncil"] = f"{cross_pipes.overlap_council:.1f}"
+    for suffix in ("", "_low", "_high"):
+        values["RefPipeDiff" + suffix.title()[1:]] = f"{same_pipes['diff_model' + suffix]:.1f}"
+    values["RefPipeAbsDiffLuna"] = f"{same_pipes.absdiff_model:.1f}"
+    values["RefPipeAbsDiffCouncil"] = f"{same_pipes.absdiff_council:.1f}"
+    values["RefPipeCorrLuna"] = f"{same_pipes.corr_model:.2f}"
+    values["RefPipeCorrCouncil"] = f"{same_pipes.corr_council:.2f}"
+    contrasts = pd.read_csv(reports / f"pipelines_contrasts_{model}.csv").set_index("pipeline")
+    luna, members = contrasts.loc[model], contrasts.drop(index=model)
+    values["RefPipeLevelMemberMin"] = f"{members.level.min():.1f}"
+    values["RefPipeLevelMemberMax"] = f"{members.level.max():.1f}"
+    for name, prefix, digits in [
+        ("flag_gap", "RefPipeFlag", 1),
+        ("written_gap", "RefPipeWritten", 1),
+        ("iclr_slope", "RefPipeSlope", 2),
+        ("iclr_step", "RefPipeStep", 1),
+    ]:
+        for suffix in ("", "_low", "_high"):
+            values[prefix + "Luna" + suffix.title()[1:]] = f"{luna[name + suffix]:.{digits}f}"
+        values[prefix + "MemberMin"] = f"{members[name].min():.{digits}f}"
+        values[prefix + "MemberMax"] = f"{members[name].max():.{digits}f}"
+        values[prefix + "Positive"] = f"{int((contrasts[name] > 0).sum())}"
+        values[prefix + "Significant"] = f"{int((contrasts[name + '_low'] > 0).sum())}"
     ident = pd.read_csv(reports / f"identification_{model}.csv").set_index("label")
     for label, prefix in [
         ("ICLR 2024–27", "IdIclr"),

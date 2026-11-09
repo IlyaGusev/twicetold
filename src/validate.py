@@ -1058,6 +1058,7 @@ def pipelines(
     gold=settings.GOLD_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "pipelines.tex",
+    contrasts_tex=settings.TABLES_DIR / "pipeline_contrasts.tex",
     council=settings.GOLD_COUNCIL,
 ):
     gold = gold_dir(gold)
@@ -1105,6 +1106,62 @@ def pipelines(
         ("corr_council", "Corr.\\ council", 2, False),
     ]
     write_cell_table(out, tex, columns)
+    contrasts = pd.DataFrame([pipeline_contrasts(panels, name) for name in runs])
+    contrasts.round(3).to_csv(Path(reports) / f"pipelines_contrasts_{model}.csv", index=False)
+    print(contrasts.round(2).to_string(index=False))
+    write_contrast_table(contrasts, contrasts_tex)
+
+
+def bootstrap_interval(frame, statistic, name):
+    rng = np.random.default_rng(settings.REFERENCE_BOOTSTRAP_SEED)
+    draws = rng.integers(len(frame), size=(settings.REFERENCE_BOOTSTRAPS, len(frame)))
+    values = np.array([statistic(frame.iloc[draw]) for draw in draws])
+    values = values[np.isfinite(values)]
+    low, high = np.quantile(values, [0.025, 0.975]) if len(values) else (np.nan, np.nan)
+    return {name: statistic(frame), f"{name}_low": low, f"{name}_high": high}
+
+
+def pipeline_contrasts(panels, name):
+    column = f"overlap_{name}"
+    same = panels[panels.kind == "same"]
+    iclr = same[same.conf == "ICLR"]
+    first, last = settings.CONTRAST_YEARS
+
+    def gap(frame, a, b):
+        return frame[frame.stratum == a][column].mean() - frame[frame.stratum == b][column].mean()
+
+    def slope(frame):
+        return np.polyfit(frame.year.to_numpy(float), frame[column].to_numpy(float), 1)[0]
+
+    def step(frame):
+        return frame[frame.year == last][column].mean() - frame[frame.year == first][column].mean()
+
+    row = dict(pipeline=name, panels=len(same), level=same[column].mean(), cross=panels[panels.kind == "cross"][column].mean())
+    row.update(bootstrap_interval(same, lambda f: gap(f, "flagged", "plain"), "flag_gap"))
+    row.update(bootstrap_interval(same, lambda f: gap(f, "written", "plain"), "written_gap"))
+    row.update(bootstrap_interval(iclr, slope, "iclr_slope"))
+    row.update(bootstrap_interval(iclr, step, "iclr_step"))
+    return row
+
+
+def write_contrast_table(contrasts, tex):
+    first, last = settings.CONTRAST_YEARS
+    columns = [
+        ("flag_gap", r"Flagged $-$ plain", 1),
+        ("written_gap", r"Written $-$ plain", 1),
+        ("iclr_slope", "ICLR slope per year", 2),
+        ("iclr_step", f"ICLR {last} $-$ {first}", 1),
+    ]
+    header = "Pipeline & Overlap & Cross-paper & " + " & ".join(title for _, title, _ in columns) + r" \\"
+    lines = [r"\begin{tabular}{l" + "r" * (len(columns) + 2) + "}", r"\toprule", header, r"\midrule"]
+    for r in contrasts.itertuples():
+        cells = [
+            f"{getattr(r, n):+.{d}f} [{getattr(r, n + '_low'):+.{d}f}, {getattr(r, n + '_high'):+.{d}f}]" for n, _, d in columns
+        ]
+        lines.append(
+            f"{settings.MODEL_LABELS.get(r.pipeline, r.pipeline)} & {r.level:.1f} & {r.cross:.1f} & " + " & ".join(cells) + r" \\"
+        )
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
 def unique_claim_group_ids(clusters):
