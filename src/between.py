@@ -19,8 +19,8 @@ EMBED_MAX_BACKOFF_S = 30
 REVIEW_EMBED_CHARS = 12000
 
 
-def openai_embed(texts, model, batch, threads, desc):
-    client = OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
+def openai_embed(texts, model, batch, threads, desc, client=None):
+    client = client or OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
 
     def embed_chunk(chunk):
         for attempt in range(EMBED_ATTEMPTS):

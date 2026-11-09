@@ -24,6 +24,7 @@ REMOVED_FIELD_TAGS = ("_nocq", "_noq")
 HALF_SPAN = 0.5
 LABEL_FIELDS = ("category", "target", "specific")
 PAIR_COUNTS = ["pair_tp", "pair_fp", "pair_fn", "pair_candidates"]
+COVER_QUANTILE = 0.95
 MIN_DIRECT_PAPERS = 10
 FORM_CATEGORIES = ("clarity/presentation", "novelty", "reproducibility/details")
 FIELD_LABELS = {
@@ -950,11 +951,16 @@ def pair_scores(pairs, n_claims):
     return row
 
 
-def soft_cover(a, b):
-    return 100 * (a @ b.T).max(axis=1).mean() if len(a) and len(b) else np.nan
+def covered(a, b, threshold):
+    return 100 * ((a @ b.T).max(axis=1) >= threshold).mean() if len(a) and len(b) else np.nan
 
 
-def extraction_row(text, claims, vectors, model, council):
+def within_list_similarities(vector_lists):
+    sims = [(v @ v.T)[np.triu_indices(len(v), 1)] for v in vector_lists if len(v) > 1]
+    return np.concatenate(sims)
+
+
+def extraction_row(text, claims, vectors, threshold, model, council):
     spans = {m: quote_spans(text, claims[m]) for m in claims}
     words = {m: set().union(*spans[m]) for m in claims}
     counts = Counter(w for m in council for w in words[m])
@@ -969,15 +975,17 @@ def extraction_row(text, claims, vectors, model, council):
     row.update({f"{k}_model": v for k, v in pair_scores(model_pairs, len(council) * len(claims[model])).items()})
     n_council = sum(len(claims[a]) for a, _ in permutations(council, 2))
     row.update({f"{k}_council": v for k, v in pair_scores(council_pairs, n_council).items()})
-    row["soft_precision_model"] = pd.Series([soft_cover(vectors[model], vectors[m]) for m in council]).mean()
-    row["soft_recall_model"] = pd.Series([soft_cover(vectors[m], vectors[model]) for m in council]).mean()
-    row["soft_council"] = pd.Series([soft_cover(vectors[a], vectors[b]) for a, b in permutations(council, 2)]).mean()
+    row["cover_recall_model"] = pd.Series([covered(vectors[m], vectors[model], threshold) for m in council]).mean()
+    row["cover_precision_model"] = pd.Series([covered(vectors[model], vectors[m], threshold) for m in council]).mean()
+    row["cover_council"] = pd.Series([covered(vectors[a], vectors[b], threshold) for a, b in permutations(council, 2)]).mean()
     return row
 
 
 def claim_vectors(claims):
     texts = sorted({c["claim"] for by_review in claims.values() for cl in by_review.values() for c in cl})
-    vectors = normalize_rows(openai_embed(texts, settings.EMBED_MODEL, batch=256, threads=8, desc="embed claims"))
+    client = extract.openrouter_client()
+    vectors = openai_embed(texts, settings.CLAIM_EMBED_MODEL, batch=64, threads=8, desc="embed claims", client=client)
+    vectors = normalize_rows(vectors)
     index = {text: i for i, text in enumerate(texts)}
     return lambda cl: vectors[[index[c["claim"]] for c in cl]]
 
@@ -998,15 +1006,16 @@ def extraction(
             claims[row["model"]][row["review_id"]] = row["claims"]
     claims[model] = extract.load_claims(gold / f"claims_{model}.jsonl")
     vectors = claim_vectors(claims)
+    scored = [(panel, rid) for panel in panels for rid in panel["review_ids"] if all(rid in claims[m] for m in claims)]
+    review_vectors = {rid: {m: vectors(claims[m][rid]) for m in claims} for _, rid in scored}
+    all_lists = [v for by_model in review_vectors.values() for v in by_model.values()]
+    threshold = np.quantile(within_list_similarities(all_lists), COVER_QUANTILE)
+    print(f"coverage threshold: cosine {threshold:.3f}")
     rows = []
-    for panel in panels:
-        for rid in panel["review_ids"]:
-            if all(rid in claims[m] for m in claims):
-                review_claims = {m: claims[m][rid] for m in claims}
-                scores = extraction_row(
-                    texts[rid], review_claims, {m: vectors(cl) for m, cl in review_claims.items()}, model, council
-                )
-                rows.append(dict(**panel_meta(panel), review_id=rid, **scores))
+    for panel, rid in scored:
+        review_claims = {m: claims[m][rid] for m in claims}
+        scores = extraction_row(texts[rid], review_claims, review_vectors[rid], threshold, model, council)
+        rows.append(dict(**panel_meta(panel), review_id=rid, **scores))
     reviews = pd.DataFrame(rows)
     reviews.to_csv(Path(reports) / f"extraction_reviews_{model}.csv", index=False)
     keys = list(panel_meta(panels[0]))
@@ -1016,7 +1025,7 @@ def extraction(
     summary = []
     for kind, by_kind in panels.groupby("kind", sort=False):
         for label, cell in report_cells(by_kind):
-            row = dict(kind=kind, **label, panels=len(cell), reviews=int(cell.reviews.sum()))
+            row = dict(kind=kind, **label, panels=len(cell), reviews=int(cell.reviews.sum()), cover_threshold=threshold)
             for name in metrics:
                 row.update(mean_interval(cell[name], name))
             summary.append(row)
@@ -1030,9 +1039,9 @@ def extraction(
         ("f1_council", "Span F1 council (SE)", 1, True),
         ("precision_pooled", r"Prec.\ pooled (SE)", 1, True),
         ("recall_unanimous", r"Rec.\ unanimous (SE)", 1, True),
-        ("soft_precision_model", r"Soft prec.\ Luna (SE)", 1, True),
-        ("soft_recall_model", r"Soft rec.\ Luna (SE)", 1, True),
-        ("soft_council", "Soft council (SE)", 1, True),
+        ("cover_recall_model", r"Cov.\ rec.\ Luna (SE)", 1, True),
+        ("cover_precision_model", r"Cov.\ prec.\ Luna (SE)", 1, True),
+        ("cover_council", r"Cov.\ council (SE)", 1, True),
     ]
     write_cell_table(out, tex, columns)
 

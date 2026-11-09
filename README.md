@@ -110,7 +110,7 @@ member, missing claim ID or repeated claim ID. Do not treat excluded pairs as se
 
 `validate.py extraction` compares the quoted spans and the aligned claims of Luna and the council (`reports/overlap/extraction*_MODEL.csv`).
 Run `scripts/post.sh --council-agreement` to score Luna's groupings against the unanimous votes. Both commands read
-the gold folder; `extraction` embeds the claim sentences with `settings.EMBED_MODEL`, `council_agreement` makes no model calls. Agreement is not human-ground-truth accuracy. Unlabeled pairs do not define
+the gold folder; `extraction` embeds the claim sentences with `settings.CLAIM_EMBED_MODEL` through OpenRouter, `council_agreement` makes no model calls. Agreement is not human-ground-truth accuracy. Unlabeled pairs do not define
 complete groups. Do not use this check to infer reference overlap levels or trends.
 
 ## Reproduce the detector-conditioned results

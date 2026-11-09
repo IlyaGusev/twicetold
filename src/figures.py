@@ -794,6 +794,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["RefReviews"] = f"{int(same.reviews + cross.reviews)}"
     values["RefClaimsLuna"] = f"{same.claims_model:.1f}"
     values["RefClaimsCouncil"] = f"{same.claims_council:.1f}"
+    values["RefCoverThreshold"] = f"{same.cover_threshold:.2f}"
     for name, prefix in [
         ("f1_model", "RefSpanFOne"),
         ("f1_council", "RefCouncilSpanFOne"),
@@ -810,9 +811,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         ("specific_council", "RefCouncilSpecific"),
         ("claim_f1_model", "RefClaimFOne"),
         ("claim_f1_council", "RefCouncilClaimFOne"),
-        ("soft_precision_model", "RefSoftPrecision"),
-        ("soft_recall_model", "RefSoftRecall"),
-        ("soft_council", "RefCouncilSoft"),
+        ("cover_recall_model", "RefCoverRecall"),
+        ("cover_precision_model", "RefCoverPrecision"),
+        ("cover_council", "RefCouncilCover"),
     ]:
         for suffix in ("", "_low", "_high"):
             values[prefix + suffix.title()[1:]] = f"{same[name + suffix]:.1f}"
