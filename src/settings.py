@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     FIGURES_DIR: Path = ROOT / "paper" / "figs"
     TABLES_DIR: Path = ROOT / "paper" / "tables"
     PAPER_TEX: Path = ROOT / "paper" / "main.tex"
+    PROMPTS_TEX: Path = ROOT / "paper" / "prompts.tex"
     PROMPTS_DIR: Path = ROOT / "src" / "prompts"
     RAW_ML_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources"
     RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources" / "other"

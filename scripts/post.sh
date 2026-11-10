@@ -49,6 +49,7 @@ if [ -z "$OUT_DIR" ]; then
   step src/measures.py measures --model "$MODEL"
   step src/figures.py table --model "$MODEL"
   step src/figures.py numbers --model "$MODEL"
+  step src/figures.py prompts
   step src/figures.py all --model "$MODEL"
 else
   mkdir -p "$OUT_DIR/figs" "$OUT_DIR/tables"

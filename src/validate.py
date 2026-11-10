@@ -882,9 +882,11 @@ def report_cells(df):
 
 
 def write_cell_table(out, tex, columns):
-    names = {"same": "Same-paper", "cross": "Cross-paper"}
-    header = "Panels & Source & Years or flags & $n$ & " + " & ".join(title for _, title, _, _ in columns) + r" \\"
-    lines = [r"\begin{tabular}{lll" + "r" * (len(columns) + 1) + "}", r"\toprule", header, r"\midrule"]
+    names = {"same": "Same", "cross": "Cross"}
+    titles = [title.partition("|") for _, title, _, _ in columns]
+    header = [" & & & & " + " & ".join(top for top, _, _ in titles) + r" \\"] if any(sep for _, sep, _ in titles) else []
+    header.append("Panels & Source & Years or flags & $n$ & " + " & ".join(bottom or top for top, _, bottom in titles) + r" \\")
+    lines = [r"\begin{tabular}{@{}lll" + "r" * (len(columns) + 1) + "@{}}", r"\toprule", *header, r"\midrule"]
     for r in out[out.split == "all"].itertuples():
         cell = (r.years if r.stratum == "all" else r.stratum).replace("all", "All")
         values = []
@@ -1022,15 +1024,15 @@ def extraction(
     out.round(3).to_csv(Path(reports) / f"extraction_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     columns = [
-        ("claims_model", "Claims Luna", 1, False),
-        ("claims_council", "Claims council", 1, False),
-        ("f1_model", "Span F1 Luna (SE)", 1, True),
-        ("f1_council", "Span F1 council (SE)", 1, True),
-        ("precision_pooled", r"Prec.\ pooled (SE)", 1, True),
-        ("recall_unanimous", r"Rec.\ unanimous (SE)", 1, True),
-        ("cover_recall_model", r"Cov.\ rec.\ Luna (SE)", 1, True),
-        ("cover_precision_model", r"Cov.\ prec.\ Luna (SE)", 1, True),
-        ("cover_council", r"Cov.\ council (SE)", 1, True),
+        ("claims_model", "Claims|Luna", 1, False),
+        ("claims_council", "Claims|council", 1, False),
+        ("f1_model", "Span F1|Luna", 1, True),
+        ("f1_council", "Span F1|council", 1, True),
+        ("precision_pooled", r"Prec.|pooled", 1, True),
+        ("recall_unanimous", r"Rec.|unanimous", 1, True),
+        ("cover_recall_model", r"Cov.\ rec.|Luna", 1, True),
+        ("cover_precision_model", r"Cov.\ prec.|Luna", 1, True),
+        ("cover_council", r"Cov.|council", 1, True),
     ]
     write_cell_table(out, tex, columns)
 
@@ -1127,11 +1129,11 @@ def write_contrast_table(contrasts, tex):
     columns = [
         ("flag_gap", r"Flagged $-$ plain", 1),
         ("written_gap", r"Written $-$ plain", 1),
-        ("iclr_slope", "ICLR slope per year", 2),
+        ("iclr_slope", "ICLR slope", 2),
         ("iclr_step", f"ICLR {last} $-$ {first}", 1),
     ]
-    header = "Pipeline & Overlap & Cross-paper & " + " & ".join(title for _, title, _ in columns) + r" \\"
-    lines = [r"\begin{tabular}{l" + "r" * (len(columns) + 2) + "}", r"\toprule", header, r"\midrule"]
+    header = "Pipeline & Overlap & Cross & " + " & ".join(title for _, title, _ in columns) + r" \\"
+    lines = [r"\begin{tabular}{@{}l" + "r" * (len(columns) + 2) + "@{}}", r"\toprule", header, r"\midrule"]
     for r in contrasts.itertuples():
         cells = [
             f"{getattr(r, n):+.{d}f} [{getattr(r, n + '_low'):+.{d}f}, {getattr(r, n + '_high'):+.{d}f}]" for n, _, d in columns
@@ -1237,7 +1239,7 @@ def council_agreement(
         ("pair_recall", "Recall", 1, False),
         ("pair_f1", "F1", 1, False),
     ]
-    write_cell_table(out, tex, columns)
+    write_cell_table(out[out.kind == "same"], tex, columns)
 
 
 QUOTE_CHUNK = 20000

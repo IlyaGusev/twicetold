@@ -12,8 +12,10 @@ from matplotlib.colors import to_rgb
 from matplotlib.ticker import MaxNLocator
 from matplotlib.transforms import Bbox
 
+import extract
 import hub
 from outcomes import excluded_review_ids, in_window, main_sample_review_ids
+from prompts import render
 from settings import settings
 
 COLUMN_WIDTH = 3.03
@@ -855,6 +857,15 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         values[prefix + "MemberMax"] = f"{members[name].max():.{digits}f}"
         values[prefix + "Positive"] = f"{int((contrasts[name] > 0).sum())}"
         values[prefix + "Significant"] = f"{int((contrasts[name + '_low'] > 0).sum())}"
+    for name, prefix in [("kim", "Kim"), ("claimcheck", "Claimcheck")]:
+        row = pd.read_csv(reports / f"{name}_{model}.csv").iloc[0]
+        values[prefix + "Reviews"] = f"{int(row.reviews):,}"
+        values[prefix + "Items"] = f"{int(row['items']):,}"
+        for column, label in [("item_recall", "ItemRecall"), ("item_split", "ItemSplit"), ("claim_unmatched", "ClaimUnmatched")]:
+            values[prefix + label] = f"{row[column]:.1f}"
+            values[prefix + label + "Low"] = f"{row[column + '_low']:.1f}"
+            values[prefix + label + "High"] = f"{row[column + '_high']:.1f}"
+        values[prefix + "ClaimsBias"] = f"{row.claims_bias:.1f}"
     ident = pd.read_csv(reports / f"identification_{model}.csv").set_index("label")
     for label, prefix in [
         ("ICLR 2024–27", "IdIclr"),
@@ -957,6 +968,17 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     print(pd.DataFrame(rows).round(3).to_string(index=False))
 
 
+def prompts(tex=settings.PROMPTS_TEX):
+    blocks = [
+        ("Pass 1 (per review)", extract.pass1_instructions("ml")),
+        ("Pass 2 (per panel)", render("pass2", paper=extract.PASS2_PAPER_WORDING["ml"])),
+    ]
+    parts = [
+        f"\\noindent\\textbf{{{title}.}}\n\\begin{{lstlisting}}\n{body.strip()}\n\\end{{lstlisting}}\n" for title, body in blocks
+    ]
+    Path(tex).write_text("\n".join(parts))
+
+
 if __name__ == "__main__":
     fire.Fire(
         {
@@ -971,5 +993,6 @@ if __name__ == "__main__":
             "cross": cross,
             "table": table,
             "numbers": numbers,
+            "prompts": prompts,
         }
     )

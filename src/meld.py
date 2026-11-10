@@ -53,7 +53,7 @@ def labels(known, human, heldout, reports, tex):
     out.round(2).to_csv(Path(reports) / "meld_labels.csv")
     print(out.round(1).to_string())
     lines = [
-        r"\begin{tabular}{lrrrr}",
+        r"\begin{tabular}{@{}lrrrr@{}}",
         r"\toprule",
         r"Texts & $n$ & Unflagged & Edited & Written \\",
         r"\midrule",
