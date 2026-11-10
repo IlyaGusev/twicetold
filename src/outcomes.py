@@ -26,8 +26,6 @@ MIN_PLACEBO_REVIEWS = 2
 PLACEBO_DROP_REASON = f"fewer than {MIN_PLACEBO_REVIEWS} reviews left after removing reviews of withdrawn or desk-rejected papers"
 DROP_REASONS = {"panel": DROP_REASON, "sub3": DROP_REASON, "placebo": PLACEBO_DROP_REASON}
 SOURCE_TAGS = ["_icml", "_other"]
-SOURCE_PANEL_KINDS = {"_icml": ["icml"], "_other": ["journal", "journal_placebo"]}
-STALE_REASON = "a cluster row that does not match the current panel files and source parquet"
 FIRST_YEAR = {"ICLR": settings.ICLR_FROM}
 DEFAULT_FIRST_YEAR = 2019
 
@@ -117,21 +115,11 @@ def source_meta(tag):
     return meta.set_index("review_id")
 
 
-def current_source_panels(tag, source_reviews):
-    panels = hub.panel_definitions(SOURCE_PANEL_KINDS[tag])
-    return {panel_id: review_ids for panel_id, review_ids in panels.items() if source_reviews.issuperset(review_ids)}
-
-
 def source_panels(model, tag, clusters, claims, out):
     source = tag[1:]
     meta = source_meta(tag)
-    current = current_source_panels(tag, set(meta.index))
-    n_stale = 0
     rows = []
     for panel_id, panel in tqdm(clusters.items(), desc=source):
-        if current.get(panel_id) != panel["review_ids"]:
-            n_stale += 1
-            continue
         first_review = meta.loc[panel["review_ids"][0]]
         rows.append(
             dict(
@@ -144,7 +132,7 @@ def source_panels(model, tag, clusters, claims, out):
         )
     table = pd.DataFrame(rows)
     table.to_parquet(out / f"{source}_panel_outcomes_{model}.parquet")
-    print(len(rows), "panels,", n_stale, "dropped:", STALE_REASON)
+    print(len(rows), "panels")
     print(table.groupby(["placebo", "conf", "year"]).hit_rate_strict.mean().mul(100).round(2).unstack(0).to_string())
 
 
@@ -185,18 +173,14 @@ def pairs(model=settings.DEFAULT_MODEL, out=str(settings.ANALYSIS_DIR)):
     Path(out).mkdir(parents=True, exist_ok=True)
     papers = ml_papers()
     main_reviews = main_sample_review_ids()
-    n_dropped = n_stale = 0
+    n_dropped = 0
     rows, reviews = [], []
     claims, clusters_by_tag = load_outputs(model)
     for tag in ["", *SOURCE_TAGS]:
         if tag:
             meta = source_meta(tag)
-            current = current_source_panels(tag, set(meta.index))
         for panel_id, panel in tqdm(clusters_by_tag[tag].items(), desc=f"pairs{tag}"):
             if tag and panel_id.startswith(("icml_", "other_")):
-                if current.get(panel_id) != panel["review_ids"]:
-                    n_stale += 1
-                    continue
                 conf, year = meta.loc[panel["review_ids"][0], ["conf", "year"]]
             elif not tag and panel_id in papers.index:
                 if not main_reviews.issuperset(panel["review_ids"]):
@@ -217,7 +201,6 @@ def pairs(model=settings.DEFAULT_MODEL, out=str(settings.ANALYSIS_DIR)):
     table.to_parquet(Path(out) / f"pairs_{model}.parquet")
     pd.DataFrame(reviews).to_parquet(Path(out) / f"review_groups_{model}.parquet")
     print(n_dropped, "panels dropped:", DROP_REASON)
-    print(n_stale, "panels dropped:", STALE_REASON)
     print(table.groupby(["conf", "year"]).agg(pairs=("hit", "size"), hit=("hit", "mean")).to_string())
 
 

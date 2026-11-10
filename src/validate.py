@@ -712,7 +712,7 @@ def preservation(clusters, claims, preserve_prefix):
             continue
         original, rewritten = panel["review_ids"]
         n_orig, n_rw = len(claims.get(original, [])), len(claims.get(rewritten, []))
-        hit_orig, hit_rw = matched_claims(panel["clusters"], n_orig, n_rw)
+        hit_orig, _ = matched_claims(panel["clusters"], n_orig, n_rw)
         rows.append(hit_orig / n_orig * 100 if n_orig else np.nan)
     return pd.Series(rows, dtype=float)
 
@@ -1046,7 +1046,6 @@ def pipelines(
     model=settings.DEFAULT_MODEL,
     gold=settings.GOLD_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
-    tex=settings.TABLES_DIR / "pipelines.tex",
     contrasts_tex=settings.TABLES_DIR / "pipeline_contrasts.tex",
     council=settings.GOLD_COUNCIL,
 ):
@@ -1085,16 +1084,6 @@ def pipelines(
     out = pd.DataFrame(summary)
     out.round(3).to_csv(Path(reports) / f"pipelines_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    columns = [
-        ("overlap_model", "Overlap Luna (SE)", 1, True),
-        ("overlap_council", "Overlap council (SE)", 1, True),
-        ("diff_model", r"Luna $-$ council (SE)", 1, True),
-        ("absdiff_model", r"$|$Luna $-$ member$|$ (SE)", 1, True),
-        ("absdiff_council", r"$|$member $-$ member$|$ (SE)", 1, True),
-        ("corr_model", "Corr.\\ Luna", 2, False),
-        ("corr_council", "Corr.\\ council", 2, False),
-    ]
-    write_cell_table(out, tex, columns)
     contrasts = pd.DataFrame([pipeline_contrasts(panels, name) for name in runs])
     contrasts.round(3).to_csv(Path(reports) / f"pipelines_contrasts_{model}.csv", index=False)
     print(contrasts.round(2).to_string(index=False))
