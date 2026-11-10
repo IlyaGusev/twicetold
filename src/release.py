@@ -1,12 +1,15 @@
 import json
-import shutil
+from functools import partial
 from pathlib import Path
 
 import fire
 import numpy as np
 import pandas as pd
+import pyarrow.dataset as ds
+import pyarrow.parquet as pq
 from huggingface_hub import HfApi, snapshot_download
 
+from extract import merge_rows, panel_key, review_key
 from jsonl import read_jsonl
 from prompts import render
 from settings import settings
@@ -82,20 +85,6 @@ PAPER_COLUMNS = [
 ]
 
 
-ARTIFACTS = {
-    "meld": [
-        "meld_scores.jsonl",
-        "intel_reviews.parquet",
-        f"ai_reference_{settings.AI_REFERENCE_MODEL}.jsonl",
-        f"ai_polish_{settings.AI_REFERENCE_MODEL}.jsonl",
-    ],
-    "embeddings": ["review_emb.npy"],
-    "openreview": ["icml2025_raw.jsonl", "icml2026_raw.jsonl", "iclr2027_raw.jsonl"],
-    "areas": ["paper_areas.parquet"],
-    "journals": ["other/stats.json"],
-    "experiments": ["rewrite_test", "paper_reviews"],
-}
-ARTIFACT_SKIPPED_DIRS = {"raw", "adjudicate2"}
 PANEL_FILES = [
     "panels",
     "panels_icml",
@@ -108,7 +97,6 @@ PANEL_FILES = [
     "panels_other",
     "panels_other_placebo",
 ]
-ARTIFACTS["panel_files"] = [f"{name}.jsonl" for name in PANEL_FILES]
 PAPER_STRING_COLUMNS = [c for c in PAPER_COLUMNS if c not in ("year", "withdrawn", "n_reviews", "corpus_row")]
 
 
@@ -194,22 +182,6 @@ def all_reviews(data):
     return df.astype({**dict.fromkeys(NULLABLE_STRING_COLUMNS, "string"), "meld_flag": "boolean", "meld_written": "boolean"})
 
 
-def extraction_of(path, review_ids):
-    claims, errors = {}, {}
-    for row in read_jsonl(path):
-        if row["review_id"] in review_ids:
-            if "claims" in row:
-                claims[row["review_id"]] = row["claims"]
-            else:
-                errors[row["review_id"]] = row["error"]
-    return claims, errors
-
-
-def with_claims(part, claims_path):
-    claims, errors = extraction_of(claims_path, set(part.review_id))
-    return part.assign(claims=part.review_id.map(claims), claims_error=part.review_id.map(errors).astype("string"))
-
-
 def icml_papers(data):
     rows = []
     for path in sorted(data.glob("icml20*_raw.jsonl")):
@@ -256,12 +228,11 @@ def panel_kind(panel_id):
     return next((kind for prefix, kind in PANEL_KINDS if panel_id.startswith(prefix)), "paper")
 
 
-def panel_row(row, kind, current):
+def panel_row(row, kind):
     return dict(
         panel_id=row["panel_id"],
         kind=kind,
         review_ids=row["review_ids"],
-        current=(row["panel_id"], tuple(row["review_ids"])) in current,
         targets=row.get("targets", []) if "error" not in row else None,
         clusters=row.get("clusters") if "error" not in row else None,
         error=row.get("error"),
@@ -282,49 +253,55 @@ def raw_variant(data, name, file):
     return variant.assign(variant=name, base_review_id=variant.review_id.str.removeprefix(f"{name}_"), sample_row=variant.index)
 
 
-def build(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR), out=str(settings.RELEASE_DIR)):
-    data = Path(data)
-    reviews = all_reviews(data)
-    write_release(
-        model,
-        data,
-        Path(out),
-        ((source, part) for source, part in reviews.groupby("source")),
-        ((name, raw_variant(data, name, file)) for name, file in VARIANTS.items()),
-        all_papers(data, reviews[["paper_id"]]),
-    )
+def with_kept_claims(config, part):
+    columns = ["review_id", "claims", "claims_error"]
+    folder = settings.FINAL_DIR / config
+    if not folder.exists():
+        return part.assign(claims=None, claims_error=None)
+    kept = ds.dataset(folder, format="parquet").to_table(columns=columns, filter=ds.field("review_id").isin(list(part.review_id)))
+    return part.join(kept.to_pandas().set_index("review_id"), on="review_id")
 
 
-def published(path):
-    return pd.read_parquet(path).drop(columns=["claims", "claims_error"])
+def with_new_claims(part, path):
+    review_ids = set(part.review_id)
+    rows = merge_rows([path], review_key, lambda row: row["review_id"] in review_ids) if path.exists() else []
+    index = [row["review_id"] for row in rows]
+    claims = pd.Series([row.get("claims") for row in rows], index=index, dtype=object)
+    errors = pd.Series([row.get("error") for row in rows], index=index, dtype=object)
+    touched = part.review_id.isin(index)
+    part.loc[touched, "claims"] = part.review_id[touched].map(claims)
+    part.loc[touched, "claims_error"] = part.review_id[touched].map(errors)
+    return part.astype({"claims_error": "string"})
 
 
-def rebuild(
-    model=settings.DEFAULT_MODEL,
-    data=str(settings.DATA_DIR),
-    out=str(settings.RELEASE_DIR),
-    repo=settings.HF_DATASET_REPO,
-    revision=settings.HF_DATASET_REVISION,
-):
-    patterns = ["reviews/**", "variants/**", "papers/**"]
-    root = Path(snapshot_download(repo, repo_type="dataset", revision=revision, allow_patterns=patterns))
-    write_release(
-        model,
-        Path(data),
-        Path(out),
-        ((path.stem, published(path)) for path in sorted((root / "reviews").glob("*.parquet"))),
-        ((name, published(root / "variants" / f"{name}.parquet")) for name in VARIANTS),
-        pd.read_parquet(root / "papers" / "papers.parquet"),
-    )
+def final_panel_rows(kind):
+    path = settings.FINAL_DIR / "panels" / f"{kind}.parquet"
+    return pq.read_table(path).to_pylist() if path.exists() else []
 
 
-def write_release(model, data, out, review_parts, variants, papers):
+def raw_panel_rows(data, kind):
+    kept = {panel_key(row): row for row in final_panel_rows(kind)}
+    blank = dict(kind=kind, targets=None, clusters=None, error=None)
+    panels = [
+        panel for name in PANEL_FILES for panel in read_jsonl(data / f"{name}.jsonl") if panel_kind(panel["panel_id"]) == kind
+    ]
+    return [kept.get(panel_key(panel), {**panel, **blank}) for panel in panels]
+
+
+def new_panel_rows(path, kind):
+    if not path.exists():
+        return []
+    return [panel_row(row, kind) for row in merge_rows([path], panel_key, lambda row: panel_kind(row["panel_id"]) == kind)]
+
+
+def write_final(model, review_parts, variants, papers, panel_rows):
+    out = settings.FINAL_DIR
     for folder in ["reviews", "papers", "panels", "variants"]:
         (out / folder).mkdir(parents=True, exist_ok=True)
-    claims_path = data / f"claims_{model}.jsonl"
+    claims_path = settings.WORK_DIR / f"claims_{model}.jsonl"
     summary = []
     for source, part in review_parts:
-        part = with_claims(part, claims_path).sort_values(["year", "paper_id", "review_id"])
+        part = with_new_claims(part, claims_path)
         part.to_parquet(out / "reviews" / f"{source}.parquet", index=False)
         summary.append(
             dict(
@@ -339,20 +316,15 @@ def write_release(model, data, out, review_parts, variants, papers):
         )
         print(summary[-1], flush=True)
     for name, variant in variants:
-        with_claims(variant, claims_path).to_parquet(out / "variants" / f"{name}.parquet", index=False)
+        with_new_claims(variant, claims_path).to_parquet(out / "variants" / f"{name}.parquet", index=False)
         print(name, len(variant), flush=True)
     papers.to_parquet(out / "papers" / "papers.parquet", index=False)
-    kinds = [kind for _, kind in PANEL_KINDS] + ["paper"]
-    current = {(p["panel_id"], tuple(p["review_ids"])) for name in PANEL_FILES for p in read_jsonl(data / f"{name}.jsonl")}
     panel_counts = []
-    for kind in kinds:
-        rows = [
-            panel_row(row, kind, current)
-            for row in read_jsonl(data / f"clusters_{model}.jsonl")
-            if panel_kind(row["panel_id"]) == kind
-        ]
-        pd.DataFrame(rows).astype({"error": "string"}).to_parquet(out / "panels" / f"{kind}.parquet", index=False)
-        panel_counts.append(dict(kind=kind, panels=sum(row["error"] is None and row["current"] for row in rows)))
+    for kind in [kind for _, kind in PANEL_KINDS] + ["paper"]:
+        rows = {row["panel_id"]: row for row in panel_rows(kind)}
+        rows.update({row["panel_id"]: row for row in new_panel_rows(settings.WORK_DIR / f"clusters_{model}.jsonl", kind)})
+        pd.DataFrame(list(rows.values())).astype({"error": "string"}).to_parquet(out / "panels" / f"{kind}.parquet", index=False)
+        panel_counts.append(dict(kind=kind, panels=sum(row["clusters"] is not None for row in rows.values())))
         print(kind, len(rows), flush=True)
     meld = pd.read_csv(settings.REPORTS_DIR / "meld_summary.csv", index_col="name").value
     card = render(
@@ -372,106 +344,56 @@ def write_release(model, data, out, review_parts, variants, papers):
         route=settings.OPENROUTER_ROUTES[model],
         efforts=settings.REASONING_EFFORTS[model],
     )
-    (out / "README.md").write_text(card)
-    (out / "stats.json").write_text(json.dumps(dict(sources=summary, panels=panel_counts), indent=1))
+    (settings.DATA_DIR / "README.md").write_text(card)
+    (settings.DATA_DIR / "stats.json").write_text(json.dumps(dict(sources=summary, panels=panel_counts), indent=1))
 
 
-def artifact_files(data):
-    for group, names in ARTIFACTS.items():
-        for name in names:
-            local = data / name
-            if local.is_dir():
-                files = [
-                    path
-                    for path in sorted(local.rglob("*"))
-                    if path.is_file() and not ARTIFACT_SKIPPED_DIRS.intersection(path.relative_to(local).parts)
-                ]
-            else:
-                files = [path for path in [local, local.with_name(local.name + ".md")] if path.exists()]
-            for path in files:
-                yield path, Path("artifacts") / group / path.relative_to(local.parent)
+def build(model=settings.DEFAULT_MODEL):
+    final = settings.FINAL_DIR
+    write_final(
+        model,
+        ((path.stem, pd.read_parquet(path)) for path in sorted((final / "reviews").glob("*.parquet"))),
+        ((name, pd.read_parquet(final / "variants" / f"{name}.parquet")) for name in VARIANTS),
+        pd.read_parquet(final / "papers" / "papers.parquet"),
+        final_panel_rows,
+    )
 
 
-def gold_files(data):
-    local = data / "gold"
-    for path in sorted(local.rglob("*")):
-        if path.is_file():
-            yield path, Path(settings.HF_GOLD_DIR) / path.relative_to(local)
-
-
-def artifacts(data=str(settings.DATA_DIR), out=str(settings.RELEASE_DIR)):
-    data, out = Path(data), Path(out)
-    for name in ARTIFACT_SKIPPED_DIRS:
-        for path in (out / "artifacts").rglob(name):
-            if path.is_dir():
-                shutil.rmtree(path)
-    for path, target in [*artifact_files(data), *gold_files(data)]:
-        (out / target).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, out / target)
-        print(target, flush=True)
-
-
-def pull(data=str(settings.DATA_DIR), repo=settings.HF_DATASET_REPO, revision=settings.HF_DATASET_REVISION):
+def from_raw(model=settings.DEFAULT_MODEL, data=str(settings.RAW_DIR)):
     data = Path(data)
-    patterns = ["artifacts/**", f"{settings.HF_GOLD_DIR}/**"]
-    root = Path(snapshot_download(repo, repo_type="dataset", revision=revision, allow_patterns=patterns))
-    for group, names in ARTIFACTS.items():
-        for name in names:
-            source = root / "artifacts" / group / Path(name).name
-            target = data / name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            if source.is_dir():
-                shutil.copytree(source, target, dirs_exist_ok=True, ignore=shutil.ignore_patterns(*ARTIFACT_SKIPPED_DIRS))
-            else:
-                for suffix in ["", ".md"]:
-                    if source.with_name(source.name + suffix).exists():
-                        shutil.copy2(source.with_name(source.name + suffix), target.with_name(target.name + suffix))
-            print(target, flush=True)
-    shutil.copytree(root / settings.HF_GOLD_DIR, data / "gold", dirs_exist_ok=True)
-    print(data / "gold", flush=True)
+    reviews = all_reviews(data)
+    order = ["year", "paper_id", "review_id"]
+    write_final(
+        model,
+        ((source, with_kept_claims("reviews", part.sort_values(order))) for source, part in reviews.groupby("source")),
+        ((name, with_kept_claims("variants", raw_variant(data, name, file))) for name, file in VARIANTS.items()),
+        all_papers(data, reviews[["paper_id"]]),
+        partial(raw_panel_rows, data),
+    )
 
 
-def push(out=str(settings.RELEASE_DIR), repo=settings.HF_DATASET_REPO):
+def pull(raw=False):
+    snapshot_download(
+        settings.HF_DATASET_REPO,
+        repo_type="dataset",
+        revision=settings.HF_DATASET_REVISION,
+        allow_patterns=settings.HF_PULL_PATTERNS + (settings.HF_RAW_PATTERNS if raw else []),
+        local_dir=settings.DATA_DIR,
+    )
+
+
+def push():
     info = HfApi().upload_folder(
-        repo_id=repo,
-        folder_path=out,
+        repo_id=settings.HF_DATASET_REPO,
+        folder_path=settings.DATA_DIR,
         repo_type="dataset",
         commit_message="Release reviews, papers, claims, panels and MELD scores",
-        delete_patterns=["*.parquet", "artifacts/**"],
+        allow_patterns=settings.HF_PULL_PATTERNS + settings.HF_RAW_PATTERNS,
+        ignore_patterns=settings.HF_PUSH_IGNORE,
+        delete_patterns=["final/**", "gold/**", "additional/**"],
     )
     print(info.commit_url, info.oid)
-
-
-def upload_folder(folder, path_in_repo, repo):
-    info = HfApi().upload_folder(
-        repo_id=repo,
-        folder_path=str(folder),
-        path_in_repo=path_in_repo,
-        repo_type="dataset",
-        commit_message=f"Update {path_in_repo}",
-        delete_patterns=["**"],
-        ignore_patterns=[f"{skipped}/**" for skipped in ARTIFACT_SKIPPED_DIRS],
-    )
-    print(info.commit_url, info.oid)
-
-
-def push_experiment(name, data=str(settings.DATA_DIR), repo=settings.HF_DATASET_REPO):
-    upload_folder(Path(data) / name, f"artifacts/experiments/{name}", repo)
-
-
-def push_gold(data=str(settings.DATA_DIR), repo=settings.HF_DATASET_REPO):
-    upload_folder(Path(data) / "gold", settings.HF_GOLD_DIR, repo)
 
 
 if __name__ == "__main__":
-    fire.Fire(
-        {
-            "build": build,
-            "rebuild": rebuild,
-            "artifacts": artifacts,
-            "push": push,
-            "push_experiment": push_experiment,
-            "push_gold": push_gold,
-            "pull": pull,
-        }
-    )
+    fire.Fire({"build": build, "from_raw": from_raw, "pull": pull, "push": push})

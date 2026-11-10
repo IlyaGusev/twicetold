@@ -30,29 +30,63 @@ class Settings(BaseSettings):
 
     DATA_DIR: Path = ROOT / "data"
     REPORTS_DIR: Path = ROOT / "reports"
-    GOLD_DIR: Path = ROOT / "data" / "gold"
-    REWRITE_TEST_DIR: Path = ROOT / "data" / "rewrite_test"
-    PAPER_REVIEW_DIR: Path = ROOT / "data" / "paper_reviews"
-    ANALYSIS_DIR: Path = ROOT / "data" / "overlap"
     ANALYSIS_REPORTS_DIR: Path = ROOT / "reports" / "overlap"
     FIGURES_DIR: Path = ROOT / "paper" / "figs"
     TABLES_DIR: Path = ROOT / "paper" / "tables"
     PROMPTS_DIR: Path = ROOT / "src" / "prompts"
-    RAW_ML_REVIEWS_DIR: Path = ROOT / "data" / "raw"
-    RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "other"
-    RELEASE_DIR: Path = ROOT / "data" / "release"
+    RAW_ML_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources"
+    RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources" / "other"
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
-    HF_DATASET_REVISION: str = "583195e4aedc1a4343a3341b54cf9f9848f220c8"
-    HF_GOLD_DIR: str = "gold"
-    HF_DATASET_LOCAL: bool = False
+    HF_DATASET_REVISION: str = "36f45c89dd548f21e78bae1dce94960989e70114"
+    HF_PULL_PATTERNS: list[str] = ["final/**", "gold/**", "additional/**", "README.md", "stats.json"]
+    HF_RAW_PATTERNS: list[str] = [
+        "raw/*_raw.jsonl*",
+        "raw/panels*.jsonl*",
+        "raw/paper_areas.parquet*",
+        "raw/other/stats.json*",
+        "raw/meld_scores.jsonl*",
+    ]
+    HF_PUSH_IGNORE: list[str] = ["additional/paper_reviews/raw/**"]
     KIM_DATASET_REPO: str = "prometheus-eval/peerreview-bench"
     KIM_DATASET_REVISION: str = "b782d6676fcece1ed33f1eb2c0e27241d19f9f63"
     CLAIMCHECK_REPO: str = "JHU-CLSP/CLAIMCHECK"
     CLAIMCHECK_REVISION: str = "788673e0ac214f0e3a5c7d013412fffc63fab9fe"
 
     @property
+    def FINAL_DIR(self):
+        return self.DATA_DIR / "final"
+
+    @property
+    def GOLD_DIR(self):
+        return self.DATA_DIR / "gold"
+
+    @property
+    def RAW_DIR(self):
+        return self.DATA_DIR / "raw"
+
+    @property
+    def ADDITIONAL_DIR(self):
+        return self.DATA_DIR / "additional"
+
+    @property
+    def WORK_DIR(self):
+        return self.DATA_DIR / "work"
+
+    @property
+    def ANALYSIS_DIR(self):
+        return self.WORK_DIR / "overlap"
+
+    @property
+    def REWRITE_TEST_DIR(self):
+        return self.ADDITIONAL_DIR / "rewrite_test"
+
+    @property
+    def PAPER_REVIEW_DIR(self):
+        return self.ADDITIONAL_DIR / "paper_reviews"
+
+    @property
     def OTHER_REVIEWS_DIR(self):
-        return self.DATA_DIR / "other"
+        return self.RAW_DIR / "other"
 
     @property
     def INTEL_DIR(self):

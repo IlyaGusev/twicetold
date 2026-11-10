@@ -227,7 +227,7 @@ def from_iclr26():
 
 def from_openreview_iclr(year):
     review_rows, paper_rows = [], []
-    for submission in tqdm(read_jsonl(settings.DATA_DIR / f"iclr{year}_raw.jsonl"), desc=f"iclr{year} raw notes"):
+    for submission in tqdm(read_jsonl(settings.RAW_DIR / f"iclr{year}_raw.jsonl"), desc=f"iclr{year} raw notes"):
         content = submission["content"]
         paper_rows.append(
             dict(
@@ -295,7 +295,7 @@ def merge_ml(parts):
     return reviews, papers
 
 
-def ml(out=settings.DATA_DIR):
+def ml(out=settings.RAW_DIR):
     out = Path(out)
     reviews, papers = merge_ml([from_arcade(), from_iclr26(), *(from_openreview_iclr(y) for y in OPENREVIEW_ICLR_YEARS)])
     out.mkdir(exist_ok=True)
@@ -317,7 +317,7 @@ def ml(out=settings.DATA_DIR):
     print(papers.groupby(["conf", "year"]).decision.value_counts().unstack(fill_value=0).to_string())
 
 
-def append_openreview_iclr(year=2027, out=settings.DATA_DIR):
+def append_openreview_iclr(year=2027, out=settings.RAW_DIR):
     out = Path(out)
     reviews = pd.read_parquet(out / "reviews.parquet")
     if (reviews.conf.eq("ICLR") & reviews.year.eq(year)).any():
@@ -370,7 +370,7 @@ def inventory(reviews, papers, sources, n_dups, src):
     return "\n".join(lines)
 
 
-def other(src=settings.OTHER_REVIEWS_DIR, out=settings.DATA_DIR, report=REPORT):
+def other(src=settings.OTHER_REVIEWS_DIR, out=settings.RAW_DIR, report=REPORT):
     src, out = Path(src), Path(out)
     found_sources = [s for s in SOURCES if (src / f"{s}_reviews.parquet").exists()]
     reviews = pd.concat([pd.read_parquet(src / f"{s}_reviews.parquet") for s in found_sources], ignore_index=True)

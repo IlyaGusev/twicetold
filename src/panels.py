@@ -63,11 +63,11 @@ def texts_by_id(path, review_ids):
 
 
 def ml(
-    data=str(settings.DATA_DIR),
-    out=str(settings.DATA_DIR),
+    data=str(settings.RAW_DIR),
+    out=str(settings.RAW_DIR),
     placebo_per_cell=300,
     seed=2026,
-    current_corpus=str(settings.DATA_DIR),
+    current_corpus=str(settings.RAW_DIR),
 ):
     data, out, current_corpus = Path(data), Path(out), Path(current_corpus)
     rng = np.random.default_rng(seed)
@@ -106,7 +106,7 @@ def ml(
     print("total papers", sample.paper_id.nunique(), "reviews", len(sample), "chars", sample.text.str.len().sum() / 1e6, "M")
 
 
-def icml(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), per_year=1500, seed=11):
+def icml(data=str(settings.RAW_DIR), out=str(settings.RAW_DIR), per_year=1500, seed=11):
     data, out = Path(data), Path(out)
     rng = np.random.default_rng(seed)
     parts = []
@@ -136,7 +136,7 @@ def icml_eligible(data, year):
     return year_reviews, reviews_per_paper[reviews_per_paper >= MIN_REVIEWS].index
 
 
-def extend(data=str(settings.DATA_DIR), seed=2028):
+def extend(data=str(settings.RAW_DIR), seed=2028):
     data = Path(data)
     rng = np.random.default_rng(seed)
     sample = pd.read_parquet(data / "sample_reviews.parquet")
@@ -164,7 +164,7 @@ def extend(data=str(settings.DATA_DIR), seed=2028):
     print(icml_added.groupby("year").agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")).to_string())
 
 
-def new_cell(conf="ICLR", year=2027, data=str(settings.DATA_DIR), placebo_per_cell=300, seed=2029):
+def new_cell(conf="ICLR", year=2027, data=str(settings.RAW_DIR), placebo_per_cell=300, seed=2029):
     data = Path(data)
     rng = np.random.default_rng(seed)
     sample = pd.read_parquet(data / "sample_reviews.parquet")
@@ -201,8 +201,8 @@ def preprint_shares(reviews):
 
 
 def other(
-    data=str(settings.DATA_DIR),
-    out=str(settings.DATA_DIR),
+    data=str(settings.RAW_DIR),
+    out=str(settings.RAW_DIR),
     placebo_per_cell=150,
     seed=2027,
     reports=str(settings.REPORTS_DIR),
@@ -241,7 +241,7 @@ def without_questions(reviews):
     )
 
 
-def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full_seed=11):
+def robust(data=str(settings.RAW_DIR), out=str(settings.RAW_DIR), seed=1, full_seed=11):
     data, out = Path(data), Path(out)
     rng = np.random.default_rng(seed)
     iclr = pd.read_parquet(data / "sample_reviews.parquet")
@@ -296,7 +296,7 @@ def robust(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR), seed=1, full
     print("new noq reviews", len(noq_full), "papers", noq_full.paper_id.nunique())
 
 
-def robust_cell(year=2027, data=str(settings.DATA_DIR), seed=2030):
+def robust_cell(year=2027, data=str(settings.RAW_DIR), seed=2030):
     data = Path(data)
     rng = np.random.default_rng(seed)
     iclr = pd.read_parquet(data / "sample_reviews.parquet")
@@ -339,7 +339,7 @@ def full_sub3(iclr, rng, main_panel_reviews, done_sub3, years=SUB3_FULL_YEARS):
     return new_sub3
 
 
-def nocq(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
+def nocq(data=str(settings.RAW_DIR), out=str(settings.RAW_DIR)):
     data, out = Path(data), Path(out)
     reviews = pd.read_parquet(data / "sample_reviews.parquet")
     reviews = reviews[(reviews.conf == "ICLR") & (reviews.year == NOCQ_YEAR)].set_index("review_id")
@@ -365,7 +365,7 @@ def nocq(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
     print("nocq panels", len(panels))
 
 
-def wd(data=str(settings.DATA_DIR), out=str(settings.DATA_DIR)):
+def wd(data=str(settings.RAW_DIR), out=str(settings.RAW_DIR)):
     reviews = pd.read_parquet(Path(data) / "wd_reviews.parquet", columns=["paper_id", "review_id"])
     write_jsonl(Path(out) / "panels_wd.jsonl", by_paper_panels(reviews, "wd_", sort=True))
 

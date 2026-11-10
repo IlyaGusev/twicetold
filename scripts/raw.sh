@@ -15,4 +15,7 @@ step src/panels.py other
 step src/panels.py robust
 step src/panels.py nocq
 step src/meld.py input
-echo "INPUTS DONE $(date)"
+[ -f data/raw/meld_scores.jsonl ] || { echo "run src/meld.py scores on a GPU, then rerun"; exit 1; }
+step src/meld.py flags
+step src/release.py from_raw
+echo "RAW DONE $(date)"

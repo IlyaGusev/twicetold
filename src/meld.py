@@ -65,17 +65,19 @@ def labels(known, human, heldout, reports, tex):
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
-def build_input(out=settings.DATA_DIR / "meld_input.parquet"):
+def build_input(out=settings.RAW_DIR / "meld_input.parquet"):
     cols = ["review_id", "conf", "year", "text"]
-    sample = pd.read_parquet(settings.DATA_DIR / "sample_reviews.parquet", columns=cols).assign(set="sample")
-    icml = pd.read_parquet(settings.DATA_DIR / "icml_sample.parquet", columns=cols).assign(set="icml")
-    journal = pd.read_parquet(settings.DATA_DIR / "other_reviews.parquet", columns=cols).assign(set="journal")
-    intel = pd.read_parquet(settings.DATA_DIR / "intel_reviews.parquet", columns=["review_id", "llm", "year", "text", "label"])
+    sample = pd.read_parquet(settings.RAW_DIR / "sample_reviews.parquet", columns=cols).assign(set="sample")
+    icml = pd.read_parquet(settings.RAW_DIR / "icml_sample.parquet", columns=cols).assign(set="icml")
+    journal = pd.read_parquet(settings.RAW_DIR / "other_reviews.parquet", columns=cols).assign(set="journal")
+    intel = pd.read_parquet(
+        settings.ADDITIONAL_DIR / "intel_reviews.parquet", columns=["review_id", "llm", "year", "text", "label"]
+    )
     intel = intel[intel.label == 1].groupby("llm").sample(INTEL_AI_PER_LLM, random_state=0)
     intel = intel.assign(review_id=intel.llm + ":" + intel.review_id, conf="ICLR", set="intel_ai")[cols + ["set"]]
-    rewrites = pd.read_json(settings.DATA_DIR / f"ai_reference_{settings.AI_REFERENCE_MODEL}.jsonl", lines=True)
+    rewrites = pd.read_json(settings.ADDITIONAL_DIR / f"ai_reference_{settings.AI_REFERENCE_MODEL}.jsonl", lines=True)
     rewrites = rewrites[~rewrites.conf.isin(["ICLR", "NeurIPS"])].assign(set="rewrite")[cols + ["set"]]
-    polish = pd.read_json(settings.DATA_DIR / f"ai_polish_{settings.AI_REFERENCE_MODEL}.jsonl", lines=True)
+    polish = pd.read_json(settings.ADDITIONAL_DIR / f"ai_polish_{settings.AI_REFERENCE_MODEL}.jsonl", lines=True)
     polish = polish.assign(set="polish")[cols + ["set"]]
     generated = [pd.read_json(path, lines=True).assign(set=name)[cols + ["set"]] for name, path in GENERATED_SETS]
     df = pd.concat([sample, icml, journal, intel, rewrites, polish, *generated], ignore_index=True)
@@ -141,7 +143,7 @@ def score_docs(module, scorer, texts, batch_tokens):
     return results
 
 
-def check(input=settings.DATA_DIR / "meld_input.parquet", n=64, batch_tokens=16384):
+def check(input=settings.RAW_DIR / "meld_input.parquet", n=64, batch_tokens=16384):
     module, scorer = load_scorer()
     texts = pd.read_parquet(input, columns=["text"]).sample(n, random_state=0).text.str.replace(TAGS, " ", regex=True).tolist()
     batched = [r["score"] for r in score_docs(module, scorer, texts, batch_tokens)]
@@ -150,7 +152,7 @@ def check(input=settings.DATA_DIR / "meld_input.parquet", n=64, batch_tokens=163
     print(f"max |batched - single| over {n} texts: {diff:.2e}")
 
 
-def scores(input=settings.DATA_DIR / "meld_input.parquet", out=settings.DATA_DIR / "meld_scores.jsonl", batch_tokens=16384):
+def scores(input=settings.RAW_DIR / "meld_input.parquet", out=settings.RAW_DIR / "meld_scores.jsonl", batch_tokens=16384):
     out = Path(out)
     df = pd.read_parquet(input, columns=["key", "text"])
     done = {row["key"] for row in read_jsonl(out)} if out.exists() else set()
@@ -168,9 +170,9 @@ def scores(input=settings.DATA_DIR / "meld_input.parquet", out=settings.DATA_DIR
 
 
 def flags(
-    input=settings.DATA_DIR / "meld_input.parquet",
-    scored=settings.DATA_DIR / "meld_scores.jsonl",
-    out=settings.DATA_DIR / "meld_flags.parquet",
+    input=settings.RAW_DIR / "meld_input.parquet",
+    scored=settings.RAW_DIR / "meld_scores.jsonl",
+    out=settings.RAW_DIR / "meld_flags.parquet",
     reports=settings.REPORTS_DIR,
     tex=settings.TABLES_DIR / "meld_labels.tex",
 ):

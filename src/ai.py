@@ -99,7 +99,7 @@ def write_rows(todo, worker, out, threads, desc):
 
 def reference(model=settings.AI_REFERENCE_MODEL, threads=32, per_source=3000, out=None):
     effort = extract.reasoning_efforts(model).pass1
-    out = Path(out) if out else settings.DATA_DIR / f"ai_reference_{model}.jsonl"
+    out = Path(out) if out else settings.ADDITIONAL_DIR / f"ai_reference_{model}.jsonl"
     done = extract.done_ids(out, extract.review_key, effort)
     todo = [r for r in reference_sample(per_source).itertuples() if r.review_id not in done]
     print(f"{len(done)} done, {len(todo)} to write -> {out}")
@@ -117,7 +117,7 @@ def polish_one(row, model, effort):
 
 def polish(model=settings.AI_REFERENCE_MODEL, threads=32, per_source=POLISH_PER_SOURCE, out=None):
     effort = extract.reasoning_efforts(model).pass1
-    out = Path(out) if out else settings.DATA_DIR / f"ai_polish_{model}.jsonl"
+    out = Path(out) if out else settings.ADDITIONAL_DIR / f"ai_polish_{model}.jsonl"
     done = extract.done_ids(out, extract.review_key, effort)
     todo = [r for r in reference_sample(per_source).itertuples() if r.review_id not in done]
     print(f"{len(done)} done, {len(todo)} to polish -> {out}")

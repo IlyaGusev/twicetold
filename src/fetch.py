@@ -927,8 +927,8 @@ def icml_reviews(year, raw):
     return pd.DataFrame(rows)
 
 
-def icml(year=2026, out=settings.DATA_DIR):
-    raw = settings.DATA_DIR / f"icml{year}_raw.jsonl"
+def icml(year=2026, out=settings.RAW_DIR):
+    raw = settings.RAW_DIR / f"icml{year}_raw.jsonl"
     if not raw.exists():
         icml_download(year, raw)
     df = icml_reviews(year, raw)
@@ -937,7 +937,7 @@ def icml(year=2026, out=settings.DATA_DIR):
 
 
 def iclr_download(year=2027):
-    raw = settings.DATA_DIR / f"iclr{year}_raw.jsonl"
+    raw = settings.RAW_DIR / f"iclr{year}_raw.jsonl"
     if not raw.exists():
         openreview_download(raw, invitation=f"ICLR.cc/{year}/Conference/-/Submission")
     venues = Counter()

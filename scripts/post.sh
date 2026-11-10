@@ -23,7 +23,7 @@ step() {
   fi
 }
 
-[ -f data/review_emb.npy ] || step src/release.py pull
+[ -d data/final ] || step src/release.py pull
 step src/outcomes.py panels --model "$MODEL"
 step src/outcomes.py pairs --model "$MODEL"
 step src/between.py claims_table --model "$MODEL"

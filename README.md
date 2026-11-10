@@ -24,40 +24,60 @@ Every paper has equal weight.
 
 ## Dataset
 
-The Hugging Face dataset [`IlyaGusev/twicetold`](https://huggingface.co/datasets/IlyaGusev/twicetold) holds the
-reviews, papers, claims, panels and MELD scores, plus the working files under `artifacts/`. `HF_DATASET_REVISION` in
-`src/settings.py` pins the commit that the paper uses. Git does not store `data/`.
+The Hugging Face dataset [`IlyaGusev/twicetold`](https://huggingface.co/datasets/IlyaGusev/twicetold) has four
+folders. The local folder `data/` has the same four, plus `data/work/` for files that stay local. `HF_DATASET_REVISION`
+in `src/settings.py` pins the commit that the paper uses. Git does not store `data/`.
 
-- Analysis code reads the dataset through `src/hub.py`. The first read downloads the pinned revision.
-- `HF_DATASET_LOCAL=true` reads the local build in `RELEASE_DIR` instead.
-- `uv run python src/release.py pull` copies `artifacts/` into `data/`. The producer steps and
-  `tests/test_gold.py` need these local files.
-- `scripts/release.sh MODEL` builds the dataset into `RELEASE_DIR` from `data/`. `release.py push` uploads it. After
-  a push, set `HF_DATASET_REVISION` to the new commit.
+| Folder | Content | Read by |
+|---|---|---|
+| `final/` | Reviews with claims and MELD scores, papers, panels with problem groups, review variants | all analysis, through `src/hub.py`; extraction |
+| `gold/` | Council reference annotations and the two external human benchmarks | the extraction and grouping checks |
+| `additional/` | Rewrite test, LLM reviews of arXiv papers, known-origin detector texts, review embeddings | the side experiments |
+| `raw/` | OpenReview dumps, predicted areas, journal statistics, panel files, MELD scores | only the corpus build (`scripts/raw.sh`) |
 
-## Data and extraction
+The pipeline has three steps:
 
-Run commands as `uv run python src/<module>.py <command>`. Raw ML dumps live at `RAW_ML_REVIEWS_DIR`; journal
-sources live at `RAW_JOURNAL_REVIEWS_DIR`. Both default to `data/raw/`; set them in `.env` to point elsewhere. Only
-the producer steps (`fetch`, `corpus`, `panels`, `extract`, `meld`, `areas`, `release`) read or write `data/`.
+1. `uv run python src/release.py pull` copies `final/`, `gold/` and `additional/` of the pinned revision into `data/`.
+   The chain scripts run it when `data/final/` is missing. `--raw` adds `raw/`.
+2. `scripts/extract_all.sh MODEL` extracts claims for sampled reviews without claims, groups panels without groups
+   and writes the results into `data/final/` (`release.py build`). This step calls paid APIs.
+3. `scripts/post.sh MODEL` recomputes every report, table and figure from `data/`.
+
+`release.py push` uploads `data/` to the dataset. After a push, set `HF_DATASET_REVISION` to the new commit.
+
+## Extraction
+
+`extract.py final_pass1` reads the sampled reviews and the review variants from `data/final/` and writes new claims
+to `data/work/claims_<model>.jsonl`. `extract.py final_pass2` reads the panels from `data/final/` and writes new
+problem groups to `data/work/clusters_<model>.jsonl`. Both skip rows that `data/final/` already holds; `--redo`
+extracts them again. `release.py build` copies the rows of both work files into `data/final/`. Rows record the request
+settings. A different model or reasoning effort needs a different short name. Each pass has its own budget cap;
+inspect the script's argument and logs before a run.
+
+The panel `kind` names the sample: `paper`, `icml`, `journal`, `withdrawn`, `subset3`, `noq`, `nocq`, and the
+cross-paper controls `placebo_venue`, `placebo_area` and `journal_placebo`.
+
+## Corpus build from raw sources
+
+`scripts/raw.sh` builds `data/final/` from the source dumps. It needs the files of `raw/` (`release.py pull --raw`)
+and the external dumps at `RAW_ML_REVIEWS_DIR` and `RAW_JOURNAL_REVIEWS_DIR` (default `data/raw/sources/`; set them
+in `.env`). All files of this path live in `data/raw/`. Run commands as `uv run python src/<module>.py <command>`.
 
 1. Fetch source data with `fetch.py`. `fetch.py iclr_download` gets the ICLR 2027 submissions and reviews from the
    OpenReview API.
 2. Build the ML review tables with `corpus.py ml`. `corpus.py append_openreview_iclr` appends ICLR 2027 to the
    existing tables; `panels.py new_cell` and `panels.py robust_cell` append its sample and robustness panels.
-3. Run `scripts/inputs.sh`. It builds the journal tables (`corpus.py other`), parses the ICML downloads
-   (`fetch.py icml`), and builds the ICML, journal and robustness inputs (`panels.py icml`, `other`,
-   `robust`, `nocq`) and the MELD input (`meld.py input`). Git does not store these inputs. `extract_all.sh` and `post.sh` run `inputs.sh` when the
-   inputs are missing. No step calls a paid API.
-4. Score the MELD input on a GPU with `meld.py scores`. It writes `data/meld_scores.jsonl`; no chain script runs it.
-5. Run `scripts/extract_all.sh gpt-6-luna-high` for extraction and grouping. This step calls paid APIs. Each pass
-   has its own budget cap; inspect the script's argument and logs before starting it.
+3. Run `scripts/raw.sh`. It builds the journal tables (`corpus.py other`), parses the ICML downloads
+   (`fetch.py icml`), builds the ICML, journal and robustness inputs (`panels.py icml`, `other`, `robust`, `nocq`)
+   and the MELD input (`meld.py input`). It stops when `data/raw/meld_scores.jsonl` is missing: score the MELD input
+   on a GPU with `meld.py scores`, then run the script again. It then rebuilds the MELD flags (`meld.py flags`) and
+   writes `data/final/` (`release.py from_raw`), keeping the claims and groups that `data/final/` already holds.
+   No step calls a paid API.
 
-Each model has one claims file and one clusters file in `data/` (`claims_<model>.jsonl`, `clusters_<model>.jsonl`).
-They hold every sample; the panel id prefix names the sample (`icml_`, `other_`, `otherplacebo_`, `noq_`, `nocq_`, `wd_`,
-`placebo_`, `placeboA_`, `sub3_`, or a bare paper id). Rows record the request settings. A different model or
-reasoning effort needs a different short name. The extraction chains write part files and
-`extract.py merge` joins them. The dataset holds both files as the `claims` column and the `panels` config.
+`sample_reviews.parquet` and `panels.jsonl` are the fixed sample; `panels.py ml` cannot redraw them from the current
+`reviews.parquet`.
+
+## Reference data
 
 `data/gold/` holds the Sol 6.1, DeepSeek V4.1 Flash and Kimi K3.1 Pro council outputs (`claims_council.jsonl`,
 `clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `gold.py sample` draws 600 production
@@ -73,12 +93,10 @@ expert weakness spans from `settings.CLAIMCHECK_REPO`; `claims_<model>_<name>.js
 folder (`src/gold.py`); it calls paid APIs and never writes into `data/gold/`. `tests/test_gold.py` checks that the
 steps without model calls rebuild `data/gold/` byte for byte.
 
-The dataset card describes each config and column. Each file under `artifacts/` has a `<file>.md` next to it that
-says what it holds, how to make it and what reads it.
+The dataset card describes each config and column. Most files under `gold/`, `additional/` and `raw/` have a
+`<file>.md` next to them that says what the file holds and how to make it.
 
-`sample_reviews.parquet` and `panels.jsonl` are the fixed sample; `panels.py ml` cannot redraw them from the current
-`reviews.parquet`. Claim and review embeddings, MELD scores and reference annotations are saved model outputs,
-not analysis estimates.
+Claim and review embeddings, MELD scores and reference annotations are saved model outputs, not analysis estimates.
 
 ## Analysis
 
@@ -87,11 +105,11 @@ scripts/post.sh gpt-6-luna-high
 ```
 
 Each run recomputes the analysis from saved model outputs. It does not reuse earlier analysis estimates or make
-model calls. The stages rebuild MELD flags, panel and pair scores, the detector placebo, robustness checks, the quote checks
+model calls. The stages rebuild panel and pair scores, the detector placebo, robustness checks, the quote checks
 (`validate.py quotes`: quotes found in the text, duplicate quotes, critique sentences no quote touches; `validate.py external`:
 claims aligned to the human items of each external set), yearly tables, paper numbers and figures.
 
-- `data/overlap/`: recomputed panel and pair tables.
+- `data/work/overlap/`: recomputed panel and pair tables.
 - `reports/overlap/`: recomputed statistical summaries and their sample sizes.
 - `paper/tables/`: generated result tables and `numbers.tex`.
 - `paper/figs/`: vector PDF figures.
@@ -125,7 +143,7 @@ complete groups. Do not use this check to infer reference overlap levels or tren
    OMP_NUM_THREADS=2 nice -n 19 scripts/post.sh gpt-6-luna-high
    ```
 
-   The chain reads the pinned dataset revision and pulls `artifacts/` if `data/` lacks them. It uses saved
+   The chain reads `data/` and pulls the pinned dataset revision if `data/final/` is missing. It uses saved
    extraction, grouping, embedding and detector outputs and needs no paid API calls or GPU. Do not redraw the ML
    sample: the current corpus cannot recover its original draw. Do not run `extract_all.sh` to reproduce analysis
    from saved responses: that script makes paid model calls.
@@ -159,7 +177,7 @@ installation with the project's dependencies. Keep `uv.lock` unchanged and use `
 replace that installation with CPU PyTorch. The original GPU environment lock and driver version are not in this
 archive; the repository therefore does not establish a fully pinned GPU rerun.
 
-In a working copy with `data/meld_input.parquet` (`meld.py input`) and no `data/meld_scores.jsonl`, run:
+In a working copy with `data/raw/meld_input.parquet` (`meld.py input`) and no `data/raw/meld_scores.jsonl`, run:
 
 ```
 OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python -c 'import torch; assert torch.cuda.is_available()'
@@ -170,12 +188,12 @@ OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python src/meld.py scores --batch_
 The scorer downloads `anon-review-meld-2026/meld` at revision
 `ddfc9c789b8c8d0f92d3774265316d418c96dc67` from Hugging Face. It uses fp32, 2,048-token windows and the top 25% of
 token scores. It resumes by skipping keys already in the output; move old scores aside before a fresh run.
-After scoring, run step 3 in the CPU analysis environment. `meld.py flags`, the first post step, recomputes the
+After scoring, run `scripts/raw.sh` in the CPU analysis environment. `meld.py flags` recomputes the
 99.9th-percentile threshold on pre-2023 texts and rebuilds both detector labels.
 
 The recorded initial scoring run took about 4.5 hours on one GPU. Later added-text runs used an RTX 3090; the
 notes do not establish a full-current-corpus runtime or peak memory requirement. See
-`artifacts/meld/meld_scores.jsonl.md` in the dataset. Rerun timings depend on hardware and text lengths.
+`raw/meld_scores.jsonl.md` in the dataset. Rerun timings depend on hardware and text lengths.
 
 The dataset holds review-linked MELD scores and flags. A flag is a detector output, not proof that a reviewer
 used an LLM. Detector labels must not support action against individual reviewers.

@@ -371,7 +371,7 @@ def category_share_by_year(claims, year):
 
 def category_shifts(model):
     claims = pd.read_parquet(
-        settings.DATA_DIR / f"claims_table_{model}.parquet", columns=["review_id", "paper_id", "conf", "year", "category"]
+        settings.WORK_DIR / f"claims_table_{model}.parquet", columns=["review_id", "paper_id", "conf", "year", "category"]
     )
     main_sample_reviews = main_sample_review_ids()
     claims = claims[(claims.conf == "ICLR") & claims.review_id.isin(main_sample_reviews) & (claims.category != "other")]
