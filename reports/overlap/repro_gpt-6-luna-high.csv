@@ -1,10 +1,10 @@
 name,value
 pass1_ml_reviews,374010
 pass1_journal_reviews,105277
-pass1_error_rows,15
-pass1_empty,7755
-pass2_error_rows,3
-pass2_rows,169321
+pass1_error_rows,0
+pass1_empty,6412
+pass2_error_rows,2
+pass2_rows,169455
 calibration_reviews,110080
-calibration_in_analysis,94687
-calibration_outside,15393
+calibration_in_analysis,94706
+calibration_outside,15374

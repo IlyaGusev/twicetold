@@ -1,13 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.." || exit 1
-if [ $# -lt 1 ] || [ $# -gt 3 ]; then
-  echo "usage: $0 OUT_DIR [STEP_BUDGET_USD=15] [SAMPLER=sample|sample_audit|sample_written]" >&2
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+  echo "usage: $0 OUT_DIR [STEP_BUDGET_USD=15]" >&2
   exit 1
 fi
 OUT=$1
 BUDGET=${2:-15}
-SAMPLER=${3:-sample}
 if [ "$(realpath -m "$OUT")" = "$(realpath data/gold)" ]; then
   echo "refusing to write into data/gold; pick a new OUT_DIR" >&2
   exit 1
@@ -23,13 +22,14 @@ step() {
   fi
 }
 
-step "$SAMPLER" --out "$OUT"
+step sample --out "$OUT"
+step model_claims --out "$OUT" --budget "$BUDGET"
 step council_claims --out "$OUT" --budget "$BUDGET"
-step claim_inputs --out "$OUT"
-step judge_claims --out "$OUT" --budget "$BUDGET"
+step model_groups --out "$OUT" --budget "$BUDGET"
 step council_groups --out "$OUT" --budget "$BUDGET"
-if [ "$SAMPLER" != sample ]; then
-  step model_groups --out "$OUT"
-  step match_claims --gold "$OUT" --folder "$OUT/match" --budget "$BUDGET"
-fi
+step member_groups --out "$OUT" --budget "$BUDGET"
+step kim_sample --out "$OUT"
+step external_claims --out "$OUT" --name kim --paper_kind general --budget "$BUDGET"
+step claimcheck_sample --out "$OUT"
+step external_claims --out "$OUT" --name claimcheck --paper_kind ml --budget "$BUDGET"
 echo "GOLD DONE $(date)"

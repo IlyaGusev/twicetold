@@ -59,10 +59,17 @@ They hold every sample; the panel id prefix names the sample (`icml_`, `other_`,
 reasoning effort needs a different short name. The extraction chains write part files and
 `extract.py merge` joins them. The dataset holds both files as the `claims` column and the `panels` config.
 
-`data/gold/` holds the Sol 6.1, Opus 5.5 and Kimi K3.1 Pro council outputs (`claims_council.jsonl`,
-`clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `adjudicate/` holds the claim checks
-and their inputs. The dataset holds these files under
-`artifacts/experiments/`. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new
+`data/gold/` holds the Sol 6.1, DeepSeek V4.1 Flash and Kimi K3.1 Pro council outputs (`claims_council.jsonl`,
+`clusters_council.jsonl`), sample reviews and panels, and LLM reference labels. `gold.py sample` draws 600 production
+panels with a fixed seed: 510 same-paper panels (ICLR 2018–2027, NeurIPS 2024–2025, ICML 2025–2026 and five journals
+2024–2026) and 90 cross-paper placebo panels. From 2024 on, half of each cell holds at least two flagged and one
+unflagged review, and a quarter of each ML cell holds at least two LLM-written reviews. Each cell splits 70/30 into
+dev and test. `claims_<model>.jsonl` and `clusters_<model>.jsonl` hold Luna's claims and groupings for the same
+reviews and panels; the council groups Luna's claim list (`clusters_council.jsonl`). `claims_<member>.jsonl` and
+`clusters_<member>_own.jsonl` hold each member's own claims and its grouping of them, so every model runs the full pipeline. `kim_items.jsonl` and `kim_reviews.parquet` hold the 218 human-split Nature-family reviews from
+`settings.KIM_DATASET_REPO`; `claimcheck_items.jsonl` and `claimcheck_reviews.parquet` hold the 60 NeurIPS reviews with
+expert weakness spans from `settings.CLAIMCHECK_REPO`; `claims_<model>_<name>.jsonl` holds the claims extracted from each. The dataset holds these files under
+`gold/`. These are LLM labels, not human labels. `scripts/gold.sh OUT_DIR` runs the same steps into a new
 folder (`src/gold.py`); it calls paid APIs and never writes into `data/gold/`. `tests/test_gold.py` checks that the
 steps without model calls rebuild `data/gold/` byte for byte.
 
@@ -80,8 +87,9 @@ scripts/post.sh gpt-6-luna-high
 ```
 
 Each run recomputes the analysis from saved model outputs. It does not reuse earlier analysis estimates or make
-model calls. The stages rebuild MELD flags, panel and pair scores, the detector placebo, robustness checks, yearly tables,
-paper numbers and figures.
+model calls. The stages rebuild MELD flags, panel and pair scores, the detector placebo, robustness checks, the quote checks
+(`validate.py quotes`: quotes found in the text, duplicate quotes, critique sentences no quote touches; `validate.py external`:
+claims aligned to the human items of each external set), yearly tables, paper numbers and figures.
 
 - `data/overlap/`: recomputed panel and pair tables.
 - `reports/overlap/`: recomputed statistical summaries and their sample sizes.
@@ -97,14 +105,15 @@ hand-entered values.
 
 ### Grouping reference
 
-Use only unanimous raw votes from Sol, Opus and Kimi for grouping checks. Keep both unanimous merges and
+Use only unanimous raw votes from Sol, DeepSeek and Kimi for grouping checks. Keep both unanimous merges and
 unanimous separations. Exclude split votes and pairs with a missing
 member, missing claim ID or repeated claim ID. Do not treat excluded pairs as separate problems.
 
-Run `scripts/post.sh --council-agreement` to score the saved production outputs. The command writes scores and
-per-member pair votes to `reports/overlap/council_agreement*_MODEL.csv`. It makes no model calls. The claim lists
-and one-to-one claim matches still use the saved adjudication. Agreement is not human-ground-truth accuracy.
-Unlabeled pairs do not define complete groups. Do not use this check to infer reference overlap levels or trends.
+`validate.py extraction` compares the quoted spans and the aligned claims of Luna and the council (`reports/overlap/extraction*_MODEL.csv`).
+Run `scripts/post.sh --council-agreement` to score Luna's groupings against the unanimous votes. `validate.py pipelines`
+compares the panel overlap of Luna's full pipeline with each member's full pipeline (`reports/overlap/pipelines*_MODEL.csv`). The commands read
+the gold folder; `extraction` embeds the claim sentences with `settings.CLAIM_EMBED_MODEL` through OpenRouter, `council_agreement` makes no model calls. Agreement is not human-ground-truth accuracy. Unlabeled pairs do not define
+complete groups. Do not use this check to infer reference overlap levels or trends.
 
 ## Reproduce the detector-conditioned results
 

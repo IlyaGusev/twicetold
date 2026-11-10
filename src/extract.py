@@ -19,7 +19,7 @@ PASS2_PAPER_WORDING = {"ml": "machine-learning paper", "general": "scientific pa
 
 
 def paper_kind(conf):
-    return "ml" if conf in settings.ML_SOURCES else "general"
+    return "ml" if conf in settings.ML_VENUES else "general"
 
 
 CATEGORIES = [
@@ -49,6 +49,7 @@ def strict_object(**properties):
 
 
 CLAIM_SCHEMA = strict_object(
+    quote={"type": "string"},
     claim={"type": "string"},
     category={"type": "string", "enum": CATEGORIES},
     target={"type": "string", "enum": TARGETS},
@@ -66,6 +67,9 @@ PASS2_SCHEMA = strict_object(
 
 
 JSON_TYPES = {"string": str, "integer": int, "boolean": bool}
+QUOTE_CHARS = str.maketrans(
+    {"\u201c": '"', "\u201d": '"', "\u2018": "'", "\u2019": "'", "\u2013": "-", "\u2014": "-", "\\": None}
+)
 
 CLIENT_MAX_RETRIES = 6
 CLIENT_TIMEOUT_SECONDS = 180
@@ -151,15 +155,30 @@ def openai_call(instructions, text, schema, name, model, effort):
     return parse_object(response.output_text)
 
 
+def openrouter_provider(model):
+    provider = {"require_parameters": True}
+    if model in settings.OPENROUTER_PROVIDERS:
+        provider["only"] = [settings.OPENROUTER_PROVIDERS[model]]
+    return provider
+
+
 def openrouter_call(instructions, text, schema, name, model, effort):
     response = openrouter_client().chat.completions.create(
         model=settings.OPENROUTER_ROUTES[model],
         messages=[{"role": "system", "content": instructions}, {"role": "user", "content": text}],
         response_format={"type": "json_schema", "json_schema": {"name": name, "strict": True, "schema": schema}},
-        extra_body={"reasoning": {"effort": effort}, "provider": {"require_parameters": True}},
+        extra_body={"reasoning": {"effort": effort}, "provider": openrouter_provider(model)},
     )
     record(model, response.usage.prompt_tokens, response.usage.completion_tokens)
     return parse_object(response.choices[0].message.content, schema)
+
+
+def normalize_quote(text):
+    return " ".join(text.translate(QUOTE_CHARS).lower().split())
+
+
+def quote_in_text(quote, text):
+    return normalize_quote(quote) in normalize_quote(text)
 
 
 def error_row(e):
@@ -251,6 +270,10 @@ def run(items, worker, out_path, merged_path, key, model, effort, threads, budge
     )
 
 
+def pass1_instructions(paper_kind):
+    return render("pass1", paper=PASS1_PAPER_WORDING[paper_kind], categories=", ".join(CATEGORIES), targets=", ".join(TARGETS))
+
+
 def pass1_worker(item, model, instructions, effort):
     out = call(instructions, item["text"], PASS1_SCHEMA, "claims", model=model, effort=effort)
     return dict(review_id=item["review_id"], model=model, effort=effort, **out)
@@ -258,7 +281,7 @@ def pass1_worker(item, model, instructions, effort):
 
 def pass2_worker(item, model, instructions, effort):
     claim_lines = [
-        f"R{review_no}-{claim_no} [{claim['category']}; {claim['target']}]: {claim['claim']}"
+        f"R{review_no}-{claim_no}: {claim['claim']}"
         for review_no, review_claims in enumerate(item["claims"])
         for claim_no, claim in enumerate(review_claims)
     ]
@@ -282,9 +305,7 @@ def pass1(
 ):
     effort = reasoning_efforts(model).pass1
     items = pd.read_parquet(reviews, columns=["review_id", "text"]).to_dict("records")
-    worker = partial(
-        pass1_worker, model=model, instructions=render("pass1", paper=PASS1_PAPER_WORDING[paper_kind]), effort=effort
-    )
+    worker = partial(pass1_worker, model=model, instructions=pass1_instructions(paper_kind), effort=effort)
     data = Path(data)
     run(
         items,

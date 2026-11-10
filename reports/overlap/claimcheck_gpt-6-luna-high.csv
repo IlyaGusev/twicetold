@@ -1,0 +1,2 @@
+reviews,items,claims,item_recall,item_recall_se,item_recall_low,item_recall_high,item_split,item_split_se,item_split_low,item_split_high,claim_unmatched,claim_unmatched_se,claim_unmatched_low,claim_unmatched_high,claim_spanning,claim_spanning_se,claim_spanning_low,claim_spanning_high,claims_bias,claims_bias_se,claims_bias_low,claims_bias_high
+60,168,469,94.153,2.121,89.907,98.398,36.8,5.153,26.485,47.115,44.458,3.843,36.769,52.147,1.389,0.719,-0.049,2.827,5.017,0.574,3.868,6.166

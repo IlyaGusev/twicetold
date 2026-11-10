@@ -45,7 +45,6 @@ REWRITE_ML_YEARS = (2020, 2022)
 REWRITE_LAST_JOURNAL_YEAR = 2022
 REWRITE_MIN_REVIEWS = 3
 REWRITTEN_PER_PANEL = 2
-PRESERVE_AUDIT_REVIEWS = 100
 PAPER_REVIEW_WRITERS = (settings.AI_REFERENCE_MODEL, settings.REWRITE_SECOND_WRITER)
 POLISH_PER_SOURCE = 300
 VENUE = {
@@ -182,7 +181,7 @@ def rewrite_panels(out=settings.REWRITE_TEST_DIR, threads=32):
         write_rows(todo, worker, path, threads, f"{condition.task} {condition.writer}")
 
 
-def rewrite_inputs(out=settings.REWRITE_TEST_DIR, model=settings.DEFAULT_MODEL, seed=0):
+def rewrite_inputs(out=settings.REWRITE_TEST_DIR, model=settings.DEFAULT_MODEL):
     out = Path(out)
     papers = list(read_jsonl(out / "papers.jsonl"))
     versions = {
@@ -191,7 +190,6 @@ def rewrite_inputs(out=settings.REWRITE_TEST_DIR, model=settings.DEFAULT_MODEL, 
     }
     kinds = {"ml": [], "general": []}
     texts = {"ml": [], "general": []}
-    preserve = {name: [] for name in settings.REWRITE_CONDITIONS}
     for p in papers:
         kind = extract.paper_kind(p["conf"])
         kinds[kind].append(dict(panel_id=f"rw0_{p['panel_id']}", review_ids=p["review_ids"]))
@@ -202,18 +200,10 @@ def rewrite_inputs(out=settings.REWRITE_TEST_DIR, model=settings.DEFAULT_MODEL, 
             kinds[kind].append(dict(panel_id=f"{c.panel}{p['panel_id']}", review_ids=swapped))
             for r in p["rewritten"]:
                 texts[kind].append(dict(review_id=c.text + r, text=versions[name][r]))
-                pair = dict(panel_id=f"{c.preserve}{r}", review_ids=[r, c.text + r])
-                kinds[kind].append(pair)
-                preserve[name].append(pair)
+                kinds[kind].append(dict(panel_id=f"{c.preserve}{r}", review_ids=[r, c.text + r]))
     for kind in kinds:
         write_jsonl(out / f"panels_{kind}.jsonl", kinds[kind])
         pd.DataFrame(texts[kind]).to_parquet(out / f"reviews_{kind}.parquet")
-    rng = np.random.default_rng(seed)
-    audit = []
-    for pairs in preserve.values():
-        picked = rng.choice(len(pairs), min(PRESERVE_AUDIT_REVIEWS, len(pairs)), replace=False)
-        audit += [pairs[i] for i in sorted(picked)]
-    write_jsonl(out / "panels_audit.jsonl", audit)
     originals = {r for p in papers for r in p["review_ids"]}
     path = out / f"claims_{model}.jsonl"
     kept = list(read_jsonl(path)) if path.exists() else []
