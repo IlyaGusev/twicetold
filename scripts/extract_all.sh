@@ -9,7 +9,7 @@ fi
 MODEL=$1
 LOG_DIR=logs/extract_$MODEL
 mkdir -p "$LOG_DIR"
-[ -f data/noq_reviews.parquet ] && [ -f data/nocq_reviews.parquet ] || scripts/inputs.sh || exit 1
+[ -d data/final ] || uv run python src/release.py pull || exit 1
 
 run_pass() {
   local pass=$1 threads=$2
@@ -25,54 +25,23 @@ run_pass() {
 p1() { run_pass pass1 "$@"; }
 p2() { run_pass pass2 "$@"; }
 
-( p1 256 data/sample_reviews.parquet
-  p2 160 data/panels.jsonl &
-  p2 32 data/panels_placebo.jsonl &
-  p2 32 data/panels_placebo_area.jsonl &
-  p2 64 data/panels_sub3.jsonl &
-  wait
-  echo "CHAIN main DONE $(date)" ) > "$LOG_DIR/main.log" 2>&1 &
+( run_pass final_pass1 256
+  run_pass final_pass2 160
+  uv run python src/release.py build --model "$MODEL"
+  echo "CHAIN final DONE $(date)" ) > "$LOG_DIR/final.log" 2>&1
 
-( p1 96 data/other_pass1.parquet --tag _other --paper_kind general
-  p2 96 data/panels_other.jsonl --tag _other --paper_kind general &
-  p2 48 data/panels_other_placebo.jsonl --tag _other --paper_kind general &
-  wait
-  echo "CHAIN other DONE $(date)" ) > "$LOG_DIR/other.log" 2>&1 &
-
-( p1 128 data/noq_reviews.parquet --tag _noq
-  p2 128 data/panels_noq.jsonl --tag _noq
-  echo "CHAIN noq DONE $(date)" ) > "$LOG_DIR/noq.log" 2>&1 &
-
-( p1 96 data/nocq_reviews.parquet --tag _nocq
-  p2 96 data/panels_nocq.jsonl --tag _nocq
-  echo "CHAIN nocq DONE $(date)" ) > "$LOG_DIR/nocq.log" 2>&1 &
-
-( p1 64 data/icml_sample.parquet --tag _icml
-  p2 64 data/panels_icml.jsonl --tag _icml
-  echo "CHAIN icml DONE $(date)" ) > "$LOG_DIR/icml.log" 2>&1 &
-
-( p1 48 data/wd_reviews.parquet --tag _wd
-  p2 48 data/panels_wd.jsonl --tag _wd
-  echo "CHAIN small DONE $(date)" ) > "$LOG_DIR/small.log" 2>&1 &
-
-wait
-uv run python src/extract.py merge --model "$MODEL"
-
-if [ -f "data/overlap/panel_outcomes_$MODEL.parquet" ]; then
-  RW=data/rewrite_test
+if [ -f "data/work/overlap/panel_outcomes_$MODEL.parquet" ]; then
+  RW=data/additional/rewrite_test
   ( uv run python src/ai.py rewrite_sample --model "$MODEL"
     uv run python src/ai.py rewrite_panels
     uv run python src/ai.py rewrite_inputs --model "$MODEL"
     uv run python src/ai.py rewrite_pairs
-    p1 64 $RW/reviews_ml.parquet --tag _ml --data $RW
-    p1 64 $RW/reviews_general.parquet --tag _general --paper_kind general --data $RW
-    uv run python src/extract.py merge --model "$MODEL" --data $RW
-    p2 64 $RW/panels_ml.jsonl --tag _ml --data $RW &
-    p2 64 $RW/panels_general.jsonl --tag _general --paper_kind general --data $RW &
-    p2 64 $RW/panels_pairs_ml.jsonl --tag _pairs_ml --data $RW &
-    p2 64 $RW/panels_pairs_general.jsonl --tag _pairs_general --paper_kind general --data $RW &
-    wait
-    uv run python src/extract.py merge --model "$MODEL" --data $RW
+    p1 64 $RW/reviews_ml.parquet --data $RW
+    p1 64 $RW/reviews_general.parquet --paper_kind general --data $RW
+    p2 64 $RW/panels_ml.jsonl --data $RW
+    p2 64 $RW/panels_general.jsonl --paper_kind general --data $RW
+    p2 64 $RW/panels_pairs_ml.jsonl --data $RW
+    p2 64 $RW/panels_pairs_general.jsonl --paper_kind general --data $RW
     echo "CHAIN rewrite DONE $(date)" ) > "$LOG_DIR/rewrite.log" 2>&1
   uv run python src/ai.py polish > "$LOG_DIR/polish.log" 2>&1
   uv run python src/fetch.py arxiv_papers > "$LOG_DIR/arxiv.log" 2>&1

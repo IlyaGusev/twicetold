@@ -113,7 +113,7 @@ def form_panel(panel, claims, n_reviews):
 
 def forms(
     model=settings.DEFAULT_MODEL,
-    data=settings.DATA_DIR,
+    data=settings.WORK_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "forms.tex",
 ):
@@ -185,7 +185,7 @@ def meld_flag_at(meld, quantile):
     return (meld.score > threshold).astype(int)
 
 
-def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
+def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     iclr_pairs = pd.read_parquet(
         settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
     )
@@ -227,7 +227,7 @@ def pair_design(model):
     return design
 
 
-def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
+def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     data, reports = Path(data), Path(reports)
     meld = hub.meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
@@ -263,7 +263,7 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=s
     print(out.round(2).to_string(index=False))
 
 
-def journal_gaps(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR, first_year=2024):
+def journal_gaps(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR, first_year=2024):
     flag = hub.meld_flags().flag.astype(int)
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
@@ -327,7 +327,7 @@ def venue_pairs(pairs):
     return list(window.groupby("conf"))
 
 
-def pair_types(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
+def pair_types(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     meld = hub.meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
     pairs = in_window(
@@ -366,7 +366,7 @@ def type_fit(cell, types, outcome, controls=()):
 
 def pair_type_sizes(
     model=settings.DEFAULT_MODEL,
-    data=settings.DATA_DIR,
+    data=settings.WORK_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "pair_type_sizes.tex",
 ):
@@ -431,7 +431,7 @@ def detector_row(label, quantile, flags, pairs, iclr_last):
 
 def detector_choices(
     model=settings.DEFAULT_MODEL,
-    data=settings.DATA_DIR,
+    data=settings.WORK_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "detector_choices.tex",
 ):
@@ -475,7 +475,7 @@ JOURNAL_ORDER = ["F1000", "PLOS", "Copernicus", "BMC-Med", "SciPost"]
 
 def journal_subsets(
     model=settings.DEFAULT_MODEL,
-    data=settings.DATA_DIR,
+    data=settings.WORK_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "journal_subsets.tex",
 ):
@@ -545,7 +545,7 @@ def journal_subsets(
 
 def identification(
     model=settings.DEFAULT_MODEL,
-    data=settings.DATA_DIR,
+    data=settings.WORK_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "identification.tex",
 ):
@@ -606,7 +606,7 @@ def coverage_panel(panel, claims):
 
 def coverage(
     model=settings.DEFAULT_MODEL,
-    data=settings.DATA_DIR,
+    data=settings.WORK_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "coverage.tex",
 ):
@@ -712,7 +712,7 @@ def preservation(clusters, claims, preserve_prefix):
             continue
         original, rewritten = panel["review_ids"]
         n_orig, n_rw = len(claims.get(original, [])), len(claims.get(rewritten, []))
-        hit_orig, hit_rw = matched_claims(panel["clusters"], n_orig, n_rw)
+        hit_orig, _ = matched_claims(panel["clusters"], n_orig, n_rw)
         rows.append(hit_orig / n_orig * 100 if n_orig else np.nan)
     return pd.Series(rows, dtype=float)
 
@@ -895,11 +895,6 @@ def write_cell_table(out, tex, columns):
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
-def gold_dir(gold):
-    path = Path(gold)
-    return path if path.exists() else hub.root() / settings.HF_GOLD_DIR
-
-
 def panel_meta(panel):
     return {key: panel[key] for key in ("panel_id", "kind", "conf", "year", "stratum", "split")}
 
@@ -991,7 +986,7 @@ def extraction(
     tex=settings.TABLES_DIR / "extraction.tex",
     council=settings.GOLD_COUNCIL,
 ):
-    gold = gold_dir(gold)
+    gold = Path(gold)
     panels = list(read_jsonl(gold / "panels_tune.jsonl"))
     texts = pd.read_parquet(gold / "tune_reviews.parquet").set_index("review_id").text
     claims = {m: {} for m in council}
@@ -1051,11 +1046,10 @@ def pipelines(
     model=settings.DEFAULT_MODEL,
     gold=settings.GOLD_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
-    tex=settings.TABLES_DIR / "pipelines.tex",
     contrasts_tex=settings.TABLES_DIR / "pipeline_contrasts.tex",
     council=settings.GOLD_COUNCIL,
 ):
-    gold = gold_dir(gold)
+    gold = Path(gold)
     panels = list(read_jsonl(gold / "panels_tune.jsonl"))
     runs = {
         model: (extract.load_claims(gold / f"claims_{model}.jsonl"), load_jsonl(gold / f"clusters_{model}.jsonl", "panel_id"))
@@ -1090,16 +1084,6 @@ def pipelines(
     out = pd.DataFrame(summary)
     out.round(3).to_csv(Path(reports) / f"pipelines_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    columns = [
-        ("overlap_model", "Overlap Luna (SE)", 1, True),
-        ("overlap_council", "Overlap council (SE)", 1, True),
-        ("diff_model", r"Luna $-$ council (SE)", 1, True),
-        ("absdiff_model", r"$|$Luna $-$ member$|$ (SE)", 1, True),
-        ("absdiff_council", r"$|$member $-$ member$|$ (SE)", 1, True),
-        ("corr_model", "Corr.\\ Luna", 2, False),
-        ("corr_council", "Corr.\\ council", 2, False),
-    ]
-    write_cell_table(out, tex, columns)
     contrasts = pd.DataFrame([pipeline_contrasts(panels, name) for name in runs])
     contrasts.round(3).to_csv(Path(reports) / f"pipelines_contrasts_{model}.csv", index=False)
     print(contrasts.round(2).to_string(index=False))
@@ -1177,7 +1161,7 @@ def council_agreement(
     tex=settings.TABLES_DIR / "council.tex",
     council=settings.GOLD_COUNCIL,
 ):
-    gold = gold_dir(gold)
+    gold = Path(gold)
     panels = list(read_jsonl(gold / "panels_tune.jsonl"))
     claims = extract.load_claims(gold / f"claims_{model}.jsonl")
     raw = {(row["panel_id"], row["model"]): row for row in read_jsonl(gold / "clusters_council.jsonl")}
@@ -1325,7 +1309,7 @@ def item_alignment(items, claims):
 
 
 def external(name, model=settings.DEFAULT_MODEL, gold=settings.GOLD_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    gold = gold_dir(gold)
+    gold = Path(gold)
     items = {row["review_id"]: row["items"] for row in read_jsonl(gold / f"{name}_items.jsonl")}
     claims = extract.load_claims(gold / f"claims_{model}_{name}.jsonl")
     df = pd.DataFrame([dict(review_id=rid, **item_alignment(items[rid], claims[rid])) for rid in items if rid in claims])

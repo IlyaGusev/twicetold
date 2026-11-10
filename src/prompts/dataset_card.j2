@@ -18,19 +18,19 @@ configs:
   default: true
   data_files:
   - split: train
-    path: reviews/*.parquet
+    path: final/reviews/*.parquet
 - config_name: papers
   data_files:
   - split: train
-    path: papers/*.parquet
+    path: final/papers/*.parquet
 - config_name: panels
   data_files:
   - split: train
-    path: panels/*.parquet
+    path: final/panels/*.parquet
 - config_name: variants
   data_files:
   - split: train
-    path: variants/*.parquet
+    path: final/variants/*.parquet
 ---
 
 # Twice-Told Critiques
@@ -38,7 +38,7 @@ configs:
 Peer reviews from three ML conferences and five open-review journal sources, with claims extracted by an LLM,
 problem groups for each paper's reviews, and MELD scores for LLM-generated text. This is the data of the paper
 "Twice-Told Critiques: Claim-Level Homogenization of Peer Review in the LLM Era". Code:
-https://github.com/anonresearch01/twicetold.
+https://github.com/IlyaGusev/twicetold.
 
 {{ n_reviews }} reviews, {{ n_papers }} papers, {{ n_panels }} panels.
 
@@ -111,9 +111,8 @@ One row per panel: a set of reviews whose claims the LLM grouped into shared pro
   one predicted area-year). Overlap here measures matches that do not come from a shared paper.
 
 Columns: `panel_id`, `kind`, `review_ids`, `targets` (list of `{target_id, element}`), `clusters` (list of
-`{target_id, problem, claim_ids}`), `error` (API error; then `targets` and `clusters` are null) and `current` (the
-panel is in the current panel files; `false` rows are older groupings of a panel whose review set changed). The
-table above counts current panels without errors. A claim id `R{i}-{j}` is claim `j` of review `review_ids[i]`, in the order of
+`{target_id, problem, claim_ids}`), `error` (API error; then `targets` and `clusters` are null). The table above
+counts panels without errors. A claim id `R{i}-{j}` is claim `j` of review `review_ids[i]`, in the order of
 the `claims` column.
 
 ### `variants`
@@ -122,19 +121,16 @@ Review texts with one field removed, for robustness checks: `noq` without the qu
 without the clarity field. Columns: `variant`, `review_id` (with the variant prefix), `base_review_id`, `source`,
 `year`, `paper_id`, `text`, `sample_row`, `claims`, `claims_error`.
 
-### `artifacts/`
-
-Working files of the code repository, not part of any config. `python src/release.py pull` copies them into `data/`.
+## Folders
 
 | Folder | Content |
 |---|---|
-| `meld/` | MELD scores of all scored texts, including known LLM and rewritten texts; the known-text sets |
-| `embeddings/` | `text-embedding-3-small` vectors of the first 12,000 characters of each `main` sample review, in `sample_row` order |
-| `openreview/` | Raw OpenReview API dumps of ICML 2025 and 2026 accepted papers and all ICLR 2027 submissions, with their replies |
-| `areas/` | Predicted research areas of ICLR and NeurIPS papers |
-| `journals/` | Journal fetch statistics |
-| `panel_files/` | Panel definitions read by the extraction passes, including panels not yet grouped |
-| `experiments/` | Reference annotations (`gold*`), the rewrite test and LLM reviews of arXiv papers |
+| `final/` | The four configs above: `reviews`, `papers`, `panels`, `variants`. The paper's analysis reads only this folder, `gold/` and `additional/` |
+| `gold/` | Reference annotations of the extraction and grouping checks, and the two external human benchmarks |
+| `additional/` | Side experiments: the rewrite test, LLM reviews of arXiv papers, the known-origin texts of the detector checks, and `text-embedding-3-small` vectors of the first 12,000 characters of each `main` sample review, in `sample_row` order |
+| `raw/` | Inputs of the corpus build: OpenReview API dumps of ICML 2025 and 2026 accepted papers and all ICLR 2027 submissions, predicted research areas, journal fetch statistics, the panel files and the MELD scores of all scored texts |
+
+`python src/release.py pull` copies `final/`, `gold/` and `additional/` into `data/`; `--raw` adds `raw/`.
 
 ## Extraction
 

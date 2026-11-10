@@ -10,7 +10,8 @@ import pandas as pd
 from openai import OpenAI
 from tqdm import tqdm
 
-from jsonl import read_jsonl, write_jsonl
+import hub
+from jsonl import read_jsonl
 from prompts import render
 from settings import settings
 
@@ -201,11 +202,11 @@ def load_claims(*paths):
     return {row["review_id"]: row["claims"] for path in paths if path.exists() for row in read_jsonl(path) if "claims" in row}
 
 
-def merge_rows(paths, key):
+def merge_rows(paths, key, wanted=lambda row: True):
     kept = {}
     for path in paths:
         for row in read_jsonl(path):
-            if "error" not in row or "error" in kept.get(key(row), {"error": None}):
+            if wanted(row) and ("error" not in row or "error" in kept.get(key(row), {"error": None})):
                 kept[key(row)] = row
     return list(kept.values())
 
@@ -236,10 +237,10 @@ def done_ids(path, key, effort):
     return done
 
 
-def run(items, worker, out_path, merged_path, key, model, effort, threads, budget, redo=False):
+def run(items, worker, out_path, done, key, model, effort, threads, budget):
     if model not in settings.PRICES_USD_PER_MTOK:
         raise SystemExit(f"{model} has no entry in settings.PRICES_USD_PER_MTOK, so the budget cap would not count its calls")
-    done = done_ids(out_path, key, effort) | (set() if redo else done_ids(merged_path, key, effort))
+    done = done | done_ids(out_path, key, effort)
     todo = [item for item in items if key(item) not in done]
     print(f"{model}: {len(done)} done, {len(todo)} to do -> {out_path}", flush=True)
 
@@ -300,45 +301,18 @@ def pass1(
     threads=48,
     budget=60.0,
     paper_kind="ml",
-    data=str(settings.DATA_DIR),
+    data=str(settings.WORK_DIR),
     redo=False,
 ):
     effort = reasoning_efforts(model).pass1
     items = pd.read_parquet(reviews, columns=["review_id", "text"]).to_dict("records")
     worker = partial(pass1_worker, model=model, instructions=pass1_instructions(paper_kind), effort=effort)
     data = Path(data)
-    run(
-        items,
-        worker,
-        data / f"claims_{model}{tag}.jsonl",
-        data / f"claims_{model}.jsonl",
-        review_key,
-        model,
-        effort,
-        threads,
-        budget,
-        redo,
-    )
+    done = set() if redo else done_ids(data / f"claims_{model}.jsonl", review_key, effort)
+    run(items, worker, data / f"claims_{model}{tag}.jsonl", done, review_key, model, effort, threads, budget)
 
 
-def pass2(
-    panels,
-    model=settings.DEFAULT_MODEL,
-    tag="",
-    threads=48,
-    budget=60.0,
-    paper_kind="ml",
-    claims_file=None,
-    data=str(settings.DATA_DIR),
-    redo=False,
-):
-    effort = reasoning_efforts(model).pass2
-    data = Path(data)
-    if claims_file is None:
-        claims_by_review = load_claims(data / f"claims_{model}.jsonl", data / f"claims_{model}{tag}.jsonl")
-    else:
-        claims_by_review = load_claims(data / claims_file)
-    panel_rows = list(read_jsonl(panels))
+def panel_items(panel_rows, claims_by_review):
     items = [
         dict(
             panel_id=panel["panel_id"],
@@ -350,33 +324,58 @@ def pass2(
     ]
     if len(items) < len(panel_rows):
         print(f"{len(panel_rows) - len(items)} panels skipped: a review has no claims (pass-1 error or not run)", flush=True)
+    return items
+
+
+def pass2(
+    panels,
+    model=settings.DEFAULT_MODEL,
+    tag="",
+    threads=48,
+    budget=60.0,
+    paper_kind="ml",
+    claims_file=None,
+    data=str(settings.WORK_DIR),
+    redo=False,
+):
+    effort = reasoning_efforts(model).pass2
+    data = Path(data)
+    if claims_file is None:
+        claims_by_review = load_claims(data / f"claims_{model}.jsonl", data / f"claims_{model}{tag}.jsonl")
+    else:
+        claims_by_review = load_claims(data / claims_file)
+    items = panel_items(list(read_jsonl(panels)), claims_by_review)
     worker = partial(
         pass2_worker, model=model, instructions=render("pass2", paper=PASS2_PAPER_WORDING[paper_kind]), effort=effort
     )
-    run(
-        items,
-        worker,
-        data / f"clusters_{model}{tag}.jsonl",
-        data / f"clusters_{model}.jsonl",
-        panel_key,
-        model,
-        effort,
-        threads,
-        budget,
-        redo,
-    )
+    done = set() if redo else done_ids(data / f"clusters_{model}.jsonl", panel_key, effort)
+    run(items, worker, data / f"clusters_{model}{tag}.jsonl", done, panel_key, model, effort, threads, budget)
 
 
-def merge(model=settings.DEFAULT_MODEL, data=str(settings.DATA_DIR)):
-    for kind, key in [("claims", "review_id"), ("clusters", "panel_id")]:
-        merged = Path(data) / f"{kind}_{model}.jsonl"
-        parts = sorted(Path(data).glob(f"{kind}_{model}_*.jsonl"))
-        rows = merge_rows([merged, *parts] if merged.exists() else parts, lambda row: row[key])
-        write_jsonl(merged, rows)
-        for part in parts:
-            part.unlink()
-        print(f"{merged.name}: {len(rows)} rows from {len(parts)} part files")
+def final_pass1(model=settings.DEFAULT_MODEL, threads=256, budget=60.0, redo=False):
+    hub.check_model(model)
+    effort = reasoning_efforts(model).pass1
+    settings.WORK_DIR.mkdir(parents=True, exist_ok=True)
+    done = set() if redo else hub.reviews_with_claims()
+    for paper_kind in PASS1_PAPER_WORDING:
+        items = hub.sampled_reviews(journal=paper_kind == "general")
+        worker = partial(pass1_worker, model=model, instructions=pass1_instructions(paper_kind), effort=effort)
+        run(items, worker, settings.WORK_DIR / f"claims_{model}.jsonl", done, review_key, model, effort, threads, budget)
+
+
+def final_pass2(model=settings.DEFAULT_MODEL, threads=160, budget=60.0, redo=False):
+    hub.check_model(model)
+    effort = reasoning_efforts(model).pass2
+    settings.WORK_DIR.mkdir(parents=True, exist_ok=True)
+    claims_by_review = {**hub.claims(model), **load_claims(settings.WORK_DIR / f"claims_{model}.jsonl")}
+    done = set() if redo else hub.grouped_panels()
+    for paper_kind in PASS2_PAPER_WORDING:
+        items = panel_items(hub.panel_rows(journal=paper_kind == "general"), claims_by_review)
+        worker = partial(
+            pass2_worker, model=model, instructions=render("pass2", paper=PASS2_PAPER_WORDING[paper_kind]), effort=effort
+        )
+        run(items, worker, settings.WORK_DIR / f"clusters_{model}.jsonl", done, panel_key, model, effort, threads, budget)
 
 
 if __name__ == "__main__":
-    fire.Fire({"pass1": pass1, "pass2": pass2, "merge": merge})
+    fire.Fire({"pass1": pass1, "pass2": pass2, "final_pass1": final_pass1, "final_pass2": final_pass2})

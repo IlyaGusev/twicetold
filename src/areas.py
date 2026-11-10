@@ -18,7 +18,7 @@ LABEL_YEAR = 2026
 AREA_YEARS = (2023, 2024, 2025, 2026)
 
 
-def classify(out, data=str(settings.DATA_DIR)):
+def classify(out, data=str(settings.RAW_DIR)):
     data, out = Path(data), Path(out)
     papers = pd.read_parquet(data / "papers.parquet")
     sampled = {row["panel_id"] for row in read_jsonl(data / "panels.jsonl")}

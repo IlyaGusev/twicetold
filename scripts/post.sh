@@ -23,7 +23,7 @@ step() {
   fi
 }
 
-[ -f data/review_emb.npy ] || step src/release.py pull
+[ -d data/final ] || step src/release.py pull
 step src/outcomes.py panels --model "$MODEL"
 step src/outcomes.py pairs --model "$MODEL"
 step src/between.py claims_table --model "$MODEL"
@@ -56,7 +56,7 @@ else
   step src/validate.py forms --model "$MODEL" --tex "$OUT_DIR/tables/forms.tex"
   step src/validate.py extraction --model "$MODEL" --tex "$OUT_DIR/tables/extraction.tex"
   step src/validate.py council_agreement --model "$MODEL" --tex "$OUT_DIR/tables/council.tex"
-  step src/validate.py pipelines --model "$MODEL" --tex "$OUT_DIR/tables/pipelines.tex"
+  step src/validate.py pipelines --model "$MODEL" --contrasts_tex "$OUT_DIR/tables/pipeline_contrasts.tex"
   for check in identification journal_subsets coverage rewrite_test detector_choices; do
     step src/validate.py "$check" --model "$MODEL" --tex "$OUT_DIR/tables/$check.tex"
   done

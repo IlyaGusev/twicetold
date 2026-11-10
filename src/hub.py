@@ -1,8 +1,4 @@
-from functools import cache
-from pathlib import Path
-
 import pyarrow.dataset as ds
-from huggingface_hub import snapshot_download
 
 from settings import settings
 
@@ -16,12 +12,7 @@ NAMES = {
     "written": "meld_written",
 }
 
-
-@cache
-def root():
-    if settings.HF_DATASET_LOCAL:
-        return settings.RELEASE_DIR
-    return Path(snapshot_download(settings.HF_DATASET_REPO, repo_type="dataset", revision=settings.HF_DATASET_REVISION))
+JOURNAL_PANEL_KINDS = ["journal", "journal_placebo"]
 
 
 def check_model(model):
@@ -30,7 +21,7 @@ def check_model(model):
 
 
 def arrow(config, columns, condition=None):
-    return ds.dataset(root() / config, format="parquet").to_table(columns=columns, filter=condition)
+    return ds.dataset(settings.FINAL_DIR / config, format="parquet").to_table(columns=columns, filter=condition)
 
 
 def frame(config, columns, condition=None, order=None):
@@ -86,6 +77,19 @@ def texts(review_ids):
     }
 
 
+def sampled_reviews(journal):
+    in_sample = ds.field("sample").is_valid() & ((ds.field("venue_type") == "journal") == journal)
+    tables = [arrow("reviews", ["review_id", "text"], in_sample)]
+    if not journal:
+        tables.append(arrow("variants", ["review_id", "text"]))
+    return [row for table in tables for row in table.to_pylist()]
+
+
+def reviews_with_claims():
+    tables = [arrow(config, ["review_id"], ds.field("claims").is_valid()) for config in ["reviews", "variants"]]
+    return {review_id for table in tables for review_id in table.column("review_id").to_pylist()}
+
+
 def claims(model, review_ids=None):
     check_model(model)
     condition = ds.field("claims").is_valid()
@@ -114,7 +118,7 @@ def extraction_counts(model):
 
 def clusters(model, kinds=None, panel_ids=None):
     check_model(model)
-    condition = ds.field("error").is_null()
+    condition = ds.field("clusters").is_valid()
     if kinds is not None:
         condition = condition & ds.field("kind").isin(kinds)
     if panel_ids is not None:
@@ -128,5 +132,15 @@ def panel_claims(model, panels):
 
 
 def panel_definitions(kinds):
-    rows = arrow("panels", ["panel_id", "review_ids"], ds.field("kind").isin(kinds) & ds.field("current")).to_pylist()
+    rows = arrow("panels", ["panel_id", "review_ids"], ds.field("kind").isin(kinds)).to_pylist()
     return {row["panel_id"]: row["review_ids"] for row in rows}
+
+
+def panel_rows(journal):
+    of_kind = ds.field("kind").isin(JOURNAL_PANEL_KINDS)
+    return arrow("panels", ["panel_id", "review_ids"], of_kind if journal else ~of_kind).to_pylist()
+
+
+def grouped_panels():
+    rows = arrow("panels", ["panel_id", "review_ids"], ds.field("clusters").is_valid()).to_pylist()
+    return {(row["panel_id"], tuple(row["review_ids"])) for row in rows}

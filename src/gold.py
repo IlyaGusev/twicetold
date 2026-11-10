@@ -116,10 +116,6 @@ def write_sample(out, panels):
     return reviews
 
 
-def load_panels(path):
-    return {p["panel_id"]: p["review_ids"] for p in read_jsonl(path)}
-
-
 def kind_files(out, stem, suffix):
     split = [(kind, out / f"{stem}_{kind}{suffix}") for kind in PAPER_KINDS]
     return [(kind, path) for kind, path in split if path.exists()] or [("ml", out / f"{stem}{suffix}")]

@@ -6,12 +6,8 @@ from jsonl import read_jsonl
 from settings import settings
 
 GOLD = settings.GOLD_DIR
-LFS_POINTER = b"version https://git-lfs"
 
-pytestmark = pytest.mark.skipif(
-    not (GOLD / "panels_tune.jsonl").exists() or (GOLD / "panels_tune.jsonl").read_bytes().startswith(LFS_POINTER),
-    reason="data/gold needs git lfs pull",
-)
+pytestmark = pytest.mark.skipif(not (GOLD / "panels_tune.jsonl").exists(), reason="data/gold needs release.py pull")
 
 
 def test_deterministic_steps_rebuild_data_gold(tmp_path):

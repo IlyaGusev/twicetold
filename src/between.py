@@ -39,7 +39,7 @@ def openai_embed(texts, model, batch, threads, desc, client=None):
         return np.concatenate(list(embedded))
 
 
-def claims_table(model=settings.DEFAULT_MODEL, data=settings.DATA_DIR):
+def claims_table(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR):
     data = Path(data)
     reviews = hub.corpus_reviews(["review_id", "paper_id", "conf", "year"]).set_index("review_id")
     rows = []
@@ -140,7 +140,9 @@ def cell_similarity(R, E, intra, rng):
     return cells
 
 
-def embed(model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.DATA_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
+def embed(
+    model=settings.DEFAULT_MODEL, reembed=False, threads=4, data=settings.ADDITIONAL_DIR, reports=settings.ANALYSIS_REPORTS_DIR
+):
     data, reports = Path(data), Path(reports)
     embed_reviews(data, threads, reembed)
     R, E = load_reviews(data)

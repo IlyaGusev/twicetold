@@ -131,12 +131,6 @@ def mean_line(ax, df, col, color, ls="-", **kw):
     return pd.DataFrame({"mean": mean, "bar_top": mean + ci})
 
 
-def overlap_line(ax, by_year, conf, color, dx=0.0):
-    rows = by_year[by_year.conf == conf]
-    ax.errorbar(rows.year + dx, rows["match"], yerr=Z95 * rows.match_se, fmt="o-", ms=3, color=color, elinewidth=1.0)
-    return rows.set_index("year")["match"]
-
-
 def text_color(color):
     return tuple(c * (1 - TEXT_DARKEN) for c in to_rgb(color))
 
@@ -371,7 +365,7 @@ def category_share_by_year(claims, year):
 
 def category_shifts(model):
     claims = pd.read_parquet(
-        settings.DATA_DIR / f"claims_table_{model}.parquet", columns=["review_id", "paper_id", "conf", "year", "category"]
+        settings.WORK_DIR / f"claims_table_{model}.parquet", columns=["review_id", "paper_id", "conf", "year", "category"]
     )
     main_sample_reviews = main_sample_review_ids()
     claims = claims[(claims.conf == "ICLR") & claims.review_id.isin(main_sample_reviews) & (claims.category != "other")]
@@ -956,8 +950,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for name in ["pass1_empty", "pass1_error_rows", "pass2_error_rows", "calibration_in_analysis", "calibration_outside"]:
         values["Repro" + name.title().replace("_", "").replace("1", "One").replace("2", "Two")] = f"{int(repro[name]):,}"
     pd.DataFrame(rows).to_csv(reports / f"paper_numbers_{model}.csv", index=False)
+    used = set(re.findall(r"\\([A-Za-z]+)", settings.PAPER_TEX.read_text()))
     Path(tables, "numbers.tex").write_text(
-        "\n".join(f"\\newcommand{{\\{name}}}{{{value}}}" for name, value in values.items()) + "\n"
+        "\n".join(f"\\newcommand{{\\{name}}}{{{value}}}" for name, value in values.items() if name in used) + "\n"
     )
     print(pd.DataFrame(rows).round(3).to_string(index=False))
 

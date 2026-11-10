@@ -51,11 +51,10 @@ def test_council_command_uses_only_raw_group_votes(monkeypatch, tmp_path):
     claims = {rid: [{"claim": "problem"}] for rid in panel["review_ids"]}
     raw = [dict(panel, model=model, clusters=groups(("R0-0", "R1-0"))) for model in settings.GOLD_COUNCIL]
     ours = {"P": dict(panel, clusters=groups(("R0-0",), ("R1-0",)))}
-    monkeypatch.setattr(validate, "gold_dir", lambda gold: tmp_path)
     monkeypatch.setattr(validate, "read_jsonl", lambda path: [panel] if path.name == "panels_tune.jsonl" else raw)
     monkeypatch.setattr(validate.extract, "load_claims", lambda *paths: claims)
     monkeypatch.setattr(validate, "load_jsonl", lambda path, key: ours)
-    validate.council_agreement(reports=tmp_path, tex=tmp_path / "council.tex")
+    validate.council_agreement(gold=tmp_path, reports=tmp_path, tex=tmp_path / "council.tex")
     pairs = pd.read_csv(tmp_path / f"council_agreement_pairs_{settings.DEFAULT_MODEL}.csv")
     assert pairs[settings.GOLD_COUNCIL].all().all()
     assert pairs.status.tolist() == ["unanimous"]
