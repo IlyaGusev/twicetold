@@ -19,7 +19,7 @@
 \input{tables/numbers}
 
 \title{Twice-Told Critiques: Claim-Level Homogenization of Peer Review in the LLM Era}
-\author{Ilya Gusev \\ Keenable \\ Amsterdam, the Netherlands}
+\author{Ilya Gusev \\ Keenable / Amsterdam \\ \texttt{phoenixilya@gmail.com}}
 
 \begin{document}
 \maketitle
@@ -90,6 +90,13 @@ MELD \citep{li2026meld} scores reviews for LLM-generated or edited text. \textbf
 \paragraph{Reference labels.}
 Sol 6.1, DeepSeek V4.1 Flash and Kimi K3.1 Pro extract claims from the same \RefReviews{} reviews with the pass-1 prompt, and each groups Luna's claim list with the pass-2 prompt. Luna's quoted spans reach a span F1 of \RefSpanFOne\% with a council member, against \RefCouncilSpanFOne\% between two members, across \RefPanels{} same-paper panels from every venue, year and detector stratum (Table~\ref{tab:extraction}). Where all three members agree on a claim pair, Luna's grouping has \RefPairPrecision\% precision and \RefPairRecall\% recall across \RefPairPanels{} panels (Appendix~\ref{app:reference}). These scores exclude disputed pairs. Each member also runs the full pipeline on its own claims. Luna's panel overlap correlates \RefPipeCorrLuna{} with a member's, two members \RefPipeCorrCouncil, and all four pipelines give every contrast the same sign (Table~\ref{tab:pipelines}).
 
+\begin{figure}[t]
+\centering
+\includegraphics{figs/fig2_ai.pdf}
+\caption{In all three venues, two LLM-flagged reviews of one paper overlap more than two unflagged reviews, and two reviews that the detector labels LLM-written overlap most. Pair types do not overlap. (a) Mean over papers of pair overlap within each paper. Bars: 95\% intervals over papers. (b) Difference from the neither-flagged pair of the same paper, one fit per venue with paper fixed effects. Bars: 95\% intervals clustered by paper. Papers (with an LLM-written pair): ICLR \FlagGapN{} (\PairWrittenIclrN), NeurIPS \NeuripsFlagGapN{} (\PairWrittenNeuripsN), ICML \IcmlFlagGapN{} (\PairWrittenIcmlN). Years pooled.}
+\label{fig:ai}
+\end{figure}
+
 \section{Results}
 \label{sec:results}
 
@@ -106,13 +113,6 @@ Against a common unflagged-pair reference, two LLM-written reviews overlap \Type
 The flagged-pair gap survives alternate thresholds, separate ICLR years and length/claim-count controls. It is largest in 2027, \FlagGapTwentySeven{} points. Pre-ChatGPT top-45\%-score pairs show no gap (Appendix~\ref{app:robust}).
 
 In \RwIclrPapers{} pre-2023 ICLR panels, polishing two reviews changes overlap by $\PlIclrTwo$ points. Rewriting from outlines of their points gives $+\RwIclrTwo$ ($\RwIclrTwoLow$ to $\RwIclrTwoHigh$). The flagged-pair gap exceeds this rewrite effect by \RwFlagDiff{} points ($\RwFlagDiffLow$ to $\RwFlagDiffHigh$), and the LLM-written gap by \RwWrittenDiff{} ($\RwWrittenDiffLow$ to $\RwWrittenDiffHigh$). The gap of other two-flagged pairs exceeds it by \RwLlDiff{} ($\RwLlDiffLow$ to $\RwLlDiffHigh$), so style effects remain a possible explanation for that smaller gap, not for the whole flagged-pair gap (Appendix~\ref{app:rewrite}).
-
-\begin{figure}[t]
-\centering
-\includegraphics{figs/fig2_ai.pdf}
-\caption{In all three venues, two LLM-flagged reviews of one paper overlap more than two unflagged reviews, and two reviews that the detector labels LLM-written overlap most. Pair types do not overlap. (a) Mean over papers of pair overlap within each paper. Bars: 95\% intervals over papers. (b) Difference from the neither-flagged pair of the same paper, one fit per venue with paper fixed effects. Bars: 95\% intervals clustered by paper. Papers (with an LLM-written pair): ICLR \FlagGapN{} (\PairWrittenIclrN), NeurIPS \NeuripsFlagGapN{} (\PairWrittenNeuripsN), ICML \IcmlFlagGapN{} (\PairWrittenIcmlN). Years pooled.}
-\label{fig:ai}
-\end{figure}
 
 \paragraph{RQ3: Which kinds of critiques gained or lost share?}
 \label{sec:categories}
