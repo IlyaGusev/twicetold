@@ -1,12 +1,12 @@
 check,base_year,base,last_year,last,change,se
-Main overlap rate,2025,11.666,2026,14.651,2.985,0.138
-Specific claims only,2025,10.166,2026,13.584,3.417,0.139
-Same part of paper (lenient),2025,28.031,2026,31.522,3.491,0.202
-"3-review subsets, grouped again",2025,11.922,2026,15.137,3.215,0.605
-Questions field removed,2025,11.485,2026,13.988,2.502,0.27
-Withdrawn 2026 papers added,2025,11.666,2026,14.805,3.139,0.136
-Main overlap rate,2023,13.061,2027,24.423,11.362,0.254
-Specific claims only,2023,9.991,2027,23.624,13.633,0.248
-Same part of paper (lenient),2023,29.522,2027,42.23,12.707,0.338
-"3-review subsets, grouped again",2023,13.41,2027,25.59,12.18,0.691
-Questions field removed,2024,11.191,2027,23.303,12.112,0.946
+Main overlap rate,2025,9.097,2026,11.578,2.481,0.122
+Specific claims only,2025,8.037,2026,10.779,2.742,0.123
+Same part of paper (lenient),2025,29.482,2026,32.973,3.492,0.205
+"3-review subsets, grouped again",2025,9.698,2026,11.931,2.233,0.55
+Questions field removed,2025,9.058,2026,11.326,2.268,0.238
+Withdrawn 2026 papers added,2025,9.097,2026,11.696,2.599,0.12
+Main overlap rate,2023,10.799,2027,21.173,10.373,0.235
+Specific claims only,2023,8.338,2027,20.531,12.193,0.23
+Same part of paper (lenient),2023,30.909,2027,43.759,12.85,0.342
+"3-review subsets, grouped again",2023,10.864,2027,21.991,11.128,0.582
+Questions field removed,2024,8.699,2027,20.461,11.762,0.862

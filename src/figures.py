@@ -337,8 +337,8 @@ def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     for ax, styles, title in [(top, conferences, "a  ML conferences"), (bottom, journals, "b  Journals")]:
         shade_chatgpt_period(ax)
         overlap_panel(ax, by_year, styles, settings.ICLR_LAST + 0.65, 2.6)
-        ax.set_ylim(5, 27)
-        ax.set_yticks([5, 10, 15, 20, 25])
+        ax.set_ylim(0, 27)
+        ax.set_yticks([0, 5, 10, 15, 20, 25])
         ax.set_ylabel("Critique overlap (%)")
         ax.set_title(title, fontweight="bold")
         ax.annotate(

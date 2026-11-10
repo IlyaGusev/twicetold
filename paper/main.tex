@@ -99,24 +99,7 @@ ICLR overlap rose from \IclrRecentBase\% in 2025 to \IclrRecentLast\% in 2026, b
 
 \paragraph{RQ2: Do LLM-flagged reviews share a larger fraction of their critiques?}
 \label{sec:ai}
-Two detector-labeled reviews overlap more than two reviews without that label (Table~\ref{tab:main_gaps}). The LLM-written comparison can include LLM-edited reviews in its reference. Only papers whose pairs differ in label count identify these estimates. The ICLR unflagged baseline is \FlagBaseline\% with equal paper weights.
-
-\begin{table}[t]
-\centering\small
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{@{}lrr@{}}
-\toprule
-Venue / label & Gap [95\% CI] & Papers \\
-\midrule
-ICLR / flagged & \FlagGap{} [\FlagGapLow, \FlagGapHigh] & \IdIclrVarying \\
-ICLR / LLM-written & \WrittenGap{} [\WrittenGapLow, \WrittenGapHigh] & \IdWrittenVarying \\
-NeurIPS / flagged & \NeuripsFlagGap{} [\NeuripsFlagGapLow, \NeuripsFlagGapHigh] & \IdNeuripsVarying \\
-ICML / flagged & \IcmlFlagGap{} [\IcmlFlagGapLow, \IcmlFlagGapHigh] & \IdIcmlVarying \\
-\bottomrule
-\end{tabular}
-\caption{Within-paper overlap is higher for pairs with two detector-labeled reviews than pairs with neither label. Gap: percentage points, paper fixed effects with a one-labeled-pair control. Pairs weigh equally. Papers: identifying papers, not all sampled papers. Years: ICLR 2024--2027, NeurIPS 2024--2025, ICML 2025--2026. Intervals cluster by paper. LLM-written reference pairs can include LLM-edited reviews.}
-\label{tab:main_gaps}
-\end{table}
+Two detector-labeled reviews of one paper overlap more than two reviews without that label. We estimate each gap in percentage points with paper fixed effects and a one-labeled-pair control. Pairs weigh equally and intervals cluster by paper. At ICLR (2024--2027), the flagged-pair gap is \FlagGap{} (95\% CI \FlagGapLow--\FlagGapHigh, \IdIclrVarying{} identifying papers) and the LLM-written gap is \WrittenGap{} (\WrittenGapLow--\WrittenGapHigh, \IdWrittenVarying{} papers). The flagged-pair gap is \NeuripsFlagGap{} at NeurIPS (2024--2025; \NeuripsFlagGapLow--\NeuripsFlagGapHigh, \IdNeuripsVarying{} papers) and \IcmlFlagGap{} at ICML (2025--2026; \IcmlFlagGapLow--\IcmlFlagGapHigh, \IdIcmlVarying{} papers). The LLM-written comparison can include LLM-edited reviews in its reference. Only papers whose pairs differ in label count identify these estimates. The ICLR unflagged baseline is \FlagBaseline\% with equal paper weights.
 
 Against a common unflagged-pair reference, two LLM-written reviews overlap \TypeWwIclr{} points more, other two-flagged pairs \TypeLlIclr{} points more (\TypeLlIclrLow--\TypeLlIclrHigh), and one-flagged pairs \TypeHlIclr{} points more. The first group also shares $\SizeWwShared$ more problems. Other two-flagged pairs raise fewer problems and share $\SizeLlShared$ more. With both set sizes held fixed, they share $\SizeLlSharedAdj$ more (\SizeLlSharedAdjLow{} to \SizeLlSharedAdjHigh, Appendix~\ref{app:robust}).
 

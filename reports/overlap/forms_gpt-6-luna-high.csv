@@ -1,9 +1,9 @@
 year,form,papers,removed_papers,hit,hit_removed,hit_without,hit_spec,form_share,removed_change,hit_se,hit_removed_se,hit_without_se,hit_spec_se,form_share_se,removed_change_se
-2020,review,2127,0,12.793,,11.575,10.606,39.996,,0.303,,0.337,0.296,0.994,
-2021,review,2594,0,11.311,,9.846,9.463,41.794,,0.196,,0.216,0.188,0.76,
-2022,main review+summary of the paper+summary of the review,2617,0,12.335,,10.728,10.425,41.116,,0.211,,0.234,0.204,0.734,
-2023,"clarity, quality, novelty and reproducibility+strength and weaknesses+summary of the paper+summary of the review",3789,3789,13.061,11.962,10.255,9.991,49.107,-1.099,0.186,0.193,0.2,0.174,0.633,0.16
-2024,questions+strengths+summary+weaknesses,5690,3000,11.276,11.191,10.476,9.429,37.929,-0.157,0.131,0.212,0.153,0.127,0.518,0.178
-2025,questions+strengths+summary+weaknesses,8629,3000,11.666,11.485,11.197,10.166,34.885,-0.275,0.102,0.205,0.118,0.101,0.384,0.166
-2026,questions+strengths+summary+weaknesses,13745,4761,14.651,13.988,14.786,13.584,25.747,-0.492,0.093,0.176,0.107,0.095,0.265,0.133
-2027,critical_strengths+critical_weaknesses+paper_summary+questions_for_authors,10000,400,24.423,23.303,25.06,23.624,21.439,-0.908,0.173,0.922,0.195,0.177,0.298,0.635
+2020,review,2127,0,10.516,,9.033,8.778,42.845,,0.269,,0.29,0.268,1.08,
+2021,review,2594,0,9.231,,7.925,7.817,42.664,,0.177,,0.193,0.168,0.806,
+2022,main review+summary of the paper+summary of the review,2617,0,10.048,,8.657,8.412,41.961,,0.184,,0.203,0.177,0.788,
+2023,"clarity, quality, novelty and reproducibility+strength and weaknesses+summary of the paper+summary of the review",3789,3789,10.799,9.73,8.401,8.338,49.659,-1.069,0.17,0.169,0.178,0.159,0.677,0.15
+2024,questions+strengths+summary+weaknesses,5690,3000,8.894,8.699,8.2,7.513,39.015,-0.242,0.113,0.18,0.133,0.111,0.562,0.153
+2025,questions+strengths+summary+weaknesses,8629,3000,9.097,9.058,8.71,8.037,35.465,-0.093,0.09,0.18,0.104,0.09,0.423,0.151
+2026,questions+strengths+summary+weaknesses,13746,4761,11.578,11.326,11.61,10.779,26.842,-0.187,0.082,0.156,0.095,0.083,0.294,0.124
+2027,critical_strengths+critical_weaknesses+paper_summary+questions_for_authors,10000,400,21.173,20.461,21.756,20.531,21.487,-0.662,0.162,0.843,0.183,0.166,0.315,0.57
