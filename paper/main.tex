@@ -16,6 +16,7 @@
 \usepackage{array}
 \usepackage{enumitem}
 \usepackage{listings}
+\usepackage{needspace}
 \lstset{basicstyle=\ttfamily\scriptsize, breaklines=true, breakatwhitespace=true, columns=fullflexible, keepspaces=true, breakindent=0pt, aboveskip=2pt, belowskip=6pt}
 \raggedbottom
 \input{tables/numbers}
@@ -134,8 +135,6 @@ Against a common unflagged-pair reference at ICLR in 2024--2026, two LLM-written
 
 The shift toward flagged pairs explains a small part of the ICLR rise. A shift-share decomposition assigns \DecIclrMix{} of the \IclrRecentChange{} points from 2025 to 2026 to this shift. The rest comes from rises within pair types: two unflagged reviews overlap \DecIclrNoneLast\% in 2026, against \DecIclrNoneBase\% in 2025. Detector misses or changes unrelated to LLM use can cause this rise, and we cannot separate them.
 
-The flagged-pair gap survives alternate thresholds, separate ICLR years and length/claim-count controls. Pre-ChatGPT top-45\%-score pairs show no gap.
-
 LLM wording alone could make two critiques easier to match, even when the reviews raise the same problems as before. To test this style effect, Luna changes two human reviews in each of \RwIclrPapers{} pre-2023 ICLR panels and keeps their points. Polishing the language changes overlap by $\PlIclrTwo$ points. Rewriting each review from an outline of its points changes overlap by $+\RwIclrTwo$ points. The 2024--2026 flagged-pair gap exceeds this rewrite effect by \RwFlagDiff{} points, the LLM-written gap by \RwWrittenDiff{} and the gap of other two-flagged pairs by \RwLlDiff. Style effects can therefore explain the gap of other two-flagged pairs and a large part of the 2024--2026 flagged-pair gap, but not the LLM-written gap.
 
 \paragraph{RQ3: Do LLM-flagged journal reports also repeat more critiques?}
@@ -149,6 +148,11 @@ Against the 2019--2023 mean, journal overlap rose most at F1000 ($+\FResearchCha
 \label{fig:fields}
 \end{figure}
 
+\section{Conclusion}
+The reviews of one paper have lost part of their independence, in content and not only in wording. LLM-written text is one part of this change and does not explain all of it, because overlap also rose between reviews that the detector does not flag. Two questions stay open: how much of that rise comes from LLM use that leaves no trace in the text, and if the 2027 level holds after the discussion phase.
+
+\paragraph{Position.} We think that the peer-review system of the major ML conferences is broken. Reviewing should be strictly voluntary: a reviewer who has to review and does not want to is likely to give the task to an LLM, and such a review adds little. In \IclrLastYear, MELD flags \IclrFlaggedLast\% of ICLR reviews and labels \IclrWrittenLast\% as LLM-written. We see no way back from LLM-generated reviews. Venues should thus make them an integral part of the paper acceptance process, independent from the human reviews. Two LLM-written reviews of one paper overlap the most, so hidden LLM reviews fill reviewer slots and add few new problems. One LLM review that the venue runs and labels gives this content one time and leaves the human slots for what humans add.
+
 \clearpage
 \section*{Limitations}
 \textbf{LLM measurement.} An LLM extracts and groups claims. The council reference uses LLMs, not humans, and does not rule out shared model errors. The human check covers pass 1 only. Extraction and grouping errors can affect measured levels and changes over time. The grouping check covers only unanimous council labels, not disputed cases. The overlap level depends on the grouper: council members give \RefPipeLevelMemberMin{} to \RefPipeLevelMemberMax\% against Luna's \RefPipeLuna\%. Every level in this paper is Luna's, and the contrasts hold in all four pipelines. No human annotator checked the grouping.
@@ -158,6 +162,10 @@ Against the 2019--2023 mean, journal overlap rose most at F1000 ($+\FResearchCha
 \textbf{Detector labels.} MELD trained on peer reviews from sources it does not name. If these include our pre-2023 reviews, the threshold is too low and later flag rates too high. Only MELD supplies the LLM-written label. It labels \PolishWritten\% of our polished reviews as LLM-written, but other tools and prompts can polish differently, and detectors label part of LLM-polished reviews as AI-generated \citep{saha2026policies}. The rewrite control uses two models, two prompts and pre-2023 reviews. Its outline effect does not clearly differ from the 2024--2026 gap of other two-flagged pairs. We chose the 99.9th percentile threshold and the LLM-written label after we compared three thresholds and two labels on these data. Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates. Their labels must not support action against an individual reviewer.
 
 \textbf{Selection and scope.} NeurIPS and most journals publish accepted-paper reviews only. All texts are in English, and most come from ML.
+
+\needspace{7\baselineskip}
+\section*{Use of LLM Assistants}
+The authors created the idea and the outlines of the experiments, and acted as supervisors and editors. Claude Fable 5.2 inside Claude Code and GPT-6 Astra inside Pi wrote all code and all text of this paper. The authors take full responsibility for the content.
 
 \bibliography{refs}
 \appendix
@@ -401,7 +409,7 @@ They share more. Against two unflagged reviews of the same paper, two LLM-writte
 \centering\small
 \setlength{\tabcolsep}{4pt}
 \input{tables/pair_type_sizes}
-\caption{With both set sizes held fixed, each flagged pair type shares more problems than neither-flagged pairs of the same paper, and two LLM-written reviews share the most. The first row gives means over neither-flagged pairs. The other rows give differences from these pairs with paper fixed effects, with SE in parentheses. Pooled ICLR 2024--2027 pairs. The last column controls for both set sizes.}
+\caption{With both set sizes held fixed, each flagged pair type shares more problems than neither-flagged pairs of the same paper, and two LLM-written reviews share the most. The first row gives means over neither-flagged pairs. The other rows give differences from these pairs with paper fixed effects. Pooled ICLR 2024--2027 pairs. The last column controls for both set sizes.}
 \label{tab:sizes}
 \end{table}
 

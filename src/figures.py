@@ -747,6 +747,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for name in ["pre_source_max", "pre_year_max", "intel_ai_recall", "rewrite_recall_min"]:
         values["Meld" + name.title().replace("_", "")] = f"{meld[name]:.1f}"
     iclr_last = by_year[(by_year.conf == "ICLR") & (by_year.year == settings.ICLR_LAST)].iloc[0]
+    values["IclrLastYear"] = str(settings.ICLR_LAST)
     record("IclrFlaggedLast", iclr_last.ai_flagged)
     record("IclrWrittenLast", iclr_last.ai_written)
     flags = kept_meld_flags().flag

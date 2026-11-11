@@ -393,6 +393,30 @@ def type_fit(cell, types, outcome, controls=()):
     return sm.OLS(X.y, X[[*PAIR_TYPES, *controls]]).fit(cov_type="cluster", cov_kwds={"groups": pd.factorize(cell.panel_id)[0]})
 
 
+def pair_type_sizes_table(out, tex):
+    lines = [
+        r"\begin{tabular}{@{}lrrrrrr@{}}",
+        r"\toprule",
+        r"Pair type & Pairs & \shortstack[r]{Overlap\\(points)} & \shortstack[r]{Shared\\problems} & "
+        r"\shortstack[r]{Problems,\\smaller review} & \shortstack[r]{Problems,\\either review} & "
+        r"\shortstack[r]{Shared,\\sizes fixed} \\",
+        r"\midrule",
+    ]
+    for r in out.itertuples():
+        if r.pair_type == "HH":
+            cells = [f"{r.hit:.1f}", f"{r.shared:.2f}", f"{r.smaller:.2f}", f"{r.union:.2f}", f"{r.shared:.2f}"]
+        else:
+            cells = [f"{getattr(r, name):+.{1 if name == 'hit' else 2}f}" for name in [*PAIR_SIZE_OUTCOMES, "shared_adjusted"]]
+        lines.append(f"{PAIR_TYPE_NAMES[r.pair_type]} & {r.pairs:,} & " + " & ".join(cells) + r" \\")
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
+def pair_type_sizes_table_from_report(
+    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "pair_type_sizes.tex"
+):
+    pair_type_sizes_table(pd.read_csv(Path(reports) / f"pair_type_sizes_{model}.csv"), tex)
+
+
 def pair_type_sizes(
     model=settings.DEFAULT_MODEL,
     data=settings.WORK_DIR,
@@ -418,22 +442,7 @@ def pair_type_sizes(
     out = pd.DataFrame(rows)
     out.to_csv(Path(reports) / f"pair_type_sizes_{model}.csv", index=False)
     print(out.round(3).to_string(index=False))
-    lines = [
-        r"\begin{tabular}{>{\raggedright\arraybackslash}p{2.7cm}rrrrrr}",
-        r"\toprule",
-        r"Pair type & Pairs & \shortstack{Overlap\\(points)} & Shared & \shortstack{Smaller\\set} & Union & \shortstack{Shared,\\size-adj.} \\",
-        r"\midrule",
-    ]
-    for r in out.itertuples():
-        if r.pair_type == "HH":
-            cells = [f"{r.hit:.1f}", f"{r.shared:.2f}", f"{r.smaller:.2f}", f"{r.union:.2f}", f"{r.shared:.2f}"]
-        else:
-            cells = [
-                f"{getattr(r, name):+.{1 if name == 'hit' else 2}f} ({getattr(r, name + '_se'):.{1 if name == 'hit' else 2}f})"
-                for name in [*PAIR_SIZE_OUTCOMES, "shared_adjusted"]
-            ]
-        lines.append(f"{PAIR_TYPE_NAMES[r.pair_type]} & {r.pairs:,} & " + " & ".join(cells) + r" \\")
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    pair_type_sizes_table(out, tex)
 
 
 DETECTOR_QUANTILES = (0.99, 0.995, 0.999)
@@ -583,6 +592,31 @@ def journal_subsets(
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
+def identification_table(out, tex):
+    lines = [
+        r"\begin{tabular}{@{}lrrrrrrrr@{}}",
+        r"\toprule",
+        r" & & \multicolumn{3}{c}{Papers by reports} & \multicolumn{2}{c}{Papers that identify} & "
+        r"\multicolumn{2}{c}{Gap (points)} \\",
+        r"\cmidrule(lr){3-5}\cmidrule(lr){6-7}\cmidrule(l){8-9}",
+        r"Sample & Papers & 2 & 3 & 4+ & Fixed effects & Direct & Fixed effects & Direct \\",
+        r"\midrule",
+    ]
+    for r in out.itertuples():
+        direct = f"{r.endpoint:+.1f}" if r.endpoint_papers >= MIN_DIRECT_PAPERS else "--"
+        lines.append(
+            f"{r.label} & {r.papers:,} & {r.reports_2:,} & {r.reports_3:,} & {r.reports_4 + r.reports_5:,} & "
+            f"{r.varying:,} & {r.endpoint_papers:,} & {r.two:+.1f} & {direct} \\\\"
+        )
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
+def identification_table_from_report(
+    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "identification.tex"
+):
+    identification_table(pd.read_csv(Path(reports) / f"identification_{model}.csv"), tex)
+
+
 def identification(
     model=settings.DEFAULT_MODEL,
     data=settings.WORK_DIR,
@@ -607,25 +641,7 @@ def identification(
     out = pd.DataFrame([identification_row(label, cell, f) for label, cell, f in cells])
     out.round(3).to_csv(Path(reports) / f"identification_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    lines = [
-        r"\begin{tabular}{lrrrrrrrr}",
-        r"\toprule",
-        r" & & \multicolumn{3}{c}{Papers by reports} & \multicolumn{2}{c}{Papers identifying} & \multicolumn{2}{c}{Two vs.\ none (pp)} \\",
-        r"\cmidrule(lr){3-5}\cmidrule(lr){6-7}\cmidrule(lr){8-9}",
-        r"Sample & Papers & 2 & 3 & 4+ & FE & Direct & FE (SE) & Direct [95\% CI] \\",
-        r"\midrule",
-    ]
-    for r in out.itertuples():
-        direct = (
-            f"{r.endpoint:+.1f} [{r.endpoint_low:+.1f}, {r.endpoint_high:+.1f}]"
-            if r.endpoint_papers >= MIN_DIRECT_PAPERS
-            else "--"
-        )
-        lines.append(
-            f"{r.label} & {r.papers:,} & {r.reports_2:,} & {r.reports_3:,} & {r.reports_4 + r.reports_5:,} & "
-            f"{r.varying:,} & {r.endpoint_papers:,} & {r.two:+.1f} ({r.two_se:.1f}) & {direct} \\\\"
-        )
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    identification_table(out, tex)
 
 
 def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "coverage.tex"):
@@ -1486,8 +1502,10 @@ if __name__ == "__main__":
             "council_agreement": council_agreement,
             "pipelines": pipelines,
             "identification": identification,
+            "identification_table": identification_table_from_report,
             "pair_types": pair_types,
             "pair_type_sizes": pair_type_sizes,
+            "pair_type_sizes_table": pair_type_sizes_table_from_report,
             "detector_choices": detector_choices,
             "detector_table": detector_table_from_report,
             "journal_subsets": journal_subsets,
