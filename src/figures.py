@@ -295,7 +295,7 @@ def ai_checks(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     ax.set_yticks([])
     ax.spines["left"].set_visible(False)
     ax.set_ylim(y + 0.9, 1.6)
-    ax.set_xlim(-5, 16)
+    ax.set_xlim(-5, 18.5)
     ax.set_xticks([-5, 0, 5, 10, 15])
     ax.set_xlabel("Difference in overlap (percentage points)")
     save(fig, figs, "figA_checks.pdf", PAGE_WIDTH)
@@ -848,6 +848,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     pipes = pd.read_csv(reports / f"pipelines_{model}.csv").set_index(index)
     same_pipes, cross_pipes = pipes.loc[("same", *total)], pipes.loc[("cross", *total)]
     values["RefPipePanels"] = f"{int(same_pipes.panels)}"
+    values["RefPairEmptyPanels"] = f"{int(same_pipes.panels - pairs.panels)}"
     values["RefPipeLuna"] = f"{same_pipes.overlap_model:.1f}"
     values["RefPipeCouncil"] = f"{same_pipes.overlap_council:.1f}"
     values["RefPipeCrossLuna"] = f"{cross_pipes.overlap_model:.1f}"
@@ -885,8 +886,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         values[prefix + "ClaimsBias"] = f"{row.claims_bias:.1f}"
     ident = pd.read_csv(reports / f"identification_{model}.csv").set_index("label")
     for label, prefix in [
-        ("ICLR 2024–27", "IdIclr"),
-        ("ICLR 2024–27, LLM-written", "IdWritten"),
+        ("ICLR 2024–26", "IdIclr"),
         ("NeurIPS 2024–25", "IdNeurips"),
         ("ICML 2025–26", "IdIcml"),
         ("All journals 2024–26", "IdJournal"),
@@ -917,6 +917,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     steps = pd.read_csv(reports / f"decomposition_{model}.csv").set_index(["conf", "year"])
     step, step_base = steps.loc[("ICLR", settings.CONTRAST_YEARS[1])], steps.loc[("ICLR", settings.CONTRAST_YEARS[0])]
     values["DecIclrMix"] = f"{step.composition:.1f}"
+    values["DecIclrUnflagged"] = f"{step.within_unflagged:.1f}"
     values["DecIclrMixEarly"] = f"{step_base.composition:.1f}"
     values["DecIclrNoneBase"] = f"{step_base.overlap_HH:.1f}"
     values["DecIclrNoneLast"] = f"{step.overlap_HH:.1f}"

@@ -26,11 +26,10 @@ TRENDS = [
     ("PLOS, 2019--23 to 2026", "PLOS", PRE_PERIOD, 2026),
 ]
 GAPS = [
-    ("ICLR, two flagged", "ICLR", 2024, "flag"),
-    ("ICLR, two LLM-written", "ICLR", 2024, "written"),
-    ("NeurIPS, two flagged", "NeurIPS", 2024, "flag"),
-    ("ICML, two flagged", "ICML", 2025, "flag"),
-    ("Journals, two flagged", JOURNALS, 2024, "flag"),
+    ("ICLR, two flagged", "ICLR", settings.ICLR_GAP_YEARS, "flag"),
+    ("NeurIPS, two flagged", "NeurIPS", (2024, 2025), "flag"),
+    ("ICML, two flagged", "ICML", (2025, 2026), "flag"),
+    ("Journals, two flagged", JOURNALS, (2024, 2026), "flag"),
 ]
 MEASURES = {
     "hit": ("Overlap coef.", "points", 1),
@@ -148,12 +147,12 @@ def estimates(model):
         if counts.reindex([*base_years, last_year]).fillna(0).min() >= MIN_NOVELTY_PAPERS:
             fit = trend(venue_papers, base_years, last_year, "third")
             rows.append(dict(kind="trend", claim=claim, measure="novelty", **summarize(*fit, 2, -1)))
-    for claim, venue, first_year, label in tqdm(GAPS, desc="gaps"):
-        frame, specs = pair_specs(pairs[in_venue(pairs, venue) & (pairs.year >= first_year)])
+    for claim, venue, years, label in tqdm(GAPS, desc="gaps"):
+        frame, specs = pair_specs(pairs[in_venue(pairs, venue) & pairs.year.between(*years)])
         for name, (outcome, controls) in specs.items():
             fit = pair_gap(frame, labels[label], outcome, controls)
             rows.append(dict(kind="gap", claim=claim, measure=name, **summarize(*fit, MEASURES[name][2], 1)))
-        venue_reviews = reviews[in_venue(reviews, venue) & (reviews.year >= first_year)]
+        venue_reviews = reviews[in_venue(reviews, venue) & reviews.year.between(*years)]
         fit = review_gap(venue_reviews, labels[label])
         rows.append(dict(kind="gap", claim=claim, measure="novelty", **summarize(*fit, 2, -1)))
     return pd.DataFrame(rows)

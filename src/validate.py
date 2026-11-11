@@ -267,17 +267,31 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
             )
         )
 
+    def add_written(group, label, subset_pairs):
+        types = pair_type(subset_pairs, flag, written).to_numpy()
+        fit = type_fit(subset_pairs.assign(hit=subset_pairs.hit * 100), types, "hit")
+        rows.append(
+            dict(
+                group=group,
+                label=label,
+                est=fit.params["WW"],
+                se=fit.bse["WW"],
+                papers=subset_pairs.panel_id.nunique(),
+                identifying=subset_pairs[types == "WW"].panel_id.nunique(),
+            )
+        )
+
     pipe = "Pipeline"
     add(pipe, main, iclr, flag)
     add(pipe, "+ length and claim count", iclr.dropna(), flag, ("log_short", "log_long", "claims_short", "claims_long"))
     add(pipe, "99th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.99))
     add(pipe, "99.5th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.995))
-    add(pipe, f"LLM-written, {main}", iclr, written)
+    add_written(pipe, f"LLM-written, {main}", iclr)
     for label in list(cells)[2:]:
         add(pipe, label, cells[label], flag)
     for year, year_pairs in pd.concat([iclr, late]).groupby("year"):
         add("ICLR by year", f"ICLR {year}", year_pairs, flag)
-    add("ICLR by year", f"LLM-written, {late_label}", late, written)
+    add_written("ICLR by year", f"LLM-written, {late_label}", late)
     placebo = pd.read_csv(reports / f"detector_placebo_{model}.csv")
     for r in placebo.itertuples():
         rows.append(
@@ -426,7 +440,7 @@ def pair_type_sizes(
     meld = hub.meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
     pairs = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet"))
-    cell = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)].assign(hit=lambda d: d.hit * 100)
+    cell = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)].assign(hit=lambda d: d.hit * 100)
     types = pair_type(cell, flag, written).to_numpy()
     fits = {name: type_fit(cell, types, name) for name in PAIR_SIZE_OUTCOMES}
     fits["shared_adjusted"] = type_fit(cell, types, "shared", ("smaller", "larger"))
@@ -448,12 +462,18 @@ def pair_type_sizes(
 DETECTOR_QUANTILES = (0.99, 0.995, 0.999)
 
 
-def detector_row(label, quantile, flags, pairs, iclr_last):
+def detector_row(label, quantile, flags, pairs, iclr_last, flagged=None):
     pre = flags[flags.year <= settings.MELD_CALIBRATION_LAST_YEAR]
     flag = flags[~flags.index.duplicated()].flag.astype(int)
     counts = pair_counts(pairs, flag)
-    gap = fe_gap(pairs, flag)
-    varying = (counts.groupby(pairs.panel_id.to_numpy()).nunique() > 1).sum()
+    if flagged is None:
+        gap = fe_gap(pairs, flag)
+        varying = (counts.groupby(pairs.panel_id.to_numpy()).nunique() > 1).sum()
+    else:
+        types = pair_type(pairs, flagged[~flagged.index.duplicated()].flag.astype(int), flag)
+        fit = type_fit(pairs.assign(hit=pairs.hit * 100), types.to_numpy(), "hit")
+        gap = dict(two=fit.params["WW"], two_se=fit.bse["WW"])
+        varying = (types.groupby(pairs.panel_id.to_numpy()).nunique() > 1).sum()
     last = flag.reindex(iclr_last)
     return dict(
         label=label,
@@ -502,8 +522,8 @@ def detector_choices(
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
-    pairs = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)]
-    iclr_last = meld[(meld.conf == "ICLR") & (meld.year == pairs.year.max())].index
+    pairs = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)]
+    iclr_last = meld[(meld.conf == "ICLR") & (meld.year == settings.ICLR_LAST)].index
     iclr_last = iclr_last[~iclr_last.isin(excluded_review_ids())]
     calibration = meld[meld.year <= settings.MELD_CALIBRATION_LAST_YEAR].score
     rows = []
@@ -511,7 +531,7 @@ def detector_choices(
         flagged = meld.assign(flag=meld.score > calibration.quantile(quantile))
         written = flagged.assign(flag=flagged.flag & (flagged.task == settings.MELD_WRITTEN_TASK))
         rows.append(detector_row("Flagged", quantile, flagged, pairs, iclr_last))
-        rows.append(detector_row("LLM-written", quantile, written, pairs, iclr_last))
+        rows.append(detector_row("LLM-written", quantile, written, pairs, iclr_last, flagged))
     out = pd.DataFrame(rows).sort_values(["label", "percentile"], key=lambda s: s.eq("LLM-written") if s.name == "label" else s)
     out.to_csv(Path(reports) / f"detector_choices_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
@@ -623,19 +643,17 @@ def identification(
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "identification.tex",
 ):
-    meld = hub.meld_flags()
-    flag, written = meld.flag.astype(int), meld.written.astype(int)
+    flag = hub.meld_flags().flag.astype(int)
     pairs = in_window(
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
-    iclr = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024)]
+    iclr = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)]
     journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= 2024)]
     cells = [
-        ("ICLR 2024–27", iclr, flag),
-        ("ICLR 2024–27, LLM-written", iclr, written),
+        ("ICLR 2024–26", iclr, flag),
         ("NeurIPS 2024–25", pairs[(pairs.conf == "NeurIPS") & (pairs.year >= 2024)], flag),
         ("ICML 2025–26", pairs[pairs.conf == "ICML"], flag),
-        *[(f"{source} 2024–26", cell, flag) for source, cell in journals.groupby("conf")],
+        *[(f"{source} {cell.year.min()}–{cell.year.max() % 100}", cell, flag) for source, cell in journals.groupby("conf")],
         ("All journals 2024–26", journals, flag),
     ]
     out = pd.DataFrame([identification_row(label, cell, f) for label, cell, f in cells])

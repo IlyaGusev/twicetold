@@ -116,6 +116,7 @@ class Settings(BaseSettings):
     ICLR_LAST: int = 2027
     ML_SOURCES: list[str] = ["ICLR", "NeurIPS"]
     ML_VENUES: list[str] = ["ICLR", "NeurIPS", "ICML"]
+    ICLR_GAP_YEARS: tuple[int, int] = (2024, 2026)
     GAP_CELLS: dict[str, tuple[str, int, int]] = {
         "ICLR 2024–26": ("ICLR", 2024, 2026),
         "ICLR 2027": ("ICLR", 2027, 2027),
