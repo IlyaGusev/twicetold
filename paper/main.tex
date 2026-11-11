@@ -27,7 +27,7 @@
 \maketitle
 
 \begin{abstract}
-Peer review relies on several readers finding different problems. We measure critique overlap in 294k conference reviews and 99k journal reports. At ICLR, measured overlap rose from \IclrRecentBase\% in 2025 to \IclrRecentLast\% in 2026, with year-on-year rises at NeurIPS and ICML. We apply MELD, a detector of LLM-generated text, to all reviews. Within a paper, two MELD-flagged reviews overlap more than two unflagged reviews: by \FlagGap{} points at ICLR in 2024--2026, by \FlagGapTwentySeven{} points at ICLR in 2027 and by \JournalGap{} points across five journal sources. Two reviews labeled LLM-written overlap \WrittenGap{} points more than two without that label at ICLR in 2024--2026 and \WrittenGapLate{} points more in 2027. Clarity critiques fell from \ClarityBase\% to \ClarityLast\% while requests for more experiments rose. These results provide evidence that LLM-flagged reviews of one paper are less distinct from each other than unflagged reviews, and suggest that the diversity of critiques among reviews of a single paper is falling: a three-review ICLR panel lost \CovLostLast{} problems to repetition in 2026, against \CovLostEarlierMin{} to \CovLostEarlierMax{} in 2020--2025.
+Peer review relies on several readers finding different problems. We measure critique overlap in 294k conference reviews and 99k journal reports. At ICLR, measured overlap rose from \IclrRecentBase\% in 2025 to \IclrRecentLast\% in 2026, with year-on-year rises at NeurIPS and ICML. We apply MELD, a detector of LLM-generated text, to all reviews. Within a paper, two MELD-flagged reviews overlap more than two unflagged reviews: by \FlagGap{} points at ICLR in 2024--2026, by \FlagGapTwentySeven{} points at ICLR in 2027 and by \JournalGap{} points across five journal sources. Two reviews labeled LLM-written overlap \WrittenGap{} points more than two without that label at ICLR in 2024--2026 and \WrittenGapLate{} points more in 2027. Clarity critiques fell from \ClarityBase\% to \ClarityLast\% while requests for more experiments rose. These results provide evidence that LLM-flagged reviews of one paper are less distinct from each other than unflagged reviews, and suggest that the diversity of critiques among reviews of a single paper is falling.
 \end{abstract}
 
 \begin{figure}[t]
@@ -133,7 +133,7 @@ Clarity critiques fell from \ClarityBase\% of ICLR claims in 2020--2022 to \Clar
 \begin{figure}[t]
 \centering
 \includegraphics{figs/fig3_categories.pdf}
-\caption{Clarity and typo critiques fell while requests for more experiments rose. Share of ICLR claims by category: mean of yearly shares for 2020--2022 (open) against 2026 (filled). Right: change in percentage points. Sample: ICLR papers in Table~\ref{tab:data}. Shares exclude the ``other'' category. 95\% intervals, clustered by paper, are narrower than the markers (at most $\pm$\CategoryMaxInterval{} points).}
+\caption{Clarity and typo critiques fell while requests for more experiments rose. Share of ICLR claims by category: mean of yearly shares for 2020--2022 (open) against 2026 (filled). Right: change in percentage points. Sample: ICLR papers in Table~\ref{tab:data}.}
 \label{fig:categories}
 \end{figure}
 
@@ -171,7 +171,7 @@ Against the 2019--2023 mean, journal overlap rose most at F1000 ($+\FResearchCha
 \label{app:data}
 
 \paragraph{Sampling and dates.}
-OpenReview and journal collection took place on 27--29 October 2026, with more journal papers on 6 November 2026. ICLR 2027 reviews come from 7 November 2026, the day they became public, before author responses and decisions. The journal year 2026 covers January--October. BMC Medicine ends in 2025. We sampled all ICLR (2020--2026) and NeurIPS (2021--2025) papers with at least three reviews, 10,000 random ICLR 2027 papers, all ICML accepted papers in 2025 and 2026, and up to 2,000 papers per journal source-year with at least two first-round reports. Withdrawn and desk-rejected papers do not enter the main sample. Tables~\ref{tab:byyear} and~\ref{tab:byyear2} give each source-year.
+OpenReview and journal collection took place on 27--29 October 2026, with more journal papers on 6 November 2026. ICLR 2027 reviews come from 7 November 2026, the day they became public, before author responses and decisions. The journal year 2026 covers January--October. BMC Medicine ends in 2025. We sampled all ICLR (2020--2026) and NeurIPS (2021--2025) papers with at least three reviews, 10,000 random ICLR 2027 papers, all ICML accepted papers in 2025 and 2026, and up to 2,000 papers per journal source-year with at least two first-round reports. Withdrawn and desk-rejected papers do not enter the main sample. Table~\ref{tab:byyear} gives each source-year.
 
 \paragraph{Journals.}
 SciPost reports come from its API. We obtain F1000Research, Wellcome Open Research, Open Research Europe and PLOS reports from Europe PMC, BMC Medicine reports from \citet{jerma2026bmc}, and Copernicus/EGU reports from journal discussion pages. We retain first-round referee reports, exclude author replies and editor notes, and cap papers at five reports.
@@ -183,18 +183,10 @@ ICML changed its form between 2025 and 2026 and also changed its LLM policy \cit
 Both passes use \texttt{gpt-6-luna} through OpenRouter with strict JSON-schema output and high reasoning effort. Journal prompts use the generic rather than the ML paper type. Each call gets four attempts, and a schema violation counts as a failure. \ReproPassOneErrorRows{} reviews failed all four attempts, and we exclude the panels that contain them. Saved requests record API model names and settings. We release the code,\footnote{\url{https://github.com/IlyaGusev/twicetold}} all collected reviews,\footnote{\url{https://huggingface.co/datasets/IlyaGusev/twicetold}} paper metadata, extracted claims, problem groups and per-review MELD scores. Journal reports retain their CC~BY or CC0 terms. All texts were public before collection.
 
 \begin{table}[H]
-\centering\small
-\input{tables/by_year_ml}
-\caption{Conference source-years. Claims: claims per review. Overlap: mean overlap coefficient across papers, with SE. Flagged: share of reviews (\%) above the MELD threshold. Written: share (\%) flagged and labeled as generated.}
+\centering\footnotesize
+\input{tables/by_year}
+\caption{Source-years of conferences and journals. Claims: claims per review. Overlap: mean overlap coefficient across papers, with SE. Flagged: share of reviews (\%) above the MELD threshold. Written: share (\%) flagged and labeled as generated.}
 \label{tab:byyear}
-\end{table}
-
-
-\begin{table}[H]
-\centering\small
-\input{tables/by_year_journals}
-\caption{Journal source-years. Claims: claims per report. Overlap: mean overlap coefficient across papers, with SE. Flagged: share of reports (\%) above the MELD threshold. Written: share (\%) flagged and labeled as generated.}
-\label{tab:byyear2}
 \end{table}
 
 

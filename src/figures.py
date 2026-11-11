@@ -631,9 +631,7 @@ def table(csv=None, tables=settings.TABLES_DIR, model=settings.DEFAULT_MODEL):
     rows = by_year(model)
     rows.to_csv(csv or settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv", index=False)
     print(rows.round(2).to_string(index=False))
-    is_ml = rows.conf.isin(settings.ML_VENUES)
-    Path(tables, "by_year_ml.tex").write_text(latex(rows[is_ml]))
-    Path(tables, "by_year_journals.tex").write_text(latex(rows[~is_ml]))
+    Path(tables, "by_year.tex").write_text(latex(rows))
     lines = [r"\begin{tabular}{llrr}", r"\toprule", r"Source & Years & Papers & Reviews \\", r"\midrule"]
     for conf, source in rows.groupby("conf", observed=True):
         years = f"{source.year.min()}--{source.year.max() % 100:02d}"
