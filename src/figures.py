@@ -182,20 +182,19 @@ def rates(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     by_source = flags.groupby(["conf", "year"]).flag.agg(["mean", "size"]).reset_index()
     by_source["match"] = by_source["mean"] * 100
     by_source["match_se"] = np.sqrt(by_source["mean"] * (1 - by_source["mean"]) / by_source["size"]) * 100
-    fig, (top, bottom) = plt.subplots(2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.1, 3.1))
-    fig.subplots_adjust(left=0.13, right=0.76, top=0.93, bottom=0.11, hspace=0.42)
+    fig, (top, bottom) = plt.subplots(1, 2, sharex=True, figsize=(PAGE_WIDTH - 0.1, 2.3))
+    fig.subplots_adjust(left=0.07, right=0.88, top=0.9, bottom=0.18, wspace=0.48)
     for ax, styles, title in [(top, CONFERENCE_STYLES, "a  ML conferences"), (bottom, JOURNAL_STYLES, "b  Journals")]:
         shade_chatgpt_period(ax)
         overlap_panel(ax, by_source, styles, settings.ICLR_LAST + 0.65, 10)
+        ax.set_xlabel("Review year")
         ax.set_ylim(-2, 70)
         ax.set_yticks([0, 20, 40, 60])
         ax.set_ylabel("LLM-flagged (%)")
         ax.set_title(title, fontweight="bold")
     bottom.set_xlim(2018.6, CHATGPT_BAND[1])
     bottom.set_xticks(range(2019, settings.ICLR_LAST + 1), [f"'{year % 100}" for year in range(2019, settings.ICLR_LAST + 1)])
-    top.tick_params(labelbottom=True)
-    bottom.set_xlabel("Review year")
-    save(fig, figs, "figA_rates.pdf", COLUMN_WIDTH)
+    save(fig, figs, "figA_rates.pdf", PAGE_WIDTH)
 
 
 PAIR_TYPE_STYLES = {
@@ -392,9 +391,9 @@ def category_shifts(model):
 def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     shift = category_shifts(model)
     fig, (levels, changes) = plt.subplots(
-        1, 2, sharey=True, figsize=(COLUMN_WIDTH - 0.2, 2.8), gridspec_kw=dict(width_ratios=[1.3, 1], wspace=0.1)
+        1, 2, sharey=True, figsize=(PAGE_WIDTH - 0.2, 2.8), gridspec_kw=dict(width_ratios=[1.3, 1], wspace=0.1)
     )
-    fig.subplots_adjust(left=0.37, right=0.97, top=0.93, bottom=0.12)
+    fig.subplots_adjust(left=0.19, right=0.98, top=0.93, bottom=0.14)
     y = np.arange(len(shift))
     levels.hlines(y, shift.pre, shift.post, color=COLORS["light"], lw=1.4, zorder=1)
     levels.plot(shift.post, y, "o", ms=3, color=COLORS["ink"], zorder=2)
@@ -430,7 +429,7 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     levels.tick_params(axis="y", length=0, pad=2)
     levels.spines["left"].set_visible(False)
     levels.set_ylim(-0.7, len(shift) - 0.3)
-    save(fig, figs, "fig3_categories.pdf", COLUMN_WIDTH)
+    save(fig, figs, "fig3_categories.pdf", PAGE_WIDTH)
 
 
 def journal_change(by_year, conf):
@@ -539,7 +538,9 @@ def calibrate_embedding(cells):
 def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     embed = calibrate_embedding(in_window(pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"embed_{model}.csv")))
     embed.to_csv(settings.ANALYSIS_REPORTS_DIR / f"embed_calibrated_{model}.csv", index=False)
-    fig, axes = plt.subplots(1, 2, sharey=True, figsize=(4.9, 2.2), gridspec_kw=dict(width_ratios=[8, 5], wspace=0.12))
+    fig, axes = plt.subplots(
+        1, 2, sharey=True, figsize=(PAGE_WIDTH - 0.1, 2.3), gridspec_kw=dict(width_ratios=[8, 5], wspace=0.12)
+    )
     fig.subplots_adjust(left=0.12, right=0.98, top=0.9, bottom=0.12)
     for ax, conf, letter in zip(axes, ["ICLR", "NeurIPS"], "ab"):
         rows = embed[embed.conf == conf].set_index("year")
@@ -604,6 +605,32 @@ def tex_number(v):
     return "--" if pd.isna(v) else f"{v:.1f}"
 
 
+JOURNAL_PERIODS = ((2019, 2023), (2024, 2026))
+
+
+def journal_periods(rows):
+    out = []
+    for conf, source in rows[~rows.conf.isin(settings.ML_VENUES)].groupby("conf", observed=True):
+        for first, last in JOURNAL_PERIODS:
+            cell = source[source.year.between(first, last)]
+            by_reviews = cell.reviews / cell.reviews.sum()
+            by_papers = cell.papers / cell.papers.sum()
+            out.append(
+                dict(
+                    conf=conf,
+                    year=f"{first}--{cell.year.max() % 100}",
+                    papers=cell.papers.sum(),
+                    reviews=cell.reviews.sum(),
+                    claims_per_review=(cell.claims_per_review * by_reviews).sum(),
+                    match=(cell.match * by_papers).sum(),
+                    match_se=np.sqrt(((cell.match_se * by_papers) ** 2).sum()),
+                    ai_flagged=(cell.ai_flagged * by_reviews).sum(),
+                    ai_written=(cell.ai_written * by_reviews).sum(),
+                )
+            )
+    return pd.DataFrame(out).assign(conf=lambda d: pd.Categorical(d.conf, ORDER))
+
+
 def latex(rows):
     lines = [
         r"\begin{tabular}{llrrrrrr}",
@@ -634,7 +661,7 @@ def table(csv=None, tables=settings.TABLES_DIR, model=settings.DEFAULT_MODEL):
     rows = by_year(model)
     rows.to_csv(csv or settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv", index=False)
     print(rows.round(2).to_string(index=False))
-    Path(tables, "by_year.tex").write_text(latex(rows))
+    Path(tables, "by_year.tex").write_text(latex(pd.concat([rows[rows.conf.isin(settings.ML_VENUES)], journal_periods(rows)])))
     lines = [r"\begin{tabular}{llrr}", r"\toprule", r"Source & Years & Papers & Reviews \\", r"\midrule"]
     for conf, source in rows.groupby("conf", observed=True):
         years = f"{source.year.min()}--{source.year.max() % 100:02d}"
@@ -698,6 +725,14 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         row = evidence.loc[label]
         record(prefix, row.est, row.se, row.papers)
         values[prefix + "Ident"] = f"{int(row.identifying):,}"
+    for label, name in [
+        ("99th-percentile threshold, ICLR", "ThresholdLowGap"),
+        ("99.5th-percentile threshold, ICLR", "ThresholdMidGap"),
+        ("Top-45% scores, ICLR 2020", "PlaceboFirstGap"),
+        ("Top-45% scores, ICLR 2021-2022", "PlaceboMidGap"),
+        ("Top-45% scores, ICLR 2023", "PlaceboLastGap"),
+    ]:
+        record(name, evidence.loc[label].est, evidence.loc[label].se)
     gaps = pd.read_csv(reports / f"journal_gaps_{model}.csv").set_index("source")
     for source, prefix in JOURNAL_PREFIX.items():
         row = gaps.loc[source]
@@ -739,7 +774,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         )
         record(prefix, sample.mean(), sample.sem(), len(sample))
     embed = calibrate_embedding(pd.read_csv(reports / f"embed_{model}.csv")).set_index(["conf", "year"])
-    for year, suffix in [(2020, "Base"), (2023, "Mid"), (settings.ICLR_LAST, "Last")]:
+    for year, suffix in [(2020, "Base"), (2023, "Mid"), (settings.ICLR_LAST - 1, "Prev"), (settings.ICLR_LAST, "Last")]:
         row = embed.loc[("ICLR", year)]
         record("EmbedSame" + suffix, row.intra, row.intra_se, row.papers, digits=2)
         record("EmbedArea" + suffix, row.inter_area, digits=2)
@@ -860,8 +895,12 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         values[prefix + "Varying"] = f"{int(row.varying):,}"
         values[prefix + "TwoReports"] = f"{int(row.reports_2):,}"
         record(prefix + "Direct", row.endpoint, row.endpoint_se, row.endpoint_papers)
+        values[prefix + "Fe"] = f"{row.two:.1f}"
         values[prefix + "DirectLow"] = f"{row.endpoint_low:.1f}"
         values[prefix + "DirectHigh"] = f"{row.endpoint_high:.1f}"
+    recent = pd.read_csv(reports / f"robust_{model}.csv").query("base_year == @settings.CONTRAST_YEARS[0]")
+    values["RobustMin"] = f"{recent.change.min():.1f}"
+    values["RobustMax"] = f"{recent.change.max():.1f}"
     sizes = pd.read_csv(reports / f"pair_type_sizes_{model}.csv").set_index("pair_type")
     for pair_type, row in sizes.iterrows():
         prefix = "Size" + pair_type.title()
@@ -950,6 +989,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         row = labels.loc[known]
         values[prefix + "Texts"] = f"{int(row.texts):,}"
         record(prefix + "Flagged", 100 - row.unflagged, digits=digits)
+        record(prefix + "Unflagged", row.unflagged, digits=digits)
         record(prefix + "Written", row.written, digits=digits)
         record(prefix + "WrittenOfFlagged", 100 * row.written / (100 - row.unflagged), digits=0)
     repro = pd.read_csv(reports / f"repro_{model}.csv").set_index("name").value

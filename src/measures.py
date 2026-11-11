@@ -162,7 +162,7 @@ def estimates(model):
 def cell(row):
     if row is None:
         return "--"
-    text = f"{row.est:+.{row.digits}f} ({row.se:.{row.digits}f})"
+    text = f"{row.est:+.{row.digits}f}"
     return text if row.agrees else text + r"$^\dagger$"
 
 
@@ -177,7 +177,7 @@ def latex(out):
         rf" & {units} \\",
     ]
     for kind, title in [("trend", "Change over time"), ("gap", "Within-paper gap against unlabeled pairs or reviews")]:
-        lines += [r"\midrule", rf"\multicolumn{{{len(names) + 1}}}{{@{{}}l}}{{\emph{{{title}}}}} \\"]
+        lines += [r"\midrule", rf"\multicolumn{{{len(names) + 1}}}{{@{{}}l}}{{\textbf{{{title}}}}} \\"]
         for claim, rows in out[out.kind == kind].groupby("claim", sort=False):
             by_measure = {r.measure: r for r in rows.itertuples()}
             lines.append(claim + " & " + " & ".join(cell(by_measure.get(m)) for m in names) + r" \\")

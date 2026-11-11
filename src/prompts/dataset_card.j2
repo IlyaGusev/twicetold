@@ -127,7 +127,7 @@ without the clarity field. Columns: `variant`, `review_id` (with the variant pre
 |---|---|
 | `final/` | The four configs above: `reviews`, `papers`, `panels`, `variants`. The paper's analysis reads only this folder, `gold/` and `additional/` |
 | `gold/` | Reference annotations of the extraction and grouping checks, and the two external human benchmarks |
-| `additional/` | Side experiments: the rewrite test, LLM reviews of arXiv papers, the known-origin texts of the detector checks, and `text-embedding-3-small` vectors of the first 12,000 characters of each `main` sample review, in `sample_row` order |
+| `additional/` | Side experiments: the rewrite test, LLM reviews of arXiv papers, the known-origin texts of the detector checks, and Gemini Embedding 2 vectors (1,536 dimensions) of the first 20,000 characters of each `main` sample review, in `sample_row` order |
 | `raw/` | Inputs of the corpus build: OpenReview API dumps of ICML 2025 and 2026 accepted papers and all ICLR 2027 submissions, predicted research areas, journal fetch statistics, the panel files and the MELD scores of all scored texts |
 
 `python src/release.py pull` copies `final/`, `gold/` and `additional/` into `data/`; `--raw` adds `raw/`.

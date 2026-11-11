@@ -8,6 +8,7 @@ import pandas as pd
 from openai import APIError, BadRequestError, OpenAI, RateLimitError
 from tqdm import tqdm
 
+import extract
 import hub
 from outcomes import main_sample_review_ids
 from settings import settings
@@ -16,16 +17,17 @@ AREA_PAIRS = 300
 CELL_PAIRS = 3000
 EMBED_ATTEMPTS = 40
 EMBED_MAX_BACKOFF_S = 30
-REVIEW_EMBED_CHARS = 12000
+REVIEW_EMBED_CHARS = 20000
+REVIEW_EMBED_SLICE = 20000
 
 
-def openai_embed(texts, model, batch, threads, desc, client=None):
+def openai_embed(texts, model, batch, threads, desc, client=None, **options):
     client = client or OpenAI(api_key=settings.OPENAI_API_KEY, max_retries=2)
 
     def embed_chunk(chunk):
         for attempt in range(EMBED_ATTEMPTS):
             try:
-                response = client.embeddings.create(model=model, input=chunk)
+                response = client.embeddings.create(model=model, input=chunk, **options)
                 return np.array([item.embedding for item in response.data], dtype=np.float32)
             except BadRequestError:
                 chunk = [t[: len(t) // 2] for t in chunk]
@@ -72,14 +74,22 @@ def normalize_rows(X):
 def embed_reviews(data, threads, reembed):
     path = data / "review_emb.npy"
     R = hub.sample("main", ["review_id", "text"])
-    old = None if reembed or not path.exists() else np.load(path)
-    start = 0 if old is None else len(old)
-    if start == len(R):
-        return
-    texts = [t[:REVIEW_EMBED_CHARS] for t in R.text.iloc[start:].fillna("")]
-    E = openai_embed(texts, settings.EMBED_MODEL, batch=64, threads=threads, desc="embed reviews")
-    np.save(path, E if old is None else np.concatenate([old, E]))
-    print("embedded", len(texts), "from row", start)
+    done = None if reembed or not path.exists() else np.load(path)
+    client = extract.openrouter_client()
+    while done is None or len(done) < len(R):
+        start = 0 if done is None else len(done)
+        texts = [t[:REVIEW_EMBED_CHARS] for t in R.text.iloc[start : start + REVIEW_EMBED_SLICE].fillna("")]
+        E = openai_embed(
+            texts,
+            settings.REVIEW_EMBED_MODEL,
+            batch=64,
+            threads=threads,
+            desc=f"embed reviews from {start}",
+            client=client,
+            dimensions=settings.REVIEW_EMBED_DIMENSIONS,
+        )
+        done = E if done is None else np.concatenate([done, E])
+        np.save(path, done)
 
 
 def load_reviews(data):

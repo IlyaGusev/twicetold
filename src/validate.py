@@ -1070,6 +1070,30 @@ def claim_vectors(claims):
     return lambda cl: vectors[[index[c["claim"]] for c in cl]]
 
 
+EXTRACTION_COLUMNS = [
+    ("claims_model", "Claims|Luna", 1, False),
+    ("claims_council", "Claims|council", 1, False),
+    ("f1_model", "Span F1|Luna", 1, True),
+    ("f1_council", "Span F1|council", 1, True),
+    ("precision_pooled", r"Prec.|pooled", 1, True),
+    ("recall_unanimous", r"Rec.|unanimous", 1, True),
+    ("cover_recall_model", r"Cov.\ rec.|Luna", 1, True),
+    ("cover_precision_model", r"Cov.\ prec.|Luna", 1, True),
+    ("cover_council", r"Cov.|council", 1, True),
+]
+
+
+def extraction_table(out, tex):
+    whole = (out.years == "all") & ((out.kind == "same") | ((out.conf == "all") & (out.stratum == "all")))
+    write_cell_table(out[whole], tex, EXTRACTION_COLUMNS)
+
+
+def extraction_table_from_report(
+    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "extraction.tex"
+):
+    extraction_table(pd.read_csv(Path(reports) / f"extraction_{model}.csv"), tex)
+
+
 def extraction(
     model=settings.DEFAULT_MODEL,
     gold=settings.GOLD_DIR,
@@ -1112,18 +1136,7 @@ def extraction(
     out = pd.DataFrame(summary)
     out.round(3).to_csv(Path(reports) / f"extraction_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    columns = [
-        ("claims_model", "Claims|Luna", 1, False),
-        ("claims_council", "Claims|council", 1, False),
-        ("f1_model", "Span F1|Luna", 1, True),
-        ("f1_council", "Span F1|council", 1, True),
-        ("precision_pooled", r"Prec.|pooled", 1, True),
-        ("recall_unanimous", r"Rec.|unanimous", 1, True),
-        ("cover_recall_model", r"Cov.\ rec.|Luna", 1, True),
-        ("cover_precision_model", r"Cov.\ prec.|Luna", 1, True),
-        ("cover_council", r"Cov.|council", 1, True),
-    ]
-    write_cell_table(out, tex, columns)
+    extraction_table(out, tex)
 
 
 def panel_overlap(panel, claims, clusters):
@@ -1432,6 +1445,7 @@ if __name__ == "__main__":
             "rq1_evidence": rq1_evidence,
             "journal_gaps": journal_gaps,
             "extraction": extraction,
+            "extraction_table": extraction_table_from_report,
             "council_agreement": council_agreement,
             "pipelines": pipelines,
             "identification": identification,

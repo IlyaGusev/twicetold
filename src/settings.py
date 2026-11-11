@@ -145,6 +145,8 @@ class Settings(BaseSettings):
 
     EMBED_MODEL: str = "text-embedding-3-small"
     CLAIM_EMBED_MODEL: str = "google/gemini-embedding-2"
+    REVIEW_EMBED_MODEL: str = "google/gemini-embedding-2"
+    REVIEW_EMBED_DIMENSIONS: int = 1536
     MELD_REPO: str = "anon-review-meld-2026/meld"
     MELD_REVISION: str = "ddfc9c789b8c8d0f92d3774265316d418c96dc67"
     MELD_FLAG_QUANTILE: float = 0.999
