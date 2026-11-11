@@ -234,30 +234,43 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
     design = pair_design(model)
     claim_counts = pd.read_parquet(data / f"claims_table_{model}.parquet", columns=["review_id"]).groupby("review_id").size()
     design["claims_short"], design["claims_long"] = short_long_logs(claim_counts, design)
-    iclr = design[(design.conf == "ICLR") & (design.year >= 2024)]
+    cells = gap_cells(design)
+    (main, iclr), (late_label, late) = list(cells.items())[:2]
     rows = []
 
-    def add(group, label, est, err, papers):
-        rows.append(dict(group=group, label=label, est=est, se=err, papers=papers))
+    def add(group, label, subset_pairs, pair_flags, controls=()):
+        gap = fe_gap(subset_pairs, pair_flags, controls)
+        n_flagged = pair_flags.reindex(subset_pairs.a).to_numpy() + pair_flags.reindex(subset_pairs.b).to_numpy()
+        varying = pd.Series(n_flagged).groupby(subset_pairs.panel_id.to_numpy()).nunique().gt(1).sum()
+        rows.append(
+            dict(
+                group=group,
+                label=label,
+                est=gap["two"],
+                se=gap["two_se"],
+                papers=subset_pairs.panel_id.nunique(),
+                identifying=varying,
+            )
+        )
 
     pipe = "Pipeline"
-    for label, subset_pairs, pair_flags, controls in [
-        ("ICLR 2024–27", iclr, flag, ()),
-        ("+ length and claim count", iclr.dropna(), flag, ("log_short", "log_long", "claims_short", "claims_long")),
-        ("NeurIPS 2024–25", design[(design.conf == "NeurIPS") & (design.year >= 2024)], flag, ()),
-        ("ICML 2025–26", design[design.conf == "ICML"], flag, ()),
-        ("LLM-written, ICLR", iclr, written, ()),
-        ("99th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.99), ()),
-        ("99.5th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.995), ()),
-    ]:
-        gap = fe_gap(subset_pairs, pair_flags, controls)
-        add(pipe, label, gap["two"], gap["two_se"], subset_pairs.panel_id.nunique())
-    for year, year_pairs in iclr.groupby("year"):
-        gap = fe_gap(year_pairs, flag)
-        add("ICLR by year", f"ICLR {year}", gap["two"], gap["two_se"], year_pairs.panel_id.nunique())
+    add(pipe, main, iclr, flag)
+    add(pipe, "+ length and claim count", iclr.dropna(), flag, ("log_short", "log_long", "claims_short", "claims_long"))
+    add(pipe, "99th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.99))
+    add(pipe, "99.5th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.995))
+    add(pipe, f"LLM-written, {main}", iclr, written)
+    for label in list(cells)[2:]:
+        add(pipe, label, cells[label], flag)
+    for year, year_pairs in pd.concat([iclr, late]).groupby("year"):
+        add("ICLR by year", f"ICLR {year}", year_pairs, flag)
+    add("ICLR by year", f"LLM-written, {late_label}", late, written)
     placebo = pd.read_csv(reports / f"detector_placebo_{model}.csv")
     for r in placebo.itertuples():
-        add("Placebo before ChatGPT", f"Top-45% scores, ICLR {r.period}", r.two, r.two_se, r.papers)
+        rows.append(
+            dict(
+                group="Placebo before ChatGPT", label=f"Top-45% scores, ICLR {r.period}", est=r.two, se=r.two_se, papers=r.papers
+            )
+        )
     out = pd.DataFrame(rows)
     out.to_csv(reports / f"rq1_evidence_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
@@ -322,9 +335,11 @@ def pair_type(pairs, flag, written):
     return pair_counts(pairs, flag).map({0: "HH", 1: "HL", 2: "LL"}).where(pair_counts(pairs, written) < 2, "WW")
 
 
-def venue_pairs(pairs):
-    window = pairs[pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= 2024)]
-    return list(window.groupby("conf"))
+def gap_cells(pairs):
+    return {
+        label: pairs[(pairs.conf == conf) & pairs.year.between(first, last)]
+        for label, (conf, first, last) in settings.GAP_CELLS.items()
+    }
 
 
 def pair_types(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
@@ -334,7 +349,7 @@ def pair_types(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=set
         pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
     rows = []
-    for conf, cell in venue_pairs(pairs):
+    for conf, cell in gap_cells(pairs).items():
         types = pair_type(cell, flag, written).to_numpy()
         X = pd.DataFrame({t: (types == t) * 1.0 for t in PAIR_TYPES} | {"hit": cell.hit.to_numpy() * 100}, index=cell.index)
         X = X - X.groupby(cell.panel_id.to_numpy()).transform("mean")
@@ -588,54 +603,43 @@ def identification(
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
-def coverage_panel(panel, claims):
-    df = assign(panel, claims)
-    n = len(panel["review_ids"])
-    groups = review_groups([], [], n) if df.empty else review_groups(df.review, df.cluster, n)
-    union = set().union(*groups)
-    new = [len(g - set().union(*(h for j, h in enumerate(groups) if j != i))) for i, g in enumerate(groups)]
-    shared = [len(a & b) for a, b in combinations(groups, 2)]
-    return dict(
-        problems=len(union),
-        per_review=np.mean([len(g) for g in groups]),
-        new_by_third=np.mean(new),
-        shared_per_pair=np.mean(shared),
-        overlap=mean_overlap(groups),
-    )
-
-
-def coverage(
-    model=settings.DEFAULT_MODEL,
-    data=settings.WORK_DIR,
-    reports=settings.ANALYSIS_REPORTS_DIR,
-    tex=settings.TABLES_DIR / "coverage.tex",
-):
-    data = Path(data)
-    sub3 = pd.read_parquet(settings.ANALYSIS_DIR / f"sub3_outcomes_{model}.parquet").query(
-        f"conf == 'ICLR' and year >= {settings.ICLR_FROM}"
-    )
-    clusters = hub.clusters(model, panel_ids=sub3.panel_id)
-    claims = hub.panel_claims(model, clusters)
-    panels = pd.DataFrame(
-        [dict(year=p.year, **coverage_panel(clusters[p.panel_id], claims)) for p in tqdm(sub3.itertuples(), total=len(sub3))]
-    )
-    cols = ["problems", "per_review", "new_by_third", "shared_per_pair", "overlap"]
+def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "coverage.tex"):
+    reviews = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"review_groups_{model}.parquet"))
+    rows = []
+    for (year, _), panel in tqdm(reviews[reviews.conf == "ICLR"].groupby(["year", "panel_id"], sort=False)):
+        groups = [set(g) for g in panel.groups]
+        if len(groups) < 3:
+            continue
+        trios = list(combinations(groups, 3))
+        rows.append(
+            dict(
+                year=year,
+                problems=np.mean([len(a | b | c) for a, b, c in trios]),
+                per_review=np.mean([len(g) for g in groups]),
+                new_by_third=np.mean([len(t[i] - t[i - 1] - t[i - 2]) for t in trios for i in range(3)]),
+                shared_per_pair=np.mean([len(a & b) for a, b in combinations(groups, 2)]),
+            )
+        )
+    panels = pd.DataFrame(rows)
+    panels["lost"] = 3 * panels.per_review - panels.problems
+    panels["lost_share"] = 100 * panels.lost / (3 * panels.per_review)
+    cols = ["per_review", "problems", "lost", "lost_share", "new_by_third", "shared_per_pair"]
     by_year = panels.groupby("year")[cols]
     out = pd.concat([by_year.mean(), by_year.sem().add_suffix("_se")], axis=1)
-    out[["overlap", "overlap_se"]] *= 100
     out.insert(0, "papers", panels.groupby("year").size())
     out = out.reset_index()
     out.round(3).to_csv(Path(reports) / f"coverage_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     lines = [
-        r"\begin{tabular}{lrrrrrr}",
+        r"\begin{tabular}{@{}lrrrrrrr@{}}",
         r"\toprule",
-        r"Year & Papers & Distinct problems & Problems per review & New from a third review & Shared per pair & Overlap (\%) \\",
+        r"Year & Papers & Problems & Distinct & Lost to & Lost & New from & Shared \\",
+        r" & & per review & problems & repetition & (\%) & a third review & per pair \\",
         r"\midrule",
     ]
     for r in out.itertuples():
         cells = " & ".join(
-            f"{getattr(r, c):.{1 if c == 'overlap' else 2}f} ({getattr(r, c + '_se'):.{1 if c == 'overlap' else 2}f})"
+            f"{getattr(r, c):.{1 if c == 'lost_share' else 2}f} ({getattr(r, c + '_se'):.{1 if c == 'lost_share' else 2}f})"
             for c in cols
         )
         lines.append(f"{r.year} & {r.papers:,} & {cells} \\\\")

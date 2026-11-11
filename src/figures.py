@@ -83,6 +83,12 @@ SHORT = {
     "Top-45% scores, ICLR 2021-2022": "ICLR 2021–22",
     "Top-45% scores, ICLR 2023": "ICLR 2023",
 }
+GAP_PREFIX = dict(zip(settings.GAP_CELLS, ["Iclr", "IclrLate", "Neurips", "Icml"], strict=True))
+CHECK_GROUPS = {
+    "Pipeline": "Main estimate and variants",
+    "ICLR by year": "ICLR by year",
+    "Placebo before ChatGPT": "Before ChatGPT, top 45% of scores",
+}
 CATEGORY_NAMES = {
     "clarity/presentation": "Clarity, presentation",
     "experiments-scope": "Scope of experiments",
@@ -205,15 +211,16 @@ def pair_type_means(model):
     pairs = pd.read_parquet(
         settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
     )
-    pairs = pairs[pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= 2024)].copy()
+    cells = []
+    for label, (conf, first, last) in settings.GAP_CELLS.items():
+        cells.append(pairs[(pairs.conf == conf) & pairs.year.between(first, last)].assign(conf=label))
+    pairs = pd.concat(cells)
     n_flagged = pairs.a.map(flags.flag).astype(int) + pairs.b.map(flags.flag).astype(int)
     n_written = pairs.a.map(flags.written).astype(int) + pairs.b.map(flags.written).astype(int)
     pairs["pair_type"] = n_flagged.map({0: "HH", 1: "HL", 2: "LL"})
     pairs.loc[n_written == 2, "pair_type"] = "WW"
     per_paper = pairs.groupby(["conf", "pair_type", "panel_id"]).hit.mean() * 100
     means = per_paper.groupby(["conf", "pair_type"]).agg(["mean", "std", "count"]).reset_index()
-    years = pairs.groupby("conf").year.agg(["min", "max"])
-    means["venue"] = means.conf.map(lambda c: f"{c}\n{years.loc[c, 'min']}–{years.loc[c, 'max'] % 100:02d}")
     means["ci"] = Z95 * means["std"] / np.sqrt(means["count"])
     return means
 
@@ -224,27 +231,28 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     fig, (top, bottom) = plt.subplots(
         2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.35, 3.9), gridspec_kw=dict(height_ratios=[1.2, 1], hspace=0.38)
     )
+    cells = list(settings.GAP_CELLS)
     for k, (pair_type, (label, face, edge, marker)) in enumerate(PAIR_TYPE_STYLES.items()):
-        x = np.arange(len(settings.ML_VENUES)) + (k - 1.5) * 0.17
+        x = np.arange(len(cells)) + (k - 1.5) * 0.17
         style = dict(fmt=marker, ms=3.5, mfc=face, mec=edge, mew=0.6, ecolor=edge, elinewidth=0.9)
-        rows = means[means.pair_type == pair_type].set_index("conf").loc[settings.ML_VENUES]
+        rows = means[means.pair_type == pair_type].set_index("conf").loc[cells]
         top.errorbar(x, rows["mean"], yerr=rows.ci, label=label, **style)
         if pair_type == "HH":
             bottom.errorbar(x, np.zeros(len(x)), **style)
             continue
-        cell = contrasts[contrasts.pair_type == pair_type].set_index("conf").loc[settings.ML_VENUES]
+        cell = contrasts[contrasts.pair_type == pair_type].set_index("conf").loc[cells]
         bottom.errorbar(x, cell.est, yerr=Z95 * cell.se, **style)
     bottom.axhline(0, color=COLORS["light"], lw=0.6, zorder=0)
-    bottom.set_xlim(-0.5, len(settings.ML_VENUES) - 0.5)
-    bottom.set_xticks(range(len(settings.ML_VENUES)), rows.venue)
+    bottom.set_xlim(-0.5, len(cells) - 0.5)
+    bottom.set_xticks(range(len(cells)), [label.replace(" ", "\n") for label in cells])
     bottom.tick_params(axis="x", length=0)
     top.tick_params(axis="x", length=0)
-    top.set_ylim(0, 30)
-    top.set_yticks([0, 10, 20, 30])
+    top.set_ylim(0, 40)
+    top.set_yticks([0, 10, 20, 30, 40])
     top.set_ylabel("Overlap (%)")
     top.set_title("a  Mean overlap by pair type", fontweight="bold")
-    bottom.set_ylim(-2, 14)
-    bottom.set_yticks([0, 5, 10])
+    bottom.set_ylim(-2, 19)
+    bottom.set_yticks([0, 5, 10, 15])
     bottom.set_ylabel("Difference (points)")
     bottom.set_title("b  Difference from neither flagged", fontweight="bold")
     fig.align_ylabels([top, bottom])
@@ -262,36 +270,34 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 def ai_checks(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     evidence = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv")
-    fig = plt.figure(figsize=(PAGE_WIDTH - 0.15, 2.4))
-    ax = fig.add_axes([0.37, 0.16, 0.61, 0.79])
+    fig = plt.figure(figsize=(PAGE_WIDTH - 0.15, 3.7))
+    ax = fig.add_axes([0.33, 0.12, 0.45, 0.86])
+    sides = ax.get_yaxis_transform()
     y = 0
-    ticks, labels, is_header = [], [], []
     for group, rows in evidence.groupby("group", sort=False):
-        ticks.append(y)
-        labels.append(group)
-        is_header.append(True)
+        ax.text(-0.7, y, CHECK_GROUPS[group], transform=sides, ha="left", va="center", fontweight="bold")
         y -= 1
-        placebo = group.startswith("Placebo")
-        color = COLORS["grey"] if placebo else COLORS["ink"]
-        face_color = "white" if placebo else color
+        before = group.startswith("Placebo")
+        color = COLORS["grey"] if before else COLORS["ink"]
         for row in rows.itertuples():
-            ax.errorbar(row.est, y, xerr=Z95 * row.se, fmt="o", ms=3.5, color=color, mfc=face_color, elinewidth=1.0)
-            ticks.append(y)
-            labels.append(re.sub(r"(\d)-(\d)", "\\1–\\2", SHORT.get(row.label, row.label)))
-            is_header.append(False)
+            low, high = row.est - Z95 * row.se, row.est + Z95 * row.se
+            ax.errorbar(
+                row.est, y, xerr=Z95 * row.se, fmt="o", ms=3.5, color=color, mfc="white" if before else color, elinewidth=1.0
+            )
+            label = re.sub(r"(\d)-(\d)", "\\1–\\2", SHORT.get(row.label, row.label))
+            ax.text(-0.66, y, label, transform=sides, ha="left", va="center")
+            values = f"{row.est:+.1f}  [{low:+.1f}, {high:+.1f}]".replace("-", "−")
+            ax.text(1.04, y, values, transform=sides, ha="left", va="center", color=text_color(color))
             y -= 1
-        y -= 0.4
+        y -= 0.5
+    ax.text(1.04, 1, "Points  [95% CI]", transform=sides, ha="left", va="center", fontweight="bold")
     ax.axvline(0, color=COLORS["light"], lw=0.6, zorder=0)
-    main_estimate = evidence.est.iloc[0]
-    ax.axvline(main_estimate, color=COLORS["grey"], lw=0.6, ls=":", zorder=0)
-    ax.set_yticks(ticks, labels)
-    for tick, header in zip(ax.get_yticklabels(), is_header):
-        tick.set_fontweight("bold" if header else "normal")
-    ax.tick_params(axis="y", length=0, pad=2)
+    ax.axvline(evidence.est.iloc[0], color=COLORS["grey"], lw=0.6, ls=":", zorder=0)
+    ax.set_yticks([])
     ax.spines["left"].set_visible(False)
-    ax.set_ylim(y + 0.6, 0.6)
+    ax.set_ylim(y + 0.9, 1.6)
     ax.set_xlim(-5, 16)
-    few_ticks(ax, "x")
+    ax.set_xticks([-5, 0, 5, 10, 15])
     ax.set_xlabel("Difference in overlap (percentage points)")
     save(fig, figs, "figA_checks.pdf", PAGE_WIDTH)
 
@@ -479,51 +485,40 @@ def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     placebo = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet"))
     other = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"other_panel_outcomes_{model}.parquet"))
     venue = placebo[placebo.placebo_kind == SAME_VENUE_PLACEBO]
-    iclr = placebo[placebo.conf == "ICLR"]
-    fig = plt.figure(figsize=(PAGE_WIDTH - 0.1, 3.0))
-    grid = fig.add_gridspec(2, 10, left=0.07, right=0.92, top=0.93, bottom=0.08, hspace=0.75, wspace=1.6)
-    venues_ax, area_ax = fig.add_subplot(grid[0, :5]), fig.add_subplot(grid[0, 5:])
+    area = placebo[(placebo.conf == "ICLR") & (placebo.placebo_kind == "same_area3")]
+    fig = plt.figure(figsize=(PAGE_WIDTH - 0.1, 3.3))
+    grid = fig.add_gridspec(2, 10, left=0.07, right=0.985, top=0.92, bottom=0.08, hspace=0.95, wspace=0.5)
+    iclr_ax, neurips_ax = fig.add_subplot(grid[0, :5]), fig.add_subplot(grid[0, 7:])
     journal_axes = [fig.add_subplot(grid[1, 2 * k : 2 * k + 2]) for k in range(len(JOURNALS))]
+    last = settings.ICLR_LAST
 
-    iclr_venue = mean_line(venues_ax, venue[venue.conf == "ICLR"], "hit_rate_strict", COLORS["ICLR"])
-    neurips_venue = mean_line(venues_ax, venue[venue.conf == "NeurIPS"], "hit_rate_strict", COLORS["NeurIPS"])
-    end_label(
-        venues_ax,
-        settings.ICLR_LAST,
-        iclr_venue.loc[settings.ICLR_LAST, "mean"],
-        "ICLR",
-        COLORS["ICLR"],
-        dx=-2,
-        dy=7,
-        ha="right",
-        va="bottom",
-    )
-    end_label(venues_ax, 2021, neurips_venue.loc[2021, "bar_top"], "NeurIPS", COLORS["NeurIPS"], 0, 3, "center", "bottom")
-    venues_ax.set_title("a  Different papers, one venue-year", fontweight="bold")
-
-    same_venue = mean_line(area_ax, iclr[iclr.placebo_kind == SAME_VENUE_PLACEBO], "hit_rate_strict", COLORS["ink"])
-    area_rows = iclr[iclr.placebo_kind == "same_area3"]
-    same_area = mean_line(area_ax, area_rows, "hit_rate_strict", COLORS["ink"], ls="--", mfc="white")
-    end_label(area_ax, settings.ICLR_LAST, same_area.loc[settings.ICLR_LAST, "mean"], "same area", dx=5)
-    end_label(area_ax, settings.ICLR_LAST, same_venue.loc[settings.ICLR_LAST, "mean"], "same venue", dx=5)
-    area_ax.set_title("b  ICLR: same venue-year vs. same research area", fontweight="bold")
-
+    same_venue = mean_line(iclr_ax, venue[venue.conf == "ICLR"], "hit_rate_strict", COLORS["ICLR"])
+    same_area = mean_line(iclr_ax, area, "hit_rate_strict", COLORS["ICLR"], ls="--", mfc="white")
+    end_label(iclr_ax, last, same_area.loc[last, "mean"], "one research area\n(three papers)", COLORS["ICLR"], dx=6, dy=9)
+    end_label(iclr_ax, last, same_venue.loc[last, "mean"], "one venue-year\n(four papers)", COLORS["ICLR"], dx=6, dy=-9)
+    iclr_ax.set_title("a  ICLR", fontweight="bold")
+    mean_line(neurips_ax, venue[venue.conf == "NeurIPS"], "hit_rate_strict", COLORS["NeurIPS"])
+    neurips_ax.set_title("b  NeurIPS, one venue-year", fontweight="bold")
     for ax, (conf, title) in zip(journal_axes, JOURNALS.items(), strict=True):
         mean_line(ax, other[(other.conf == conf) & other.placebo], "hit_rate_strict", COLORS["ink"])
-        ax.set_title(title)
-    fig.text(0.01, 0.47, "c  Journals: different papers, one source-year", fontweight="bold", fontsize=8, ha="left")
+        ax.set_title(title, loc="center")
+    top_of_row = journal_axes[0].get_position().y1
+    fig.text(0.07, top_of_row + 0.055, "c  Journals, one source-year", fontweight="bold", ha="left", va="bottom")
 
-    for ax in [venues_ax, area_ax, *journal_axes]:
+    for ax in [iclr_ax, neurips_ax, *journal_axes]:
         shade_chatgpt_period(ax)
         ax.set_ylim(-0.3, 4)
         ax.set_yticks([0, 2, 4])
-    for ax in [venues_ax, area_ax]:
-        ax.set_xlim(2019.6, settings.ICLR_LAST + 0.4)
-        year_ticks(ax)
+    iclr_ax.set_xlim(2019.6, last + 0.4)
+    iclr_ax.set_xticks(range(2020, last + 1), [f"'{year % 100}" for year in range(2020, last + 1)])
+    neurips_ax.set_xlim(2020.6, 2025.4)
+    neurips_ax.set_xticks(range(2021, 2026), [f"'{year % 100}" for year in range(2021, 2026)])
     for ax in journal_axes:
         ax.set_xlim(2018.4, 2026.6)
         year_ticks(ax, (2019, 2022, 2026))
-    for ax in [venues_ax, journal_axes[0]]:
+    for ax in journal_axes[1:]:
+        ax.tick_params(labelleft=False)
+    for ax in [iclr_ax, journal_axes[0]]:
         ax.set_ylabel("Overlap (%)")
     save(fig, figs, "figA_cross.pdf", PAGE_WIDTH)
 
@@ -541,43 +536,26 @@ def calibrate_embedding(cells):
 def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     embed = calibrate_embedding(in_window(pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"embed_{model}.csv")))
     embed.to_csv(settings.ANALYSIS_REPORTS_DIR / f"embed_calibrated_{model}.csv", index=False)
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 1.0, 2.0))
-    shade_chatgpt_period(ax)
-    by_conf = {conf: embed[embed.conf == conf].set_index("year") for conf in ["ICLR", "NeurIPS"]}
-    ax.axhline(0, color=COLORS["grey"], lw=0.6, zorder=0)
-    for conf, rows in by_conf.items():
-        ax.errorbar(rows.index, rows.calibrated_intra, yerr=Z95 * rows.calibrated_intra_se, fmt="o-", ms=3, color=COLORS[conf])
-        ax.plot(rows.index, rows.calibrated_inter_area, "o--", ms=3, mfc="white", color=COLORS[conf])
-    iclr, neurips = by_conf["ICLR"], by_conf["NeurIPS"]
-    end_label(ax, settings.ICLR_LAST, iclr.calibrated_intra.iloc[-1], "ICLR, same paper", COLORS["ICLR"])
-    end_label(
-        ax,
-        2021,
-        neurips.calibrated_intra.loc[2021],
-        "NeurIPS, same paper",
-        COLORS["NeurIPS"],
-        dx=-2,
-        dy=14,
-        ha="left",
-        va="bottom",
-    )
-    end_label(ax, settings.ICLR_LAST, iclr.calibrated_inter_area.iloc[-1], "ICLR, different\npapers, same area", COLORS["ICLR"])
-    end_label(
-        ax,
-        2023,
-        neurips.calibrated_inter_area.loc[2023],
-        "NeurIPS, different papers",
-        COLORS["NeurIPS"],
-        dx=0,
-        dy=-10,
-        ha="center",
-    )
-    ax.set_xlim(2019.6, settings.ICLR_LAST + 0.4)
-    ax.set_ylim(-0.18, 0.75)
-    ax.set_yticks([0, 0.3, 0.6])
-    year_ticks(ax)
-    ax.set_ylabel("Baseline-scaled similarity")
-    save(fig, figs, "figA_embedding.pdf", COLUMN_WIDTH)
+    fig, axes = plt.subplots(1, 2, sharey=True, figsize=(4.9, 2.2), gridspec_kw=dict(width_ratios=[8, 5], wspace=0.12))
+    fig.subplots_adjust(left=0.12, right=0.98, top=0.9, bottom=0.12)
+    for ax, conf, letter in zip(axes, ["ICLR", "NeurIPS"], "ab"):
+        rows = embed[embed.conf == conf].set_index("year")
+        color = COLORS[conf]
+        shade_chatgpt_period(ax)
+        ax.axhline(0, color=COLORS["grey"], lw=0.6, zorder=0)
+        ax.errorbar(rows.index, rows.calibrated_intra, yerr=Z95 * rows.calibrated_intra_se, fmt="o-", ms=3, color=color)
+        ax.plot(rows.index, rows.calibrated_inter_area, "o--", ms=3, mfc="white", color=color)
+        end_label(ax, rows.index[-1], rows.calibrated_intra.iloc[-1], "same paper", color, dx=0, dy=-12, ha="right", va="top")
+        end_label(
+            ax, rows.index[-1], rows.calibrated_inter_area.iloc[-1], "different papers, one area", color, 0, 7, "right", "bottom"
+        )
+        ax.set_title(f"{letter}  {conf}", fontweight="bold")
+        ax.set_xlim(rows.index[0] - 0.4, rows.index[-1] + 0.4)
+        ax.set_xticks(list(rows.index), [f"'{year % 100}" for year in rows.index])
+    axes[0].set_ylim(-0.18, 0.75)
+    axes[0].set_yticks([0, 0.3, 0.6])
+    axes[0].set_ylabel("Baseline-scaled similarity")
+    save(fig, figs, "figA_embedding.pdf", PAGE_WIDTH)
 
 
 def all_figures(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
@@ -625,9 +603,9 @@ def tex_number(v):
 
 def latex(rows):
     lines = [
-        r"\begin{tabular}{llrrrrrrr}",
+        r"\begin{tabular}{llrrrrrr}",
         r"\toprule",
-        r"Source & Year & Papers & Reviews & Claims & Overlap (\%) & Other & Flagged & Written \\",
+        r"Source & Year & Papers & Reviews & Claims & Overlap (\%) & Flagged & Written \\",
         r"\midrule",
     ]
     for conf, group in rows.groupby("conf", observed=True):
@@ -639,7 +617,6 @@ def latex(rows):
                 f"{row.reviews:,}",
                 tex_number(row.claims_per_review),
                 f"{tex_number(row.match)} $\\pm$ {tex_number(row.match_se)}",
-                tex_number(row.match_other_papers),
                 tex_number(row.ai_flagged),
                 tex_number(row.ai_written),
             ]
@@ -706,11 +683,12 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(prefix, row.hit_removed, row.hit_removed_se, row.removed_papers)
         record(prefix + "Change", row.removed_change, row.removed_change_se, row.removed_papers)
     for label, prefix in [
-        ("ICLR 2024–27", "FlagGap"),
+        ("ICLR 2024–26", "FlagGap"),
         ("+ length and claim count", "ControlGap"),
         ("NeurIPS 2024–25", "NeuripsFlagGap"),
         ("ICML 2025–26", "IcmlFlagGap"),
-        ("LLM-written, ICLR", "WrittenGap"),
+        ("LLM-written, ICLR 2024–26", "WrittenGap"),
+        ("LLM-written, ICLR 2027", "WrittenGapLate"),
         ("ICLR 2024", "FlagGapTwentyFour"),
         ("ICLR 2025", "FlagGapTwentyFive"),
         ("ICLR 2026", "FlagGapTwentySix"),
@@ -718,6 +696,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     ]:
         row = evidence.loc[label]
         record(prefix, row.est, row.se, row.papers)
+        values[prefix + "Ident"] = f"{int(row.identifying):,}"
     gaps = pd.read_csv(reports / f"journal_gaps_{model}.csv").set_index("source")
     for source, prefix in JOURNAL_PREFIX.items():
         row = gaps.loc[source]
@@ -737,12 +716,13 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     flags = kept_meld_flags().flag
     pairs = pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")
     pairs["nflag"] = pairs.a.map(flags).astype(float) + pairs.b.map(flags).astype(float)
-    baseline = pairs[(pairs.conf == "ICLR") & (pairs.year >= 2024) & (pairs.nflag == 0)].groupby("panel_id").hit.mean() * 100
+    main_conf, main_first, main_last = next(iter(settings.GAP_CELLS.values()))
+    in_main = (pairs.conf == main_conf) & pairs.year.between(main_first, main_last)
+    baseline = pairs[in_main & (pairs.nflag == 0)].groupby("panel_id").hit.mean() * 100
     record("FlagBaseline", baseline.mean(), baseline.sem(), len(baseline))
-    record("FlagRelative", evidence.loc["ICLR 2024–27"].est / baseline.mean() * 100, digits=0)
     written = pair_type_means(model).query("pair_type == 'WW'").set_index("conf")["count"]
-    for conf in settings.ML_VENUES:
-        values[f"PairWritten{conf.title()}N"] = f"{int(written[conf]):,}"
+    for label, prefix in GAP_PREFIX.items():
+        values[f"PairWritten{prefix}N"] = f"{int(written[label]):,}"
     placebo = pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet")
     for year, prefix in [
         (2023, "CrossBase"),
@@ -892,7 +872,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
                 values[prefix + label + "High"] = f"{row[name] + Z95 * row[name + '_se']:+.2f}"
     types = pd.read_csv(reports / f"pair_types_{model}.csv").set_index(["conf", "pair_type"])
     for (conf, pair_type), row in types.iterrows():
-        record(f"Type{pair_type.title()}{conf.title()}", row.est, row.se, row.papers)
+        record(f"Type{pair_type.title()}{GAP_PREFIX[conf]}", row.est, row.se, row.papers)
     subsets = pd.read_csv(reports / f"journal_subsets_{model}.csv").set_index("subset")
     for subset, prefix in [("Identifying", "JsIdent"), ("Two reports", "JsTwo")]:
         row = subsets.loc[subset]
@@ -900,11 +880,14 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         for name in ["chars", "claims", "overlap", "flagged", "share_F1000"]:
             record(prefix + name.title().replace("_", "").replace("1000", "Thousand"), row[name])
     cover = pd.read_csv(reports / f"coverage_{model}.csv").set_index("year")
-    values["CovPapersFirst"] = f"{int(cover.papers.iloc[0]):,}"
-    for year, suffix in [(2023, "Base"), (settings.ICLR_LAST, "Last")]:
+    earlier = cover.lost[cover.index < 2026]
+    values["CovLostEarlierMin"] = f"{earlier.min():.1f}"
+    values["CovLostEarlierMax"] = f"{earlier.max():.1f}"
+    for year, suffix in [(2024, "First"), (2025, "Base"), (2026, "Last")]:
         row = cover.loc[year]
         record("CovProblems" + suffix, row.problems, row.problems_se, row.papers)
         record("CovPerReview" + suffix, row.per_review, row.per_review_se)
+        record("CovLost" + suffix, row.lost, row.lost_se)
         record("CovNew" + suffix, row.new_by_third, row.new_by_third_se, digits=2)
         record("CovShared" + suffix, row.shared_per_pair, row.shared_per_pair_se, digits=2)
     rewrite = pd.read_csv(reports / f"rewrite_test_{model}.csv").set_index(["condition", "group"])
@@ -935,9 +918,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         texts = meld_rates[meld_rates.set == meld_set]
         record(base + "Flagged", (texts.flagged * texts.n).sum() / texts.n.sum())
     detector_gaps = {
-        "Flag": evidence.loc["ICLR 2024–27"],
-        "Written": evidence.loc["LLM-written, ICLR"],
-        "Ll": types.loc[("ICLR", "LL")],
+        "Flag": evidence.loc["ICLR 2024–26"],
+        "Written": evidence.loc["LLM-written, ICLR 2024–26"],
+        "Ll": types.loc[("ICLR 2024–26", "LL")],
     }
     for condition, base in [("outline", "Rw"), ("outline_second", "Rk")]:
         effect = rewrite.loc[(condition, "ICLR")]
