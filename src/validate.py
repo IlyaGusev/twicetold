@@ -630,24 +630,109 @@ def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR
     out = out.reset_index()
     out.round(3).to_csv(Path(reports) / f"coverage_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
+    shown = ["per_review", "problems", "lost", "new_by_third", "shared_per_pair"]
+    heads = [r"Per\\review", "Distinct", r"Lost to\\repetition", r"New in a\\third review", r"Shared\\per pair"]
     lines = [
-        r"\begin{tabular}{@{}lrrrrrrr@{}}",
+        r"\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}l" + "c" * len(heads) + "@{}}",
         r"\toprule",
-        r"Year & Papers & Problems & Distinct & Lost to & Lost & New from & Shared \\",
-        r" & & per review & problems & repetition & (\%) & a third review & per pair \\",
+        rf" & \multicolumn{{{len(heads)}}}{{c}}{{Claims}} \\",
+        rf"\cmidrule{{2-{len(heads) + 1}}}",
+        "Year & " + " & ".join(rf"\shortstack{{{head}}}" for head in heads) + r" \\",
         r"\midrule",
     ]
     for r in out.itertuples():
-        cells = " & ".join(
-            f"{getattr(r, c):.{1 if c == 'lost_share' else 2}f} ({getattr(r, c + '_se'):.{1 if c == 'lost_share' else 2}f})"
-            for c in cols
-        )
-        lines.append(f"{r.year} & {r.papers:,} & {cells} \\\\")
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+        mark = r"\rlap{$^\dagger$}" if r.year == settings.ICLR_LAST else ""
+        lines.append(f"{r.year}{mark} & " + " & ".join(f"{getattr(r, c):.2f}" for c in shown) + r" \\")
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular*}"]) + "\n")
 
 
 PASS1_SAMPLES = {"ml": ["main", "icml", "withdrawn"], "journal": ["journal"]}
 PASS1_VARIANTS = {"ml": ["noq", "nocq"], "journal": []}
+
+
+ALL_PAIR_TYPES = ("HH", *PAIR_TYPES)
+DECOMPOSITION_TERMS = ("change", "composition", "within_unflagged", "within_flagged")
+
+
+def type_totals(weights, hits):
+    share = weights.sum(axis=0) / len(weights)
+    return share, 100 * hits.sum(axis=0) / weights.sum(axis=0)
+
+
+def shift_share(before, after):
+    (share_a, mean_a), (share_b, mean_b) = before, after
+    mean_a, mean_b = np.where(np.isnan(mean_a), mean_b, mean_a), np.where(np.isnan(mean_b), mean_a, mean_b)
+    within = np.nan_to_num((mean_b - mean_a) * (share_a + share_b) / 2)
+    composition = np.nan_to_num((share_b - share_a) * (mean_a + mean_b) / 2).sum()
+    return np.array([composition + within.sum(), composition, within[0], within[1:].sum()])
+
+
+def decomposition(
+    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "decomposition.tex"
+):
+    meld = hub.meld_flags()
+    flag, written = meld.flag.astype(int), meld.written.astype(int)
+    pairs = in_window(
+        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+    )
+    spans = {}
+    for conf, first, last in settings.GAP_CELLS.values():
+        spans[conf] = (min(first, spans.get(conf, (first, last))[0]), max(last, spans.get(conf, (first, last))[1]))
+    rng = np.random.default_rng(settings.REFERENCE_BOOTSTRAP_SEED)
+    rows = []
+    for conf, (first, last) in spans.items():
+        previous = None
+        for year in range(first, last + 1):
+            cell = pairs[(pairs.conf == conf) & (pairs.year == year)]
+            types = pair_type(cell, flag, written)
+            weight = 1 / cell.groupby("panel_id").hit.transform("size")
+            weights = (
+                weight.groupby([cell.panel_id, types]).sum().unstack(fill_value=0).reindex(columns=ALL_PAIR_TYPES, fill_value=0)
+            )
+            hits = (
+                (weight * cell.hit)
+                .groupby([cell.panel_id, types])
+                .sum()
+                .unstack(fill_value=0)
+                .reindex(columns=ALL_PAIR_TYPES, fill_value=0)
+            )
+            weights, hits = weights.to_numpy(), hits.to_numpy()
+            share, mean = type_totals(weights, hits)
+            draws = [rng.integers(len(weights), size=len(weights)) for _ in range(settings.REFERENCE_BOOTSTRAPS)]
+            resampled = [type_totals(weights[d], hits[d]) for d in draws]
+            row = dict(conf=conf, year=year, papers=len(weights))
+            row.update({f"share_{t}": 100 * v for t, v in zip(ALL_PAIR_TYPES, share, strict=True)})
+            row.update({f"overlap_{t}": v for t, v in zip(ALL_PAIR_TYPES, mean, strict=True)})
+            if previous is not None:
+                terms = shift_share(previous[0], (share, mean))
+                errors = np.std([shift_share(a, b) for a, b in zip(previous[1], resampled, strict=True)], axis=0)
+                row.update(dict(zip(DECOMPOSITION_TERMS, terms, strict=True)))
+                row.update({f"{name}_se": e for name, e in zip(DECOMPOSITION_TERMS, errors, strict=True)})
+            previous = ((share, mean), resampled)
+            rows.append(row)
+    out = pd.DataFrame(rows)
+    out.to_csv(Path(reports) / f"decomposition_{model}.csv", index=False)
+    print(out.round(2).to_string(index=False))
+    lines = [
+        r"\begin{tabular}{@{}llrrrrrrrrrrrr@{}}",
+        r"\toprule",
+        r" & & \multicolumn{4}{c}{Share of pairs (\%)} & \multicolumn{4}{c}{Overlap (\%)} & \multicolumn{4}{c}{Change from the year before (points)} \\",
+        r"\cmidrule(lr){3-6}\cmidrule(lr){7-10}\cmidrule(l){11-14}",
+        r"Source & Year & None & One & Two & Written & None & One & Two & Written & Total & Mix & Unflagged & Flagged \\",
+        r"\midrule",
+    ]
+    for conf, group in out.groupby("conf", sort=False):
+        for k, r in enumerate(group.itertuples()):
+            cells = [conf if k == 0 else "", str(r.year)]
+            cells += [f"{getattr(r, f'share_{t}'):.1f}" for t in ALL_PAIR_TYPES]
+            cells += [f"{getattr(r, f'overlap_{t}'):.1f}" for t in ALL_PAIR_TYPES]
+            cells += [
+                "--" if pd.isna(r.change) else f"{getattr(r, name):+.2f} ({getattr(r, name + '_se'):.2f})"
+                for name in DECOMPOSITION_TERMS
+            ]
+            lines.append(" & ".join(cells) + r" \\")
+        lines.append(r"\midrule")
+    Path(tex).write_text("\n".join(lines[:-1] + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
 def repro(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
@@ -1355,6 +1440,7 @@ if __name__ == "__main__":
             "detector_choices": detector_choices,
             "journal_subsets": journal_subsets,
             "coverage": coverage,
+            "decomposition": decomposition,
             "rewrite_test": rewrite_test,
             "repro": repro,
             "quotes": quotes,

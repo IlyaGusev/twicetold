@@ -229,7 +229,7 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     means = pair_type_means(model)
     contrasts = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"pair_types_{model}.csv")
     fig, (top, bottom) = plt.subplots(
-        2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.35, 3.9), gridspec_kw=dict(height_ratios=[1.2, 1], hspace=0.38)
+        2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.35, 3.4), gridspec_kw=dict(height_ratios=[1.2, 1], hspace=0.38)
     )
     cells = list(settings.GAP_CELLS)
     for k, (pair_type, (label, face, edge, marker)) in enumerate(PAIR_TYPE_STYLES.items()):
@@ -320,7 +320,10 @@ def overlap_panel(ax, by_year, styles, label_x, gap):
         x, y, ci = rows.year + dx, rows["match"], Z95 * rows.match_se
         muted = color == COLORS["grey"]
         ax.fill_between(x, y - ci, y + ci, color=color, alpha=0.12 if muted else 0.2, lw=0, zorder=1)
-        ax.plot(x, y, "-", color=color, lw=1.1 if muted else 1.4, zorder=2 if muted else 3)
+        width, order = (1.1, 2) if muted else (1.4, 3)
+        solid = len(x) - (conf == "ICLR")
+        ax.plot(x[:solid], y[:solid], "-", color=color, lw=width, zorder=order)
+        ax.plot(x[solid - 1 :], y[solid - 1 :], "--", color=color, lw=width, dashes=(2.2, 1.6), zorder=order)
         ax.plot(x, y, marker, color=color, mec="white", mew=0.6, ms=3.5 if muted else 4, zorder=4)
         ends[name] = (x.iloc[-1], y.iloc[-1], color)
     label_ys = spread_labels([y for _, y, _ in ends.values()], gap)
@@ -389,7 +392,7 @@ def category_shifts(model):
 def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     shift = category_shifts(model)
     fig, (levels, changes) = plt.subplots(
-        1, 2, sharey=True, figsize=(COLUMN_WIDTH - 0.2, 3.2), gridspec_kw=dict(width_ratios=[1.3, 1], wspace=0.1)
+        1, 2, sharey=True, figsize=(COLUMN_WIDTH - 0.2, 2.8), gridspec_kw=dict(width_ratios=[1.3, 1], wspace=0.1)
     )
     fig.subplots_adjust(left=0.37, right=0.97, top=0.93, bottom=0.12)
     y = np.arange(len(shift))
@@ -447,7 +450,7 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     identifying = ident.set_index(ident.label.str.rsplit(" ", n=1).str[0]).varying
     sources = gaps.iloc[:-1].sort_values("est", ascending=False)
     pooled = gaps.iloc[-1]
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.35, 1.95))
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.35, 1.75))
     fig.subplots_adjust(left=0.31, right=0.97, top=0.9, bottom=0.2)
     ax.axvspan(iclr.est - Z95 * iclr.se, iclr.est + Z95 * iclr.se, color="#D9E8F3", lw=0, zorder=0)
     ax.axvline(iclr.est, color=COLORS["ICLR"], lw=0.8, zorder=0)
@@ -871,6 +874,15 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     types = pd.read_csv(reports / f"pair_types_{model}.csv").set_index(["conf", "pair_type"])
     for (conf, pair_type), row in types.iterrows():
         record(f"Type{pair_type.title()}{GAP_PREFIX[conf]}", row.est, row.se, row.papers)
+    steps = pd.read_csv(reports / f"decomposition_{model}.csv").set_index(["conf", "year"])
+    step, step_base = steps.loc[("ICLR", settings.CONTRAST_YEARS[1])], steps.loc[("ICLR", settings.CONTRAST_YEARS[0])]
+    values["DecIclrMix"] = f"{step.composition:.1f}"
+    values["DecIclrMixEarly"] = f"{step_base.composition:.1f}"
+    values["DecIclrNoneBase"] = f"{step_base.overlap_HH:.1f}"
+    values["DecIclrNoneLast"] = f"{step.overlap_HH:.1f}"
+    values["DecIclrTwoShareBase"] = f"{step_base.share_LL + step_base.share_WW:.1f}"
+    earlier = by_year[(by_year.conf == "ICLR") & (by_year.year < settings.CONTRAST_YEARS[1])]
+    values["IclrEarlierMax"] = f"{earlier.match.max():.1f}"
     subsets = pd.read_csv(reports / f"journal_subsets_{model}.csv").set_index("subset")
     for subset, prefix in [("Identifying", "JsIdent"), ("Two reports", "JsTwo")]:
         row = subsets.loc[subset]
@@ -879,6 +891,8 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
             record(prefix + name.title().replace("_", "").replace("1000", "Thousand"), row[name])
     cover = pd.read_csv(reports / f"coverage_{model}.csv").set_index("year")
     earlier = cover.lost[cover.index < 2026]
+    values["CovPapersMin"] = f"{int(cover.papers.min()):,}"
+    values["CovPapersMax"] = f"{int(cover.papers.max()):,}"
     values["CovLostEarlierMin"] = f"{earlier.min():.1f}"
     values["CovLostEarlierMax"] = f"{earlier.max():.1f}"
     for year, suffix in [(2024, "First"), (2025, "Base"), (2026, "Last")]:
