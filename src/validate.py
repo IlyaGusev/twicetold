@@ -111,6 +111,30 @@ def form_panel(panel, claims, n_reviews):
     )
 
 
+FORM_COLUMNS = ["hit", "hit_removed", "hit_without", "form_share"]
+
+
+def forms_table(out, tex):
+    lines = [
+        r"\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4.3cm}rrrrr@{}}",
+        r"\toprule",
+        r"Year & Text fields & Papers & \shortstack[r]{Overlap\\(\%)} & \shortstack[r]{Overlap, field\\deleted (\%)} & "
+        r"\shortstack[r]{Overlap, categories\\dropped (\%)} & \shortstack[r]{Shared problems\\in categories (\%)} \\",
+        r"\midrule",
+    ]
+    for r in out.itertuples():
+        fields = sorted(r.form.split("+"), key=list(FIELD_LABELS).index)
+        cells = ["--" if pd.isna(getattr(r, c)) else f"{getattr(r, c):.1f}" for c in FORM_COLUMNS]
+        lines.append(f"{r.year} & {'; '.join(FIELD_LABELS[f] for f in fields)} & {r.papers:,} & {' & '.join(cells)} \\\\")
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
+def forms_table_from_report(
+    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "forms.tex"
+):
+    forms_table(pd.read_csv(Path(reports) / f"forms_{model}.csv"), tex)
+
+
 def forms(
     model=settings.DEFAULT_MODEL,
     data=settings.WORK_DIR,
@@ -149,17 +173,7 @@ def forms(
     out = out.reset_index()
     out.round(3).to_csv(Path(reports) / f"forms_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    lines = [
-        r"\begin{tabular}{l>{\raggedright\arraybackslash}p{3.8cm}rrrrrr}",
-        r"\toprule",
-        r"Year & Text fields & Papers & Overlap & Field removed & No C/N/R & Specific & C/N/R shared \\",
-        r"\midrule",
-    ]
-    for r in out.itertuples():
-        fields = sorted(r.form.split("+"), key=list(FIELD_LABELS).index)
-        cells = ["--" if pd.isna(getattr(r, c)) else f"{getattr(r, c):.1f} ({getattr(r, c + '_se'):.1f})" for c in cols]
-        lines.append(f"{r.year} & {'; '.join(FIELD_LABELS[f] for f in fields)} & {r.papers:,} & {' & '.join(cells)} \\\\")
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    forms_table(out, tex)
 
 
 def fe_gap(design, flag, controls=()):
@@ -444,6 +458,31 @@ def detector_row(label, quantile, flags, pairs, iclr_last):
     )
 
 
+def detector_table(out, tex):
+    lines = [
+        r"\begin{tabular}{@{}lrrrrrr@{}}",
+        r"\toprule",
+        r"Label & \shortstack[r]{Threshold\\percentile} & \shortstack[r]{Highest pre-2023\\rate (\%)} & "
+        rf"\shortstack[r]{{ICLR {settings.ICLR_LAST}\\rate (\%)}} & \shortstack[r]{{Gap\\(points)}} & "
+        r"\shortstack[r]{Pairs of two\\labeled reviews} & Papers \\",
+        r"\midrule",
+    ]
+    for k, r in enumerate(out.itertuples()):
+        if k and r.percentile == DETECTOR_QUANTILES[0] * 100:
+            lines.append(r"\midrule")
+        label = r.label.replace("Flagged", "LLM-flagged")
+        lines.append(
+            f"{label} & {r.percentile:g} & {r.pre_max:.2f} & {r.iclr_last:.1f} & {r.two:+.1f} & {r.two_pairs:,} & {r.papers:,} \\\\"
+        )
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
+def detector_table_from_report(
+    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "detector_choices.tex"
+):
+    detector_table(pd.read_csv(Path(reports) / f"detector_choices_{model}.csv"), tex)
+
+
 def detector_choices(
     model=settings.DEFAULT_MODEL,
     data=settings.WORK_DIR,
@@ -467,21 +506,7 @@ def detector_choices(
     out = pd.DataFrame(rows).sort_values(["label", "percentile"], key=lambda s: s.eq("LLM-written") if s.name == "label" else s)
     out.to_csv(Path(reports) / f"detector_choices_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    lines = [
-        r"\begin{tabular}{lrrrrrr}",
-        r"\toprule",
-        r"Label & Percentile & Pre-2023 max (\%) & ICLR "
-        + str(pairs.year.max())
-        + r" (\%) & Two vs.\ none (SE) & Two pairs & Papers \\",
-        r"\midrule",
-    ]
-    for k, r in enumerate(out.itertuples()):
-        if k and r.percentile == DETECTOR_QUANTILES[0] * 100:
-            lines.append(r"\midrule")
-        lines.append(
-            f"{r.label} & {r.percentile:g} & {r.pre_max:.2f} & {r.iclr_last:.1f} & {r.two:+.1f} ({r.two_se:.1f}) & {r.two_pairs:,} & {r.papers:,} \\\\"
-        )
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    detector_table(out, tex)
 
 
 JOURNAL_SUBSETS = ["Identifying", "3--5 reports, other", "Two reports"]
@@ -667,6 +692,38 @@ def shift_share(before, after):
     return np.array([composition + within.sum(), composition, within[0], within[1:].sum()])
 
 
+PAIR_TYPE_HEADS = ["None", "One", r"Other\\two", r"Two\\written"]
+DECOMPOSITION_HEADS = ["Total", r"Shift of\\types", r"Within\\unflagged", r"Within\\flagged"]
+
+
+def decomposition_table(out, tex):
+    heads = [rf"\shortstack[r]{{{head}}}" for head in [*PAIR_TYPE_HEADS, *PAIR_TYPE_HEADS, *DECOMPOSITION_HEADS]]
+    lines = [
+        r"\begin{tabular}{@{}llrrrrrrrrrrrr@{}}",
+        r"\toprule",
+        r" & & \multicolumn{4}{c}{Share of pairs (\%)} & \multicolumn{4}{c}{Overlap (\%)} & "
+        r"\multicolumn{4}{c}{Change from year before (points)} \\",
+        r"\cmidrule(lr){3-6}\cmidrule(lr){7-10}\cmidrule(l){11-14}",
+        "Source & Year & " + " & ".join(heads) + r" \\",
+        r"\midrule",
+    ]
+    for conf, group in out.groupby("conf", sort=False):
+        for k, r in enumerate(group.itertuples()):
+            cells = [conf if k == 0 else "", str(r.year)]
+            cells += [f"{getattr(r, f'share_{t}'):.1f}" for t in ALL_PAIR_TYPES]
+            cells += [f"{getattr(r, f'overlap_{t}'):.1f}" for t in ALL_PAIR_TYPES]
+            cells += ["--" if pd.isna(r.change) else f"{getattr(r, name):+.2f}" for name in DECOMPOSITION_TERMS]
+            lines.append(" & ".join(cells) + r" \\")
+        lines.append(r"\midrule")
+    Path(tex).write_text("\n".join(lines[:-1] + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
+def decomposition_table_from_report(
+    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "decomposition.tex"
+):
+    decomposition_table(pd.read_csv(Path(reports) / f"decomposition_{model}.csv"), tex)
+
+
 def decomposition(
     model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "decomposition.tex"
 ):
@@ -713,26 +770,7 @@ def decomposition(
     out = pd.DataFrame(rows)
     out.to_csv(Path(reports) / f"decomposition_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    lines = [
-        r"\begin{tabular}{@{}llrrrrrrrrrrrr@{}}",
-        r"\toprule",
-        r" & & \multicolumn{4}{c}{Share of pairs (\%)} & \multicolumn{4}{c}{Overlap (\%)} & \multicolumn{4}{c}{Change from the year before (points)} \\",
-        r"\cmidrule(lr){3-6}\cmidrule(lr){7-10}\cmidrule(l){11-14}",
-        r"Source & Year & None & One & Two & Written & None & One & Two & Written & Total & Mix & Unflagged & Flagged \\",
-        r"\midrule",
-    ]
-    for conf, group in out.groupby("conf", sort=False):
-        for k, r in enumerate(group.itertuples()):
-            cells = [conf if k == 0 else "", str(r.year)]
-            cells += [f"{getattr(r, f'share_{t}'):.1f}" for t in ALL_PAIR_TYPES]
-            cells += [f"{getattr(r, f'overlap_{t}'):.1f}" for t in ALL_PAIR_TYPES]
-            cells += [
-                "--" if pd.isna(r.change) else f"{getattr(r, name):+.2f} ({getattr(r, name + '_se'):.2f})"
-                for name in DECOMPOSITION_TERMS
-            ]
-            lines.append(" & ".join(cells) + r" \\")
-        lines.append(r"\midrule")
-    Path(tex).write_text("\n".join(lines[:-1] + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    decomposition_table(out, tex)
 
 
 def repro(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
@@ -974,7 +1012,7 @@ def write_cell_table(out, tex, columns):
     names = {"same": "Same", "cross": "Cross"}
     titles = [title.partition("|") for _, title, _, _ in columns]
     header = [" & & & & " + " & ".join(top for top, _, _ in titles) + r" \\"] if any(sep for _, sep, _ in titles) else []
-    header.append("Panels & Source & Years or flags & $n$ & " + " & ".join(bottom or top for top, _, bottom in titles) + r" \\")
+    header.append("Panels & Source & Detector stratum & $n$ & " + " & ".join(bottom or top for top, _, bottom in titles) + r" \\")
     lines = [r"\begin{tabular}{@{}lll" + "r" * (len(columns) + 1) + "@{}}", r"\toprule", *header, r"\midrule"]
     for r in out[out.split == "all"].itertuples():
         cell = (r.years if r.stratum == "all" else r.stratum).replace("all", "All")
@@ -1073,13 +1111,11 @@ def claim_vectors(claims):
 EXTRACTION_COLUMNS = [
     ("claims_model", "Claims|Luna", 1, False),
     ("claims_council", "Claims|council", 1, False),
-    ("f1_model", "Span F1|Luna", 1, True),
-    ("f1_council", "Span F1|council", 1, True),
-    ("precision_pooled", r"Prec.|pooled", 1, True),
-    ("recall_unanimous", r"Rec.|unanimous", 1, True),
-    ("cover_recall_model", r"Cov.\ rec.|Luna", 1, True),
-    ("cover_precision_model", r"Cov.\ prec.|Luna", 1, True),
-    ("cover_council", r"Cov.|council", 1, True),
+    ("f1_model", "Span F1|Luna", 1, False),
+    ("f1_council", "Span F1|council", 1, False),
+    ("cover_recall_model", "Member in|Luna's list", 1, False),
+    ("cover_precision_model", "Luna in|member's list", 1, False),
+    ("cover_council", "Member in|member's list", 1, False),
 ]
 
 
@@ -1341,7 +1377,7 @@ def council_agreement(
         ("pair_recall", "Recall", 1, False),
         ("pair_f1", "F1", 1, False),
     ]
-    write_cell_table(out[out.kind == "same"], tex, columns)
+    write_cell_table(out[(out.kind == "same") & (out.years == "all")], tex, columns)
 
 
 QUOTE_CHUNK = 20000
@@ -1441,6 +1477,7 @@ if __name__ == "__main__":
         {
             "robust": robust,
             "forms": forms,
+            "forms_table": forms_table_from_report,
             "detector_placebo": detector_placebo,
             "rq1_evidence": rq1_evidence,
             "journal_gaps": journal_gaps,
@@ -1452,9 +1489,11 @@ if __name__ == "__main__":
             "pair_types": pair_types,
             "pair_type_sizes": pair_type_sizes,
             "detector_choices": detector_choices,
+            "detector_table": detector_table_from_report,
             "journal_subsets": journal_subsets,
             "coverage": coverage,
             "decomposition": decomposition,
+            "decomposition_table": decomposition_table_from_report,
             "rewrite_test": rewrite_test,
             "repro": repro,
             "quotes": quotes,

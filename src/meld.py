@@ -40,6 +40,16 @@ GENERATED_SETS = [
 ]
 
 
+def labels_table(out, tex):
+    lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", r"Texts & $n$ & LLM-flagged (\%) & LLM-written (\%) \\", r"\midrule"]
+    lines += [f"{KNOWN_SETS[k]} & {int(r.texts):,} & {100 - r.unflagged:.1f} & {r.written:.1f} \\\\" for k, r in out.iterrows()]
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
+def labels_table_from_report(reports=settings.REPORTS_DIR, tex=settings.TABLES_DIR / "meld_labels.tex"):
+    labels_table(pd.read_csv(Path(reports) / "meld_labels.csv").set_index("known"), tex)
+
+
 def labels(known, human, heldout, reports, tex):
     df = pd.concat([human, heldout, known])
     df = df[df.known.isin(KNOWN_SETS)]
@@ -52,17 +62,7 @@ def labels(known, human, heldout, reports, tex):
     out = out.loc[[k for k in KNOWN_SETS if k in out.index]]
     out.round(2).to_csv(Path(reports) / "meld_labels.csv")
     print(out.round(1).to_string())
-    lines = [
-        r"\begin{tabular}{@{}lrrrr@{}}",
-        r"\toprule",
-        r"Texts & $n$ & Unflagged & Edited & Written \\",
-        r"\midrule",
-    ]
-    lines += [
-        f"{KNOWN_SETS[k]} & {int(r.texts):,} & {r.unflagged:.1f} & {r.edited:.1f} & {r.written:.1f} \\\\"
-        for k, r in out.iterrows()
-    ]
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    labels_table(out, tex)
 
 
 def build_input(out=settings.RAW_DIR / "meld_input.parquet"):
@@ -218,4 +218,4 @@ def flags(
 
 
 if __name__ == "__main__":
-    fire.Fire({"input": build_input, "check": check, "scores": scores, "flags": flags})
+    fire.Fire({"input": build_input, "check": check, "scores": scores, "flags": flags, "labels_table": labels_table_from_report})

@@ -1,13 +1,13 @@
-\begin{tabular}{lrrrrrr}
+\begin{tabular}{@{}lrrrrrr@{}}
 \toprule
-Label & Percentile & Pre-2023 max (\%) & ICLR 2027 (\%) & Two vs.\ none (SE) & Two pairs & Papers \\
+Label & \shortstack[r]{Threshold\\percentile} & \shortstack[r]{Highest pre-2023\\rate (\%)} & \shortstack[r]{ICLR 2027\\rate (\%)} & \shortstack[r]{Gap\\(points)} & \shortstack[r]{Pairs of two\\labeled reviews} & Papers \\
 \midrule
-Flagged & 99 & 2.76 & 73.9 & +4.0 (0.2) & 57,942 & 25,578 \\
-Flagged & 99.5 & 1.50 & 71.2 & +4.1 (0.2) & 50,970 & 25,454 \\
-Flagged & 99.9 & 0.38 & 63.0 & +4.7 (0.2) & 32,145 & 23,472 \\
+LLM-flagged & 99 & 2.76 & 73.9 & +4.0 & 57,942 & 25,578 \\
+LLM-flagged & 99.5 & 1.50 & 71.2 & +4.1 & 50,970 & 25,454 \\
+LLM-flagged & 99.9 & 0.38 & 63.0 & +4.7 & 32,145 & 23,472 \\
 \midrule
-LLM-written & 99 & 2.41 & 44.8 & +7.2 (0.2) & 17,095 & 22,555 \\
-LLM-written & 99.5 & 1.30 & 43.2 & +7.5 (0.3) & 15,253 & 21,478 \\
-LLM-written & 99.9 & 0.28 & 39.0 & +8.6 (0.3) & 10,277 & 18,369 \\
+LLM-written & 99 & 2.41 & 44.8 & +7.2 & 17,095 & 22,555 \\
+LLM-written & 99.5 & 1.30 & 43.2 & +7.5 & 15,253 & 21,478 \\
+LLM-written & 99.9 & 0.28 & 39.0 & +8.6 & 10,277 & 18,369 \\
 \bottomrule
 \end{tabular}

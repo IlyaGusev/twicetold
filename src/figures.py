@@ -635,7 +635,7 @@ def latex(rows):
     lines = [
         r"\begin{tabular}{llrrrrrr}",
         r"\toprule",
-        r"Source & Year & Papers & Reviews & Claims & Overlap (\%) & Flagged & Written \\",
+        r"Source & Year & Papers & Reviews & \shortstack[r]{Claims\\per review} & \shortstack[r]{Overlap\\(\%)} & \shortstack[r]{LLM-flagged\\(\%)} & \shortstack[r]{LLM-written\\(\%)} \\",
         r"\midrule",
     ]
     for conf, group in rows.groupby("conf", observed=True):
