@@ -837,7 +837,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         values["RefPair" + name.title()] = f"{int(pairs['pair_' + name]):,}"
     values["RefPairAllReviews"] = f"{int(pairs.reviews):,}"
     values["RefPairAllCandidates"] = f"{int(pairs.candidate_pairs):,}"
-    values["RefPairCoverage"] = f"{100 * pairs.unanimous_pairs / pairs.candidate_pairs:.1f}"
+    values["RefPairCoverage"] = f"{100 * pairs.voted_pairs / pairs.candidate_pairs:.1f}"
     values["RefPairSplit"] = f"{int(pairs.split_pairs):,}"
     values["RefPairInvalid"] = f"{int(pairs.invalid_pairs):,}"
     values["RefPairLunaPositive"] = f"{int(pairs.retained_model_positives)}"

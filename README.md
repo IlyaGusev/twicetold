@@ -123,12 +123,11 @@ hand-entered values.
 
 ### Grouping reference
 
-Use only unanimous raw votes from Sol, DeepSeek and Kimi for grouping checks. Keep both unanimous merges and
-unanimous separations. Exclude split votes and pairs with a missing
+Use the majority of the raw votes from Sol, DeepSeek and Kimi for grouping checks. Exclude pairs with a missing
 member, missing claim ID or repeated claim ID. Do not treat excluded pairs as separate problems.
 
 `validate.py extraction` compares the quoted spans and the aligned claims of Luna and the council (`reports/overlap/extraction*_MODEL.csv`).
-Run `scripts/post.sh --council-agreement` to score Luna's groupings against the unanimous votes. `validate.py pipelines`
+Run `scripts/post.sh --council-agreement` to score Luna's groupings against the majority votes. `validate.py pipelines`
 compares the panel overlap of Luna's full pipeline with each member's full pipeline (`reports/overlap/pipelines*_MODEL.csv`). The commands read
 the gold folder; `extraction` embeds the claim sentences with `settings.CLAIM_EMBED_MODEL` through OpenRouter, `council_agreement` makes no model calls. Agreement is not human-ground-truth accuracy. Unlabeled pairs do not define
 complete groups. Do not use this check to infer reference overlap levels or trends.

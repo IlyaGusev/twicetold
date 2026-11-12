@@ -1325,7 +1325,7 @@ def council_pair_label(groupings, a, b):
     if len(groupings) != len(settings.GOLD_COUNCIL) or any(a not in g or b not in g for g in groupings):
         return "invalid", None
     votes = [g[a] == g[b] for g in groupings]
-    return ("unanimous", votes[0]) if len(set(votes)) == 1 else ("split", None)
+    return ("unanimous" if len(set(votes)) == 1 else "split"), 2 * sum(votes) > len(votes)
 
 
 def council_agreement(
@@ -1374,9 +1374,9 @@ def council_agreement(
     summary = []
     for kind, by_kind in pairs.groupby("kind", sort=False):
         for label, cell in report_cells(by_kind):
-            unanimous = cell[cell.status == "unanimous"]
+            voted = cell[cell.status != "invalid"]
             counts = []
-            for _, paper in unanimous.groupby("panel_id", sort=False):
+            for _, paper in voted.groupby("panel_id", sort=False):
                 truth, predicted = paper.consensus.astype(bool), paper.predicted
                 counts.append(
                     dict(
@@ -1395,9 +1395,9 @@ def council_agreement(
                     candidate_pairs=len(cell),
                     invalid_pairs=int((cell.status == "invalid").sum()),
                     split_pairs=int((cell.status == "split").sum()),
-                    unanimous_pairs=len(unanimous),
+                    voted_pairs=len(voted),
                     model_positives=int(cell.predicted.sum()),
-                    retained_model_positives=int(unanimous.predicted.sum()),
+                    retained_model_positives=int(voted.predicted.sum()),
                     **pair_detection_summary(pd.DataFrame(counts, columns=PAIR_COUNTS)),
                 )
             )
@@ -1406,7 +1406,7 @@ def council_agreement(
     print(out.round(2).to_string(index=False))
     columns = [
         ("candidate_pairs", "Pairs", 0, False),
-        ("unanimous_pairs", "Unanimous", 0, False),
+        ("voted_pairs", "With three votes", 0, False),
         ("pair_precision", "Precision", 1, False),
         ("pair_recall", "Recall", 1, False),
         ("pair_f1", "F1", 1, False),

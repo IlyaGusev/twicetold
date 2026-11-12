@@ -88,7 +88,7 @@ We check pass 1 against human labels and against other LLMs. For the human check
 \label{sec:grouping}
 In \textbf{pass 2}, a separate Luna call groups the claims of one panel into problems. The call sees the claim lists, not the review texts. Two claims join one group only when they state the same problem in the same paper element.
 
-To check pass 2, each council member groups Luna's claim lists with the same prompt. Where all three members agree on a claim pair, Luna's grouping has \RefPairPrecision\% precision and \RefPairRecall\% recall across \RefPairPanels{} panels. These scores exclude disputed pairs.
+To check pass 2, each council member groups Luna's claim lists with the same prompt. Against the majority vote of the three members on each claim pair, Luna's grouping has \RefPairPrecision\% precision and \RefPairRecall\% recall across \RefPairPanels{} panels.
 
 \subsection{Metric}
 \label{sec:metric}
@@ -99,7 +99,7 @@ Let $G_A$ and $G_B$ be the sets of distinct problems that reviews $A$ and $B$ ra
 \end{equation}
 and $o(A,B)=0$ for an empty set. Full overlap means containment of the smaller set, not identical reviews. Higher overlap can result from smaller critique sets rather than more shared problems. Every main claim keeps its sign under other measures, including shared-problem counts at fixed set sizes. Following the IntraSim measure of \citet{baumann2026stop}, we average $o$ over all review pairs within a paper, then over papers within a year.
 
-Each council member also runs both passes on its own claims. Luna's panel overlap correlates \RefPipeCorrLuna{} with a member's, two members \RefPipeCorrCouncil, and all four pipelines give every contrast the same sign.
+Each council member also runs both passes on its own claims. Across panels, the Pearson correlation of overlap is \RefPipeCorrLuna{} between Luna and a member and \RefPipeCorrCouncil{} between two members, and all four pipelines give every contrast the same sign.
 
 \subsection{Detector of LLM-generated texts}
 \label{sec:detector}
@@ -129,11 +129,11 @@ ICLR overlap rose from \IclrRecentBase\% in 2025 to \IclrRecentLast\% in 2026, b
 
 \paragraph{RQ2: Do LLM-flagged reviews share a larger fraction of their critiques?}
 \label{sec:ai}
-We compare pairs of reviews of one paper by their detector labels. The reference pairs are always the same: pairs with no flagged review. The \textbf{flagged-pair gap} is the overlap of two flagged reviews minus the overlap of the reference pairs, with paper fixed effects. The \textbf{LLM-written gap} is the same difference for two LLM-written reviews. Intervals cluster by paper. We give ICLR 2027 separately. At ICLR in 2024--2026, the flagged-pair gap is \FlagGap{} points and the LLM-written gap is \WrittenGap. Other two-flagged pairs overlap \TypeLlIclr{} points more than the reference pairs, and one-flagged pairs \TypeHlIclr{} points more. In 2027, the flagged-pair gap is \FlagGapTwentySeven{} and the LLM-written gap is \WrittenGapLate. The flagged-pair gap is \NeuripsFlagGap{} at NeurIPS (2024--2025) and \IcmlFlagGap{} at ICML (2025--2026). Each 95\% interval excludes zero (Figure~\ref{fig:ai}).
+We compare pairs of reviews of one paper by their detector labels. The reference pairs are always the same: pairs with no flagged review. The \textbf{flagged-pair gap} is the overlap of two flagged reviews minus the overlap of the reference pairs, with paper fixed effects. The \textbf{LLM-written gap} is the same difference for two LLM-written reviews. At ICLR in 2024--2026, the flagged-pair gap is \FlagGap{} points and the LLM-written gap is \WrittenGap{} (\FlagGapTwentySeven{} and \WrittenGapLate{} in 2027). Other two-flagged pairs overlap \TypeLlIclr{} points more than the reference pairs. The flagged-pair gap is \NeuripsFlagGap{} at NeurIPS and \IcmlFlagGap{} at ICML (Figure~\ref{fig:ai}).
 
 The shift toward flagged pairs explains a small part of the ICLR rise. A shift-share decomposition assigns \DecIclrMix{} of the \IclrRecentChange{} points from 2025 to 2026 to this shift. The rest comes from rises within pair types: two unflagged reviews overlap \DecIclrNoneLast\% in 2026, against \DecIclrNoneBase\% in 2025. Detector misses or changes unrelated to LLM use can cause this rise, and we cannot separate them.
 
-LLM wording alone could make two critiques easier to match, even when the reviews raise the same problems as before. To test this style effect, Luna changes two human reviews in each of \RwIclrPapers{} pre-2023 ICLR panels and keeps their points. Polishing the language changes overlap by $\PlIclrTwo$ points. Rewriting each review from an outline of its points changes overlap by $+\RwIclrTwo$ points. This estimate has pair fixed effects, which remove the shift that a second grouping gives to all pairs of a panel. The 2024--2026 flagged-pair gap exceeds this rewrite effect by \RwFlagDiff{} points, the LLM-written gap by \RwWrittenDiff{} and the gap of other two-flagged pairs by \RwLlDiff. Style effects can therefore explain the gap of other two-flagged pairs and a large part of the 2024--2026 flagged-pair gap, but not the LLM-written gap.
+The gap could come from wording and not from content. Two reviews in the same LLM style can be easier to match, although their critiques are the same as before. To test this style effect, Luna changes two human reviews in each of \RwIclrPapers{} pre-2023 ICLR panels and keeps their points. Polishing the language changes overlap by $+\PlIclrTwo$ points. Rewriting each review from an outline of its points changes overlap by $+\RwIclrTwo$ points. Both numbers are relative to the pairs of the same panel that we did not change, because a second grouping run moves the overlap of all pairs a little. The 2024--2026 flagged-pair gap exceeds this rewrite effect by \RwFlagDiff{} points, the LLM-written gap by \RwWrittenDiff{} and the gap of other two-flagged pairs by \RwLlDiff. Style effects can therefore explain the gap of other two-flagged pairs and a large part of the 2024--2026 flagged-pair gap, but not the LLM-written gap.
 
 \paragraph{RQ3: Do LLM-flagged journal reports also repeat more critiques?}
 \label{sec:journals}
@@ -142,7 +142,7 @@ Against the 2019--2023 mean, journal overlap rose most at F1000 ($+\FResearchCha
 \begin{figure}[H]
 \centering
 \includegraphics{figs/fig4_fields.pdf}
-\caption{The pooled journal flagged-pair gap is positive, as are the F1000, PLOS and Copernicus intervals. Two-flagged minus no-flagged overlap with paper fixed effects, from 2024 on. Parentheses: papers with at least three reports and mixed flags (\IdJournalVarying{} of \IdJournalPapers{} pooled). Blue: ICLR 2024--2026 estimate. Bars and band: 95\% intervals clustered by paper.}
+\caption{The pooled journal flagged-pair gap is positive, as are the F1000, PLOS and Copernicus intervals. Two-flagged minus no-flagged overlap with paper fixed effects, from 2024 on. Parentheses: papers with at least three reports and mixed flags (\IdJournalVarying{} of \IdJournalPapers{} pooled). Blue: ICLR 2024--2026 estimate.}
 \label{fig:fields}
 \end{figure}
 
@@ -156,7 +156,7 @@ We see no way back from LLM-generated reviews. Venues should thus make them an i
 
 \clearpage
 \section*{Limitations}
-\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference uses LLMs, not humans, and does not rule out shared model errors. The human check covers pass 1 only. Extraction and grouping errors can affect measured levels and changes over time. The grouping check covers only unanimous council labels, not disputed cases. The overlap level depends on the grouper: council members give \RefPipeLevelMemberMin{} to \RefPipeLevelMemberMax\% against Luna's \RefPipeLuna\%. Every level in this paper is Luna's, and the contrasts hold in all four pipelines. No human annotator checked the grouping.
+\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference uses LLMs, not humans, and does not rule out shared model errors. The human check covers pass 1 only. Extraction and grouping errors can affect measured levels and changes over time. The overlap level depends on the grouper: council members give \RefPipeLevelMemberMin{} to \RefPipeLevelMemberMax\% against Luna's \RefPipeLuna\%. Every level in this paper is Luna's, and the contrasts hold in all four pipelines. No human annotator checked the grouping.
 
 \textbf{2027 comparability.} The 2027 rise compares ICLR reviews from before the discussion phase, on a new form, with final reviews from earlier years. This snapshot difference can bias the comparison in either direction. We did not rerun earlier years on initial review versions where OpenReview keeps them. We therefore read the 2027 rise as a descriptive discontinuity whose comparability with earlier years is open, not as clean evidence of a trend.
 
@@ -238,12 +238,12 @@ Both passes use GPT-6 Luna through OpenRouter with strict JSON-schema output and
 \end{table}
 
 
-\paragraph{Claim grouping.} We keep a claim-pair label only when the outputs of all three members contain both claim ids exactly once and agree whether the two claims belong to one group. This rule keeps \RefPairCandidates{} of \RefPairAllCandidates{} cross-review claim pairs (\RefPairCoverage\%). Luna agrees with \RefPairTp{} unanimous links, misses \RefPairFn{} and adds \RefPairFp{} (Table~\ref{tab:council}). This check covers \RefPairPanels{} of the \RefPipePanels{} same-paper panels, because the other \RefPairEmptyPanels{} have claims in at most one review and give no claim pair. Unlabeled pairs do not define complete reference groups, so this check does not validate full-panel overlap levels.
+\paragraph{Claim grouping.} The label of a claim pair is the majority vote of the three members on whether the two claims belong to one group. We keep a pair only when the outputs of all three members contain both claim ids exactly once. This rule keeps \RefPairCandidates{} of \RefPairAllCandidates{} cross-review claim pairs (\RefPairCoverage\%). Luna agrees with \RefPairTp{} majority links, misses \RefPairFn{} and adds \RefPairFp{} (Table~\ref{tab:council}). This check covers \RefPairPanels{} of the \RefPipePanels{} same-paper panels, because the other \RefPairEmptyPanels{} have claims in at most one review and give no claim pair. Unlabeled pairs do not define complete reference groups, so this check does not validate full-panel overlap levels.
 
 \begin{table}[!htp]
 \centering\small
 \input{tables/council}
-\caption{Luna's grouping agrees with unanimous council votes on same-paper panels. Pairs are claim pairs from different reviews of one panel. Precision, recall and F1 use only the pairs with a unanimous vote and take that vote as truth.}
+\caption{Luna's grouping agrees with the majority vote of the council on same-paper panels. Pairs are claim pairs from different reviews of one panel. Precision, recall and F1 use the pairs with a vote from all three members and take the majority vote as truth.}
 \label{tab:council}
 \end{table}
 
