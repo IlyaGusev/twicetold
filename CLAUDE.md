@@ -67,7 +67,6 @@ Sources:
 - Every number has a sample size and a 95% CI. CIs come from the right unit: the cluster, when observations share one [NN; Figure guide §7].
 - Never let a p-value between .01 and .05 be the only support for a central claim; report the effect size with its CI instead [NN].
 - Show robustness to each analysis choice you made [LS §5.1, NN]. Give one sentence per check in the main text and the full table in the appendix.
-- Mark which analyses you planned before seeing the data and which are post hoc [NN].
 - Do not cherry-pick qualitative examples; show random ones, or say how you chose them [NN].
 - A simple statistic that answers the question beats a complex model that impresses [JS: a small gain must come with small complexity; LS §3.2].
 

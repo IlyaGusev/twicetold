@@ -17,5 +17,7 @@ step src/panels.py nocq
 step src/meld.py input
 [ -f data/raw/meld_scores.jsonl ] || { echo "run src/meld.py scores on a GPU, then rerun"; exit 1; }
 step src/meld.py flags
+[ -f data/raw/editlens_scores.jsonl ] || { echo "run src/editlens.py scores on a GPU, then rerun"; exit 1; }
+step src/editlens.py flags
 step src/release.py from_raw
 echo "RAW DONE $(date)"

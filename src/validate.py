@@ -758,14 +758,7 @@ def decomposition_table_from_report(
     decomposition_table(pd.read_csv(Path(reports) / f"decomposition_{model}.csv"), tex)
 
 
-def decomposition(
-    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "decomposition.tex"
-):
-    meld = hub.meld_flags()
-    flag, written = meld.flag.astype(int), meld.written.astype(int)
-    pairs = in_window(
-        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
-    )
+def decomposition_rows(pairs, flag, written):
     spans = {}
     for conf, first, last in settings.GAP_CELLS.values():
         spans[conf] = (min(first, spans.get(conf, (first, last))[0]), max(last, spans.get(conf, (first, last))[1]))
@@ -801,10 +794,69 @@ def decomposition(
                 row.update({f"{name}_se": e for name, e in zip(DECOMPOSITION_TERMS, errors, strict=True)})
             previous = ((share, mean), resampled)
             rows.append(row)
-    out = pd.DataFrame(rows)
+    return pd.DataFrame(rows)
+
+
+def decomposition(
+    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "decomposition.tex"
+):
+    meld = hub.meld_flags()
+    pairs = in_window(
+        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+    )
+    out = decomposition_rows(pairs, meld.flag.astype(int), meld.written.astype(int))
     out.to_csv(Path(reports) / f"decomposition_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     decomposition_table(out, tex)
+
+
+Z95 = 1.96
+
+
+def second_detector_table(out, tex):
+    lines = [
+        r"\begin{tabular}{@{}lrrrrr@{}}",
+        r"\toprule",
+        r" & & \multicolumn{2}{c}{MELD} & \multicolumn{2}{c}{EditLens} \\",
+        r"\cmidrule(lr){3-4}\cmidrule(l){5-6}",
+        r"Reviews & Papers & Gap (points) & Pairs & Gap (points) & Pairs \\",
+        r"\midrule",
+    ]
+    for r in out.itertuples():
+        cells = [r.cell.replace("–", "--"), f"{r.papers:,}"]
+        for name in ["meld", "editlens"]:
+            est, se = getattr(r, name), getattr(r, f"{name}_se")
+            cells += [f"{est:+.1f} [{est - Z95 * se:+.1f}, {est + Z95 * se:+.1f}]", f"{getattr(r, f'{name}_pairs'):,}"]
+        lines.append(" & ".join(cells) + r" \\")
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
+def second_detector(
+    model=settings.DEFAULT_MODEL,
+    reports=settings.ANALYSIS_REPORTS_DIR,
+    tex=settings.TABLES_DIR / "second_detector.tex",
+    first_year=2024,
+):
+    flags = {"meld": hub.meld_flags().flag.astype(int), "editlens": hub.editlens_flags().astype(int)}
+    pairs = in_window(
+        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+    )
+    journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= first_year)]
+    cells = gap_cells(pairs) | {f"Journals {first_year}–{journals.year.max() % 100}": journals}
+    rows = []
+    for label, cell in cells.items():
+        row = dict(cell=label, papers=cell.panel_id.nunique())
+        for name, flag in flags.items():
+            gap = fe_gap(cell, flag)
+            row |= {name: gap["two"], f"{name}_se": gap["two_se"], f"{name}_pairs": int((pair_counts(cell, flag) == 2).sum())}
+        rows.append(row)
+    out = pd.DataFrame(rows)
+    out.to_csv(Path(reports) / f"second_detector_{model}.csv", index=False)
+    print(out.round(2).to_string(index=False))
+    second_detector_table(out, tex)
+    steps = decomposition_rows(pairs, flags["editlens"], flags["editlens"] * 0)
+    steps.to_csv(Path(reports) / f"second_detector_decomposition_{model}.csv", index=False)
+    print(steps.round(2).to_string(index=False))
 
 
 def repro(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
@@ -1530,6 +1582,7 @@ if __name__ == "__main__":
             "coverage": coverage,
             "decomposition": decomposition,
             "decomposition_table": decomposition_table_from_report,
+            "second_detector": second_detector,
             "rewrite_test": rewrite_test,
             "repro": repro,
             "quotes": quotes,

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     RAW_ML_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources"
     RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources" / "other"
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
-    HF_DATASET_REVISION: str = "8221704f2a8a32943fa85fc8c26c71118bfe5dae"
+    HF_DATASET_REVISION: str = "e665fe9cd9cb69fe1e01de7972ed49f1560a61f8"
     HF_PULL_PATTERNS: list[str] = ["final/**", "gold/**", "additional/**", "README.md", "stats.json"]
     HF_RAW_PATTERNS: list[str] = [
         "raw/*_raw.jsonl*",
@@ -47,6 +47,7 @@ class Settings(BaseSettings):
         "raw/paper_areas.parquet*",
         "raw/other/stats.json*",
         "raw/meld_scores.jsonl*",
+        "raw/editlens_scores.jsonl*",
     ]
     HF_PUSH_IGNORE: list[str] = ["additional/paper_reviews/raw/**"]
     KIM_DATASET_REPO: str = "prometheus-eval/peerreview-bench"
@@ -153,6 +154,12 @@ class Settings(BaseSettings):
     MELD_FLAG_QUANTILE: float = 0.999
     MELD_CALIBRATION_LAST_YEAR: int = 2022
     MELD_WRITTEN_TASK: str = "generate"
+    EDITLENS_REPO: str = "pangram/editlens_Llama-3.2-3B"
+    EDITLENS_REVISION: str = "b4a297be1d4c36a2a02c7709ae12f3c6626fae58"
+    EDITLENS_BASE_REPO: str = "unsloth/Llama-3.2-3B"
+    EDITLENS_BASE_REVISION: str = "d4446454d87d51aa42e1fb174f25acc5f8762331"
+    EDITLENS_BUCKETS: int = 4
+    EDITLENS_MAX_LENGTH: int = 1024
 
     PRICES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
         "gpt-6-luna": (0.10, 0.50),

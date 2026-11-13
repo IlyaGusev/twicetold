@@ -994,6 +994,21 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(prefix + "Unflagged", row.unflagged, digits=digits)
         record(prefix + "Written", row.written, digits=digits)
         record(prefix + "WrittenOfFlagged", 100 * row.written / (100 - row.unflagged), digits=0)
+    editlens = pd.read_csv(settings.REPORTS_DIR / "editlens_summary.csv").set_index("name").value
+    values["EditlensThreshold"] = f"{editlens.threshold:.2f}"
+    values["EditlensAgreementReviews"] = f"{int(editlens.agreement_reviews):,}"
+    values["EditlensKappa"] = f"{editlens.kappa:.2f}"
+    for name, macro in [("both", "EditlensBoth"), ("meld_only", "EditlensMeldOnly"), ("editlens_only", "EditlensOnly")]:
+        record(macro, editlens[name])
+    editlens_labels = pd.read_csv(settings.REPORTS_DIR / "editlens_labels.csv").set_index("known").flagged
+    record("EditlensHeldoutFlagged", editlens_labels["heldout"], digits=2)
+    second = pd.read_csv(reports / f"second_detector_{model}.csv").set_index("cell")
+    for cell, name in [("ICLR 2024–26", "EditlensFlagGap"), (f"ICLR {settings.ICLR_LAST}", "EditlensFlagGapLast")]:
+        record(name, second.loc[cell].editlens, second.loc[cell].editlens_se, second.loc[cell].papers)
+    second_steps = pd.read_csv(reports / f"second_detector_decomposition_{model}.csv").set_index(["conf", "year"])
+    second_step = second_steps.loc[("ICLR", settings.CONTRAST_YEARS[1])]
+    values["EditlensDecMix"] = f"{second_step.composition:.1f}"
+    values["EditlensDecUnflagged"] = f"{second_step.within_unflagged:.1f}"
     repro = pd.read_csv(reports / f"repro_{model}.csv").set_index("name").value
     for name in ["pass1_empty", "pass1_error_rows", "pass2_error_rows", "calibration_in_analysis", "calibration_outside"]:
         values["Repro" + name.title().replace("_", "").replace("1", "One").replace("2", "Two")] = f"{int(repro[name]):,}"

@@ -227,3 +227,9 @@ PaperKimiFlagged,100.0,,
 PaperKimiUnflagged,0.0,,
 PaperKimiWritten,100.0,,
 PaperKimiWrittenOfFlagged,100.0,,
+EditlensBoth,16.426431183093758,,
+EditlensMeldOnly,12.240789873150385,,
+EditlensOnly,3.2821182961760322,,
+EditlensHeldoutFlagged,0.028,,
+EditlensFlagGap,4.157497386060523,0.2397442627334284,28065.0
+EditlensFlagGapLast,7.219244556351194,0.7652537974387391,10000.0

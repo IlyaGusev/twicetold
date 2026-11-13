@@ -67,6 +67,14 @@ def meld_flags(columns=("conf", "year", "score", "flag", "written")):
     return frame("reviews", ["review_id", *columns], ds.field("meld_flag").is_valid()).set_index("review_id")
 
 
+def editlens_flags():
+    return (
+        frame("reviews", ["review_id", "editlens_flag"], ds.field("editlens_flag").is_valid())
+        .set_index("review_id")
+        .editlens_flag
+    )
+
+
 def texts(review_ids):
     ids = list(review_ids)
     tables = [arrow(config, ["review_id", "text"], ds.field("review_id").isin(ids)) for config in ["reviews", "variants"]]

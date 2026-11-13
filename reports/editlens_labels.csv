@@ -1,0 +1,12 @@
+known,texts,flagged
+human,110080,0.101
+heldout,14271,0.028
+polish,2100,3.333
+rewrite,13194,78.551
+rewrite_panel,1600,88.625
+polish_panel,1600,3.062
+rewrite_panel_second,1200,89.5
+polish_panel_second,1200,2.083
+intel_ai,5000,99.1
+paper_review,100,94.0
+paper_review_second,100,61.0

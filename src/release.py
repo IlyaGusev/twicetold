@@ -54,6 +54,7 @@ MELD_COLUMNS = {
     "flag": "meld_flag",
     "written": "meld_written",
 }
+EDITLENS_COLUMNS = {"score": "editlens_score", "n_tokens": "editlens_tokens", "flag": "editlens_flag"}
 PANEL_KINDS = [
     ("placeboA_", "placebo_area"),
     ("placebo_", "placebo_venue"),
@@ -274,6 +275,16 @@ def with_new_claims(part, path):
     return part.astype({"claims_error": "string"})
 
 
+def with_editlens(part):
+    path = settings.RAW_DIR / "editlens_flags.parquet"
+    if not path.exists():
+        return part
+    flags = pd.read_parquet(path, columns=["review_id", *EDITLENS_COLUMNS]).set_index("review_id")
+    for column, name in EDITLENS_COLUMNS.items():
+        part[name] = part.review_id.map(flags[column])
+    return part.astype({"editlens_tokens": "Int64", "editlens_flag": "boolean"})
+
+
 def final_panel_rows(kind):
     path = settings.FINAL_DIR / "panels" / f"{kind}.parquet"
     return pq.read_table(path).to_pylist() if path.exists() else []
@@ -301,7 +312,7 @@ def write_final(model, review_parts, variants, papers, panel_rows):
     claims_path = settings.WORK_DIR / f"claims_{model}.jsonl"
     summary = []
     for source, part in review_parts:
-        part = with_new_claims(part, claims_path)
+        part = with_editlens(with_new_claims(part, claims_path))
         part.to_parquet(out / "reviews" / f"{source}.parquet", index=False)
         summary.append(
             dict(
@@ -312,6 +323,7 @@ def write_final(model, review_parts, variants, papers, panel_rows):
                 in_sample=int(part["sample"].notna().sum()),
                 with_claims=int(part.claims.notna().sum()),
                 with_meld=int(part.meld_score.notna().sum()),
+                with_editlens=int(part.editlens_score.notna().sum()),
             )
         )
         print(summary[-1], flush=True)
@@ -327,6 +339,7 @@ def write_final(model, review_parts, variants, papers, panel_rows):
         panel_counts.append(dict(kind=kind, panels=sum(row["clusters"] is not None for row in rows.values())))
         print(kind, len(rows), flush=True)
     meld = pd.read_csv(settings.REPORTS_DIR / "meld_summary.csv", index_col="name").value
+    editlens = pd.read_csv(settings.REPORTS_DIR / "editlens_summary.csv", index_col="name").value
     card = render(
         "dataset_card",
         sources=markdown_table(pd.DataFrame(summary)),
@@ -340,6 +353,11 @@ def write_final(model, review_parts, variants, papers, panel_rows):
         quantile=settings.MELD_FLAG_QUANTILE,
         meld_repo=settings.MELD_REPO,
         meld_revision=settings.MELD_REVISION,
+        editlens_threshold=f"{editlens.threshold:.4f}",
+        editlens_repo=settings.EDITLENS_REPO,
+        editlens_revision=settings.EDITLENS_REVISION,
+        editlens_base_repo=settings.EDITLENS_BASE_REPO,
+        editlens_max_length=f"{settings.EDITLENS_MAX_LENGTH:,}",
         model=model,
         route=settings.OPENROUTER_ROUTES[model],
         efforts=settings.REASONING_EFFORTS[model],
@@ -387,7 +405,7 @@ def push():
         repo_id=settings.HF_DATASET_REPO,
         folder_path=settings.DATA_DIR,
         repo_type="dataset",
-        commit_message="Release reviews, papers, claims, panels and MELD scores",
+        commit_message="Release reviews, papers, claims, panels, MELD and EditLens scores",
         allow_patterns=settings.HF_PULL_PATTERNS + settings.HF_RAW_PATTERNS,
         ignore_patterns=settings.HF_PUSH_IGNORE,
         delete_patterns=["final/**", "gold/**", "additional/**"],
