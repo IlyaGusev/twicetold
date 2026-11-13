@@ -29,8 +29,10 @@ def test_council_agreement_requires_all_three_labels(label):
     assert council_pair_label([mapping] * 3, "a", "b") == ("unanimous", label)
 
 
-def test_council_split_is_not_a_negative_label():
-    assert council_pair_label([{"a": 0, "b": 0}, {"a": 0, "b": 1}, {"a": 0, "b": 1}], "a", "b") == ("split", None)
+@pytest.mark.parametrize("label", [True, False])
+def test_council_split_takes_the_majority_vote(label):
+    majority, minority = {"a": 0, "b": 0 if label else 1}, {"a": 0, "b": 1 if label else 0}
+    assert council_pair_label([majority, majority, minority], "a", "b") == ("split", label)
 
 
 def test_missing_council_member_is_not_a_vote():
