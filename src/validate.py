@@ -54,7 +54,31 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     sub3 = pd.read_parquet(settings.ANALYSIS_DIR / f"sub3_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
     noq = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_noq.parquet").query("n_claims > 0")
     wd = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_wd.parquet").query("n_claims > 0")
-    with_wd = pd.concat([main, wd.assign(year=2026)])
+    first, last = settings.ICLR_SNAPSHOT_YEARS
+    status = hub.corpus_reviews(["paper_id", "conf", "year", "withdrawn", "decision"]).query("conf == 'ICLR' and year == @first")
+    status = status.groupby("paper_id").agg(
+        reviews=("paper_id", "size"), withdrawn=("withdrawn", "first"), decision=("decision", "first")
+    )
+    status = status[status.reviews >= settings.MIN_PANEL_REVIEWS]
+    left_share = (status.withdrawn | status.decision.eq("desk_reject")).mean()
+
+    def level(df, col, year):
+        values = df[df.year == year][col].dropna() * 100
+        return values.mean(), values.sem()
+
+    kept_level, left_level = level(main, "hit_rate_strict", first), level(wd.assign(year=first), "hit_rate_strict", first)
+    counted = (
+        (1 - left_share) * kept_level[0] + left_share * left_level[0],
+        np.hypot((1 - left_share) * kept_level[1], left_share * left_level[1]),
+    )
+    pd.DataFrame(
+        [
+            dict(name="left_share", value=100 * left_share),
+            dict(name="left_papers", value=len(wd)),
+            dict(name="left_level", value=left_level[0]),
+            dict(name="left_level_se", value=left_level[1]),
+        ]
+    ).to_csv(Path(reports) / f"withdrawn_{model}.csv", index=False)
     variants = [
         ("Main overlap rate", main, "hit_rate_strict"),
         ("Specific claims only", specific, "hit_spec"),
@@ -62,22 +86,23 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
         ("3-review subsets, grouped again", sub3, "hit_rate_strict"),
         ("Questions field removed", noq, "hit_rate_strict"),
     ]
-    checks = [(*v, 2025, 2026) for v in variants]
-    checks.append(("Withdrawn 2026 papers added", with_wd, "hit_rate_strict", 2025, 2026))
-    checks += [(*v, 2024 if v[1] is noq else 2023, settings.ICLR_LAST) for v in variants]
+    checks = [(name, level(df, col, first), level(df, col, last), first, last) for name, df, col in variants]
+    checks.insert(1, (settings.WITHDRAWN_CHECK, counted, level(main, "hit_rate_strict", last), first, last))
+    for base_year, last_year in [settings.CONTRAST_YEARS]:
+        checks += [
+            (name, level(df, col, base_year), level(df, col, last_year), base_year, last_year) for name, df, col in variants
+        ]
     rows = []
-    for name, df, col, base_year, last_year in checks:
-        base = df[df.year == base_year][col].dropna() * 100
-        last = df[df.year == last_year][col].dropna() * 100
+    for name, base, end, base_year, last_year in checks:
         rows.append(
             {
                 "check": name,
                 "base_year": base_year,
-                "base": base.mean(),
+                "base": base[0],
                 "last_year": last_year,
-                "last": last.mean(),
-                "change": last.mean() - base.mean(),
-                "se": np.hypot(base.sem(), last.sem()),
+                "last": end[0],
+                "change": end[0] - base[0],
+                "se": np.hypot(base[1], end[1]),
             }
         )
     out = pd.DataFrame(rows)
@@ -90,7 +115,7 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
         r"\midrule",
     ]
     for k, r in enumerate(out.itertuples()):
-        if k and r.last_year == settings.ICLR_LAST and out.last_year.iloc[k - 1] != settings.ICLR_LAST:
+        if k and r.last_year != out.last_year.iloc[k - 1]:
             lines.append(r"\midrule")
         lines.append(
             f"{r.check} & {r.base_year} & {r.base:.1f} & {r.last_year} & {r.last:.1f} & {r.change:+.1f} ({r.se:.1f}) \\\\"
@@ -700,7 +725,7 @@ def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR
         r"\midrule",
     ]
     for r in out.itertuples():
-        mark = r"\rlap{$^\dagger$}" if r.year == settings.ICLR_LAST else ""
+        mark = r"\rlap{$^\dagger$}" if r.year >= settings.ICLR_SNAPSHOT_YEARS[0] else ""
         lines.append(f"{r.year}{mark} & " + " & ".join(f"{getattr(r, c):.2f}" for c in shown) + r" \\")
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular*}"]) + "\n")
 

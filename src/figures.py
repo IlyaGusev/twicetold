@@ -177,26 +177,6 @@ def kept_meld_flags():
     return flags[~flags.index.isin(excluded_review_ids())]
 
 
-def rates(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    flags = in_window(kept_meld_flags())
-    by_source = flags.groupby(["conf", "year"]).flag.agg(["mean", "size"]).reset_index()
-    by_source["match"] = by_source["mean"] * 100
-    by_source["match_se"] = np.sqrt(by_source["mean"] * (1 - by_source["mean"]) / by_source["size"]) * 100
-    fig, (top, bottom) = plt.subplots(1, 2, sharex=True, figsize=(PAGE_WIDTH - 0.1, 2.3))
-    fig.subplots_adjust(left=0.07, right=0.88, top=0.9, bottom=0.18, wspace=0.48)
-    for ax, styles, title in [(top, CONFERENCE_STYLES, "a  ML conferences"), (bottom, JOURNAL_STYLES, "b  Journals")]:
-        shade_chatgpt_period(ax)
-        overlap_panel(ax, by_source, styles, settings.ICLR_LAST + 0.65, 10)
-        ax.set_xlabel("Review year")
-        ax.set_ylim(-2, 70)
-        ax.set_yticks([0, 20, 40, 60])
-        ax.set_ylabel("LLM-flagged (%)")
-        ax.set_title(title, fontweight="bold")
-    bottom.set_xlim(2018.6, CHATGPT_BAND[1])
-    bottom.set_xticks(range(2019, settings.ICLR_LAST + 1), [f"'{year % 100}" for year in range(2019, settings.ICLR_LAST + 1)])
-    save(fig, figs, "figA_rates.pdf", PAGE_WIDTH)
-
-
 PAIR_TYPE_STYLES = {
     "HH": ("Neither flagged", COLORS["grey"], COLORS["grey"], "o"),
     "HL": ("One flagged", COLORS["flag_light"], COLORS["flag"], "s"),
@@ -320,9 +300,10 @@ def overlap_panel(ax, by_year, styles, label_x, gap):
         muted = color == COLORS["grey"]
         ax.fill_between(x, y - ci, y + ci, color=color, alpha=0.12 if muted else 0.2, lw=0, zorder=1)
         width, order = (1.1, 2) if muted else (1.4, 3)
-        solid = len(x) - (conf == "ICLR")
-        ax.plot(x[:solid], y[:solid], "-", color=color, lw=width, zorder=order)
-        ax.plot(x[solid - 1 :], y[solid - 1 :], "--", color=color, lw=width, dashes=(2.2, 1.6), zorder=order)
+        final = int((rows.year < settings.ICLR_SNAPSHOT_YEARS[0]).sum()) if conf == "ICLR" else len(x)
+        ax.plot(x[:final], y[:final], "-", color=color, lw=width, zorder=order)
+        ax.plot(x[final - 1 : final + 1], y[final - 1 : final + 1], "--", color=color, lw=width, dashes=(2.2, 1.6), zorder=order)
+        ax.plot(x[final:], y[final:], "-", color=color, lw=width, zorder=order)
         ax.plot(x, y, marker, color=color, mec="white", mew=0.6, ms=3.5 if muted else 4, zorder=4)
         ends[name] = (x.iloc[-1], y.iloc[-1], color)
     label_ys = spread_labels([y for _, y, _ in ends.values()], gap)
@@ -563,7 +544,7 @@ def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def all_figures(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    for draw in [overlap, ai, ai_checks, categories, fields, cross, embedding, rates]:
+    for draw in [overlap, ai, ai_checks, categories, fields, cross, embedding]:
         draw(figs, model)
 
 
@@ -688,6 +669,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for conf, prefix, base_year, last_year in [
         ("ICLR", "Iclr", 2023, settings.ICLR_LAST),
         ("ICLR", "IclrRecent", 2025, 2026),
+        ("ICLR", "IclrKept", *settings.ICLR_SNAPSHOT_YEARS),
         ("NeurIPS", "Neurips", 2024, 2025),
         ("ICML", "Icml", 2025, 2026),
     ]:
@@ -902,6 +884,17 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     recent = pd.read_csv(reports / f"robust_{model}.csv").query("base_year == @settings.CONTRAST_YEARS[0]")
     values["RobustMin"] = f"{recent.change.min():.1f}"
     values["RobustMax"] = f"{recent.change.max():.1f}"
+    matched = pd.read_csv(reports / f"robust_{model}.csv").query("base_year == @settings.ICLR_SNAPSHOT_YEARS[0]")
+    counted = matched.set_index("check").loc[settings.WITHDRAWN_CHECK]
+    values["IclrSnapBase"] = f"{counted.base:.1f}"
+    values["IclrSnapLast"] = f"{counted['last']:.1f}"
+    record("IclrSnapChange", counted.change, counted.se)
+    left = pd.read_csv(reports / f"withdrawn_{model}.csv").set_index("name").value
+    values["WithdrawnShare"] = f"{left.left_share:.0f}"
+    values["WithdrawnPapers"] = f"{int(left.left_papers):,}"
+    record("WithdrawnLevel", left.left_level, left.left_level_se)
+    values["RobustSnapMin"] = f"{matched.change.min():.1f}"
+    values["RobustSnapMax"] = f"{matched.change.max():.1f}"
     sizes = pd.read_csv(reports / f"pair_type_sizes_{model}.csv").set_index("pair_type")
     for pair_type, row in sizes.iterrows():
         prefix = "Size" + pair_type.title()
@@ -919,6 +912,11 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["DecIclrMix"] = f"{step.composition:.1f}"
     values["DecIclrUnflagged"] = f"{step.within_unflagged:.1f}"
     values["DecIclrMixEarly"] = f"{step_base.composition:.1f}"
+    step_snap = steps.loc[("ICLR", settings.ICLR_SNAPSHOT_YEARS[1])]
+    values["DecSnapMix"] = f"{step_snap.composition:.1f}"
+    values["DecSnapUnflagged"] = f"{step_snap.within_unflagged:.1f}"
+    values["DecSnapFlagged"] = f"{step_snap.within_flagged:.1f}"
+    values["DecSnapNoneLast"] = f"{step_snap.overlap_HH:.1f}"
     values["DecIclrNoneBase"] = f"{step_base.overlap_HH:.1f}"
     values["DecIclrNoneLast"] = f"{step.overlap_HH:.1f}"
     values["DecIclrTwoShareBase"] = f"{step_base.share_LL + step_base.share_WW:.1f}"
@@ -936,7 +934,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["CovPapersMax"] = f"{int(cover.papers.max()):,}"
     values["CovLostEarlierMin"] = f"{earlier.min():.1f}"
     values["CovLostEarlierMax"] = f"{earlier.max():.1f}"
-    for year, suffix in [(2024, "First"), (2025, "Base"), (2026, "Last")]:
+    for year, suffix in [(2024, "First"), (2025, "Base"), (2026, "Last"), (settings.ICLR_SNAPSHOT_YEARS[1], "Snap")]:
         row = cover.loc[year]
         record("CovProblems" + suffix, row.problems, row.problems_se, row.papers)
         record("CovPerReview" + suffix, row.per_review, row.per_review_se)
@@ -1009,6 +1007,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     second_step = second_steps.loc[("ICLR", settings.CONTRAST_YEARS[1])]
     values["EditlensDecMix"] = f"{second_step.composition:.1f}"
     values["EditlensDecUnflagged"] = f"{second_step.within_unflagged:.1f}"
+    second_snap = second_steps.loc[("ICLR", settings.ICLR_SNAPSHOT_YEARS[1])]
+    values["EditlensDecSnapMix"] = f"{second_snap.composition:.1f}"
+    values["EditlensDecSnapUnflagged"] = f"{second_snap.within_unflagged:.1f}"
     repro = pd.read_csv(reports / f"repro_{model}.csv").set_index("name").value
     for name in ["pass1_empty", "pass1_error_rows", "pass2_error_rows", "calibration_in_analysis", "calibration_outside"]:
         values["Repro" + name.title().replace("_", "").replace("1", "One").replace("2", "Two")] = f"{int(repro[name]):,}"
@@ -1041,7 +1042,6 @@ if __name__ == "__main__":
             "categories": categories,
             "fields": fields,
             "embedding": embedding,
-            "rates": rates,
             "cross": cross,
             "table": table,
             "numbers": numbers,

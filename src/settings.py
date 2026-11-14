@@ -137,6 +137,9 @@ class Settings(BaseSettings):
         "kimi-k3.1-pro": "Kimi K3.1 Pro",
     }
     CONTRAST_YEARS: tuple[int, int] = (2025, 2026)
+    ICLR_SNAPSHOT_YEARS: tuple[int, int] = (2026, 2027)
+    MIN_PANEL_REVIEWS: int = 3
+    WITHDRAWN_CHECK: str = "Withdrawn 2026 papers counted"
     REFERENCE_BOOTSTRAPS: int = 5000
     REFERENCE_BOOTSTRAP_SEED: int = 0
     REVIEW_TEXT_MAX_CHARS: int = 14000

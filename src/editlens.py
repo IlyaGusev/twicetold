@@ -134,15 +134,19 @@ REVIEW_ROWS = [
 ]
 
 
-def compare_table(reports, tex):
+def compare_table(reports, tex, known_tex):
     known = pd.read_csv(Path(reports) / "meld_labels.csv").set_index("known")
     known = known.assign(
         meld=100 - known.unflagged, editlens=pd.read_csv(Path(reports) / "editlens_labels.csv").set_index("known").flagged
     )
-    lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", r"Texts & $n$ & MELD (\%) & EditLens (\%) \\", r"\midrule"]
-    lines += [r"\multicolumn{4}{@{}l}{\textit{Texts of known origin}} \\"]
-    lines += [f"{KNOWN_SETS[k]} & {int(r.texts):,} & {r.meld:.1f} & {r.editlens:.1f} \\\\" for k, r in known.iterrows()]
-    lines += [r"\midrule", r"\multicolumn{4}{@{}l}{\textit{Sampled reviews}} \\"]
+    head = r"Texts & $n$ & \shortstack[r]{MELD\\flagged (\%)} & \shortstack[r]{MELD\\written (\%)} & \shortstack[r]{EditLens\\flagged (\%)} \\"
+    lines = [r"\begin{tabular}{@{}lrrrr@{}}", r"\toprule", head, r"\midrule"]
+    lines += [
+        f"{KNOWN_SETS[k]} & {int(r.texts):,} & {r.meld:.1f} & {r.written:.1f} & {r.editlens:.1f} \\\\"
+        for k, r in known.iterrows()
+    ]
+    Path(known_tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", r"Reviews & $n$ & MELD (\%) & EditLens (\%) \\", r"\midrule"]
     rates = pd.read_csv(Path(reports) / "meld_rates.csv").merge(
         pd.read_csv(Path(reports) / "editlens_rates.csv"), on=["set", "conf", "year"], suffixes=("_meld", "_editlens")
     )
@@ -162,6 +166,7 @@ def flags(
     out=settings.RAW_DIR / "editlens_flags.parquet",
     reports=settings.REPORTS_DIR,
     tex=settings.TABLES_DIR / "detectors_compare.tex",
+    known_tex=settings.TABLES_DIR / "known_texts.tex",
 ):
     df = pd.read_parquet(input, columns=["key", "set", "review_id", "conf", "year"]).merge(
         pd.read_json(scored, lines=True)[["key", "score", "n_tokens"]], on="key"
@@ -202,7 +207,7 @@ def flags(
     pd.Series(summary).to_csv(Path(reports) / "editlens_summary.csv", header=["value"], index_label="name")
     print(pd.Series(summary).round(3).to_string())
     real[["review_id", "conf", "year", "score", "n_tokens", "flag"]].to_parquet(out, index=False)
-    compare_table(reports, tex)
+    compare_table(reports, tex, known_tex)
 
 
 if __name__ == "__main__":
