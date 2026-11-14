@@ -46,7 +46,7 @@ Peer review relies on several readers finding different problems. We measure cri
 
 Peer review needs readers who find different problems. In one study, two reviewers usually shared no critical point \citep{fiske1990reviewers}. In another study about Nature-family reviews, 25.8\% of one reviewer's criticisms match another's \citep{kim2026limits}. Our central question is: with widespread LLM-generated text in ML reviews \citep{liang2024monitoring,russo2025lottery,emi2025pangram}, do reviewers still provide distinct critiques?
 
-We measure shared problems by extracting and matching critiques across reviews of one paper. Whole-review similarity mixes wording and content \citep{liang2024monitoring,baumann2026stop} and cannot establish that two reviews raise the same problem. Prior studies find that synthetic LLM-generated reviews share more claims than human reviews \citep{hou2026converge,kim2026limits}, a gap used for detection \citep{duarte2026semdetect}. We apply critique extraction \citep{liang2024feedback,kim2026limits} to reviews that venues received, comparing problems within papers and over time.
+We measure shared problems by extracting and matching critiques across reviews of one paper. Whole-review similarity mixes wording and content \citep{liang2024monitoring,baumann2026stop} and cannot establish that two reviews raise the same problem. Prior studies find that synthetic LLM-generated reviews are more similar to each other than human reviews \citep{hou2026converge} and share more criticisms \citep{kim2026limits}, a gap used for detection \citep{duarte2026semdetect}. We apply critique extraction \citep{liang2024feedback,kim2026limits} to reviews that venues received, comparing problems within papers and over time.
 
 Our findings are:
 
@@ -59,17 +59,17 @@ Our findings are:
 \section{Related Work}
 \label{sec:related}
 
-\paragraph{LLM use in peer review.} ICLR and NeurIPS reviews grew longer after ChatGPT, while LLM-assisted reviews mention originality and clarity less \citep{wu2026impact}. LLM-written reports at one management journal cover fewer topics \citep{gartenberg2026more}. We also find fewer clarity critiques, but we compare shared problems, not single-review topics.
+\paragraph{LLM use in peer review.} ICLR and NeurIPS reviews grew longer after ChatGPT, while LLM-assisted ICLR reviews mention originality and clarity less \citep{wu2026impact}. LLM-written reports at one management journal cover a narrower range of topics \citep{gartenberg2026more}. We also find fewer clarity critiques, but we compare shared problems, not single-review topics.
 
-\paragraph{LLM reviewers.} LLM reviewers agree with each other more than humans do, within and across papers \citep{baumann2026stop,hou2026converge,kim2026limits}. These studies generate reviews. We observe reviews that venues received.
+\paragraph{LLM reviewers.} LLM reviewers agree with each other more than humans do, within papers \citep{baumann2026stop,kim2026limits} and across papers \citep{baumann2026stop,hou2026converge}. These studies generate reviews. We observe reviews that venues received.
 
-\paragraph{Homogenization.} LLM assistance makes writers' content more alike \citep{padmakumar2024writing,anderson2024homogenization,doshi2024generative}. Model outputs are narrower than training data \citep{wu2025monoculture}. \citet{sourati2026homogenizing} review this evidence. We extend the question from creative tasks to expert critiques, where independent readings are the goal.
+\paragraph{Homogenization.} LLM assistance makes the texts and ideas of different users more alike \citep{padmakumar2024writing,anderson2024homogenization,doshi2024generative}. Model outputs are narrower than training data \citep{wu2025monoculture}. \citet{sourati2026homogenizing} review this evidence. We extend the question from creative tasks to expert critiques, where independent readings are the goal.
 
 \section{Methodology}
 \label{sec:data}
 
 \subsection{Data}
-Table~\ref{tab:data} lists the samples. ICLR and NeurIPS come from OpenReview \citep{arcade2025dataset,heineman2026iclr}. ICML includes accepted papers from 2025--2026. ICLR 2027 reviews come from the OpenReview API on the day they became public. Conference papers need at least three reviews. Journal papers need at least two first-round reports: SciPost, F1000Research and sister platforms (F1000), PLOS, BMC Medicine \citep{jerma2026bmc}, and Copernicus/EGU, covering physics, medicine, biology and geoscience. We call conference texts \textbf{reviews} and journal texts \textbf{reports}. A \textbf{panel} is the set of reviews of one paper.
+Table~\ref{tab:data} lists the samples. ICLR and NeurIPS come from OpenReview \citep{arcade2025dataset,xu2025researcharcade,heineman2026iclr}. ICML includes accepted papers from 2025--2026. ICLR 2027 reviews come from the OpenReview API on the day they became public. Conference papers need at least three reviews. Journal papers need at least two first-round reports: SciPost, F1000Research and sister platforms (F1000), PLOS, BMC Medicine \citep{jerma2026bmc}, and Copernicus/EGU, covering physics, medicine, biology and geoscience. We call conference texts \textbf{reviews} and journal texts \textbf{reports}. A \textbf{panel} is the set of reviews of one paper.
 
 \begin{table}[t]
 \centering\footnotesize
@@ -82,7 +82,7 @@ Table~\ref{tab:data} lists the samples. ICLR and NeurIPS come from OpenReview \c
 \label{sec:extraction}
 A \textbf{critique claim} identifies one problem that needs one fix. We exclude praise and neutral text. In \textbf{pass 1}, GPT-6 Luna (Luna) reads one review in full and lists its claims. Each claim has a quote copied from the review, a one-sentence paraphrase and a category such as clarity or experiment scope. Luna marks a claim as \textbf{specific} when the claim names a concrete referent such as a table.
 
-We check pass 1 against human labels and against other LLMs. For the human check, we use two public sets: \KimReviews{} Nature-family reviews that annotators split into \KimItems{} critique items \citep{kim2026limits}, and \ClaimcheckReviews{} NeurIPS reviews with \ClaimcheckItems{} weakness spans that experts marked \citep{ou2025claimcheck}. A quote of at least one Luna claim falls in \KimItemRecall\% of the items and in \ClaimcheckItemRecall\% of the spans, and \KimClaimUnmatched\% of Luna's claims on the first set fall outside every item. For the LLM check, Sol 6.1, DeepSeek V4.1 Flash and Kimi K3.1 Pro run pass 1 on \RefReviews{} of our reviews, in \RefPanels{} panels from every venue, year and detector stratum. We call these three models the \textbf{council}. Luna's quotes reach a word-span F1 of \RefSpanFOne\% with a council member, against \RefCouncilSpanFOne\% between two members.
+We check pass 1 against human labels and against other LLMs. For the human check, we use two public sets: \KimReviews{} Nature-family reviews that the authors of the set split into \KimItems{} critique items \citep{kim2026limits}, and \ClaimcheckReviews{} NeurIPS reviews with \ClaimcheckItems{} weakness spans that experts marked \citep{ou2025claimcheck}. A quote of at least one Luna claim falls in \KimItemRecall\% of the items and in \ClaimcheckItemRecall\% of the spans, and \KimClaimUnmatched\% of Luna's claims on the first set fall outside every item. For the LLM check, Sol 6.1, DeepSeek V4.1 Flash and Kimi K3.1 Pro run pass 1 on \RefReviews{} of our reviews, in \RefPanels{} panels from every venue, year and detector stratum. We call these three models the \textbf{council}. Luna's quotes reach a word-span F1 of \RefSpanFOne\% with a council member, against \RefCouncilSpanFOne\% between two members.
 
 \subsection{Claim grouping}
 \label{sec:grouping}
@@ -200,7 +200,7 @@ OpenReview and journal collection took place on 27--29 October 2026, with more j
 SciPost reports come from its API. We obtain F1000Research, Wellcome Open Research, Open Research Europe and PLOS reports from Europe PMC, BMC Medicine reports from \citet{jerma2026bmc}, and Copernicus/EGU reports from journal discussion pages. We retain first-round referee reports, exclude author replies and editor notes, and cap papers at five reports.
 
 \paragraph{Source differences.}
-ICML changed its form between 2025 and 2026 and also changed its LLM policy \citep{icml2025reviewers,icml2026llm}. Public records do not reveal the policy attached to each review. Open journals can also expose later reviewers to earlier reports. These differences limit comparisons of levels across venues.
+ICML changed its form between 2025 and 2026 and also changed its LLM policy \citep{icml2025reviewers,icml2026llm,icml2026reviewers}. Public records do not reveal the policy attached to each review. Open journals can also expose later reviewers to earlier reports. These differences limit comparisons of levels across venues.
 
 \paragraph{ICLR review forms.}
 \label{app:forms}
@@ -223,7 +223,7 @@ Both passes use GPT-6 Luna through OpenRouter with strict JSON-schema output and
 \section{Extraction and Grouping Checks}
 \label{app:reference}
 
-\paragraph{Human labels.} Luna finds \KimItemRecall\% of the \KimItems{} critique items that annotators marked in the Nature-family set \citep{kim2026limits} and \ClaimcheckItemRecall\% of the \ClaimcheckItems{} CLAIMCHECK spans \citep{ou2025claimcheck}. Luna finds an item when the quote of one of its claims shares five consecutive words with the item, or all words of the shorter text. In the first set, \KimItemSplit\% of the items receive more than one claim, and Luna lists \KimClaimsBias{} more claims per review than the annotators list items. \KimClaimUnmatched\% of Luna's claims match no item. CLAIMCHECK marks only weaknesses tied to a paper claim, so we give only recall for that set. No public set carries human labels of same-problem groups across reviews, so pass 2 has no human check.
+\paragraph{Human labels.} Luna finds \KimItemRecall\% of the \KimItems{} critique items of the Nature-family set \citep{kim2026limits} and \ClaimcheckItemRecall\% of the \ClaimcheckItems{} CLAIMCHECK spans \citep{ou2025claimcheck}. Luna finds an item when the quote of one of its claims shares five consecutive words with the item, or all words of the shorter text. In the first set, \KimItemSplit\% of the items receive more than one claim, and Luna lists \KimClaimsBias{} more claims per review than the set lists items. \KimClaimUnmatched\% of Luna's claims match no item. CLAIMCHECK marks only weaknesses tied to a paper claim, so we give only recall for that set. No public set carries human labels of same-problem groups across reviews, so pass 2 has no human check.
 
 \paragraph{Council sample.} We fixed the prompts and then drew \RefPanels{} same-paper and \RefCrossPanels{} cross-paper panels, stratified by source (ICLR 2018--2027, NeurIPS 2024--2025, ICML 2025--2026 and five journals 2024--2026). The ICLR panels of 2018 and 2019 are outside the analysis years and serve only this check. From 2024 on, we also stratified by detector labels: panels with no flagged review, panels with at least two flagged and one unflagged review, and panels with at least two LLM-written reviews. Council models run through OpenRouter at medium reasoning effort.
 
@@ -315,7 +315,7 @@ Table~\ref{tab:labels} tests texts of known origin. MELD flags \MeldIntelAiRecal
 
 
 \paragraph{Rates.}
-Figure~\ref{fig:rates} gives flag rates by source-year. In 2027, MELD flags \IclrFlaggedLast\% of ICLR reviews, and \IclrWrittenLast\% are LLM-written. On all ICLR 2026 reviews, Pangram's EditLens labels 21\% as fully AI-generated and more than half as having some AI involvement \citep{emi2025pangram,thai2025editlens}.
+Figure~\ref{fig:rates} gives flag rates by source-year. In 2027, MELD flags \IclrFlaggedLast\% of ICLR reviews, and \IclrWrittenLast\% are LLM-written. On all ICLR 2026 reviews, Pangram's EditLens \citep{thai2025editlens} labels 21\% as fully AI-generated and more than half as having some AI involvement \citep{emi2025pangram}.
 
 \begin{figure}[!htp]
 \centering
@@ -325,7 +325,7 @@ Figure~\ref{fig:rates} gives flag rates by source-year. In 2027, MELD flags \Icl
 \end{figure}
 
 \paragraph{Second detector.}
-We also scored the same texts with EditLens \citep{thai2025editlens}. We run Pangram's public Llama-3.2-3B model from Hugging Face (\texttt{pangram/editlens\_Llama-3.2-3B}, revision \texttt{b4a297b}) with the text cleaning of its inference script. A text's score is the EditLens score of its first 1,024 tokens. The threshold follows the MELD rule: the 99.9th percentile of the same \MeldCalibrationReviews{} pre-2023 scores gives \EditlensThreshold. EditLens flags \EditlensHeldoutFlagged\% of the ICLR 2023 reviews.
+We also scored the same texts with EditLens \citep{thai2025editlens}. We run Pangram's Llama-3.2-3B model from Hugging Face (\texttt{pangram/editlens\_Llama-3.2-3B}, revision \texttt{b4a297b}) with the text cleaning of its inference script. A text's score is the EditLens score of its first 1,024 tokens. The threshold follows the MELD rule: the 99.9th percentile of the same \MeldCalibrationReviews{} pre-2023 scores gives \EditlensThreshold. EditLens flags \EditlensHeldoutFlagged\% of the ICLR 2023 reviews.
 
 Table~\ref{tab:compare} compares the flags of the two detectors. At ICLR and NeurIPS, the two detectors give close flag rates through 2025. EditLens flags fewer reviews than MELD at ICLR in 2026 and 2027, at ICML and in the journals, and fewer of the outline rewrites and of the polished texts. On \EditlensAgreementReviews{} reviews from 2023 on, both detectors flag \EditlensBoth\%, only MELD flags \EditlensMeldOnly\% and only EditLens flags \EditlensOnly\% (Cohen's $\kappa = \EditlensKappa$). We did not test why the two detectors differ. All other results in this paper use MELD labels.
 

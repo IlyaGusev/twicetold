@@ -1,5 +1,5 @@
 % Bibliography for the claim-level peer-review homogenization paper.
-% Verified 2026-10-28 against the arXiv API, ACL Anthology, PMLR, Crossref and venue pages.
+% Verified 2026-11-13 against the arXiv API, ACL Anthology, PMLR, Crossref and venue pages.
 
 % ---------------------------------------------------------------------------
 % LLM use in peer review: prevalence, detection, effects, experiments
@@ -29,7 +29,8 @@
   publisher = {Association for Computational Linguistics},
   month     = oct,
   year      = {2026},
-  url       = {https://aclanthology.org/2026.findings-emnlp.1035/}
+  url       = {https://aclanthology.org/2026.findings-emnlp.1035/},
+  doi       = {10.18653/2026.findings-emnlp.1035}
 }
 
 @inproceedings{liang2024monitoring,
@@ -107,15 +108,22 @@
   pages         = {106929--106954},
   publisher     = {PMLR},
   year          = {2026},
+  url           = {https://proceedings.mlr.press/v306/saha26b.html},
   eprint        = {2603.20450},
   archivePrefix = {arXiv},
   primaryClass  = {cs.CL}
 }
 
-@misc{duarte2026semdetect,
+@inproceedings{duarte2026semdetect,
   title         = {{Sem-Detect}: Semantic Level Detection of {AI} Generated Peer-Reviews},
   author        = {Duarte, Andr{\'e} V. and Tufts, Brian and Oke, Aditya and Fang, Fei and Oliveira, Arlindo L. and Li, Lei},
+  booktitle     = {Proceedings of the 43rd International Conference on Machine Learning},
+  series        = {Proceedings of Machine Learning Research},
+  volume        = {306},
+  pages         = {27089--27119},
+  publisher     = {PMLR},
   year          = {2026},
+  url           = {https://proceedings.mlr.press/v306/duarte26a.html},
   eprint        = {2605.21713},
   archivePrefix = {arXiv},
   primaryClass  = {cs.CL}
@@ -141,6 +149,7 @@
   month         = oct,
   year          = {2026},
   url           = {https://aclanthology.org/2026.emnlp-main.1273/},
+  doi           = {10.18653/2026.emnlp-main.1273},
   eprint        = {2601.15172},
   archivePrefix = {arXiv},
   primaryClass  = {cs.CL}
@@ -238,6 +247,15 @@
   year         = {2025}
 }
 
+@misc{xu2025researcharcade,
+  title         = {{ResearchArcade}: Graph Interface for Academic Tasks},
+  author        = {Xu, Jingjun and Lin, Chongshan and Yu, Haofei and Feng, Tao and You, Jiaxuan},
+  year          = {2025},
+  eprint        = {2511.22036},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL}
+}
+
 @misc{heineman2026iclr,
   title        = {{iclr-2026}},
   author       = {Heineman, David},
@@ -248,7 +266,7 @@
 @misc{jerma2026bmc,
   title        = {{BMC Medicine} Peer Reviews},
   author       = {{JerMa88}},
-  year         = {2026},
+  year         = {2025},
   howpublished = {Hugging Face dataset. \url{https://huggingface.co/datasets/JerMa88/BMC_Medicine_Peer_Reviews}}
 }
 
@@ -257,6 +275,13 @@
   author       = {{ICML 2025 Program Chairs}},
   howpublished = {\url{https://icml.cc/Conferences/2025/ReviewerInstructions}},
   year         = {2025}
+}
+
+@misc{icml2026reviewers,
+  title        = {{ICML} 2026 Reviewer Instructions},
+  author       = {{ICML 2026 Program Chairs}},
+  howpublished = {\url{https://icml.cc/Conferences/2026/ReviewerInstructions}},
+  year         = {2026}
 }
 
 @misc{icml2026llm,
@@ -271,7 +296,8 @@
   author       = {Kim, Sunnie S. Y. and Deng, Wesley Hanwen and Vaughan, Jennifer Wortman and Su, Buxin and Su, Weijie and Agarwal, Alekh and Li, Sharon and Jaggi, Martin and Goldstein, Daniel G. and Shah, Nihar B. and Dud{\'i}k, Miroslav},
   year         = {2026},
   eprint       = {2609.19420},
-  archivePrefix = {arXiv}
+  archivePrefix = {arXiv},
+  primaryClass = {cs.HC}
 }
 
 @misc{li2026meld,
@@ -290,10 +316,12 @@
   year         = {2025}
 }
 
-@misc{thai2025editlens,
+@inproceedings{thai2025editlens,
   title         = {{EditLens}: Quantifying the Extent of {AI} Editing in Text},
   author        = {Thai, Katherine and Emi, Bradley and Masrour, Elyas and Iyyer, Mohit},
-  year          = {2025},
+  booktitle     = {The Fourteenth International Conference on Learning Representations},
+  year          = {2026},
+  url           = {https://openreview.net/forum?id=gOkitaPCfZ},
   eprint        = {2510.03154},
   archivePrefix = {arXiv},
   primaryClass  = {cs.CL}
@@ -345,6 +373,7 @@
   pages     = {3663--3678},
   publisher = {Curran Associates, Inc.},
   year      = {2022},
+  doi       = {10.52202/068431-0265},
   eprint        = {2211.13972},
   archivePrefix = {arXiv},
   primaryClass  = {cs.LG}
@@ -361,10 +390,17 @@
   doi     = {10.1016/j.tics.2026.01.003}
 }
 
-@misc{ou2025claimcheck,
+@inproceedings{ou2025claimcheck,
   title         = {{CLAIMCHECK}: How Grounded are {LLM} Critiques of Scientific Papers?},
   author        = {Ou, Jiefu and Walden, William Gantt and Sanders, Kate and Jiang, Zhengping and Sun, Kaiser and Cheng, Jeffrey and Jurayj, William and Wanner, Miriam and Liang, Shaobo and Morgan, Candice and Han, Seunghoon and Wang, Weiqi and May, Chandler and Recknor, Hannah and Khashabi, Daniel and Van Durme, Benjamin},
+  booktitle     = {Findings of the Association for Computational Linguistics: {EMNLP} 2025},
+  pages         = {21712--21735},
+  address       = {Suzhou, China},
+  publisher     = {Association for Computational Linguistics},
+  month         = nov,
   year          = {2025},
+  url           = {https://aclanthology.org/2025.findings-emnlp.1185/},
+  doi           = {10.18653/v1/2025.findings-emnlp.1185},
   eprint        = {2503.21717},
   archivePrefix = {arXiv},
   primaryClass  = {cs.CL}
