@@ -25,7 +25,6 @@ HALF_SPAN = 0.5
 LABEL_FIELDS = ("category", "target", "specific")
 PAIR_COUNTS = ["pair_tp", "pair_fp", "pair_fn", "pair_candidates"]
 COVER_QUANTILE = 0.95
-MIN_DIRECT_PAPERS = 10
 FORM_CATEGORIES = ("clarity/presentation", "novelty", "reproducibility/details")
 FIELD_LABELS = {
     "summary": "summary",
@@ -55,18 +54,19 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     noq = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_noq.parquet").query("n_claims > 0")
     wd = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_wd.parquet").query("n_claims > 0")
     first, last = settings.ICLR_SNAPSHOT_YEARS
-    status = hub.corpus_reviews(["paper_id", "conf", "year", "withdrawn", "decision"]).query("conf == 'ICLR' and year == @first")
-    status = status.groupby("paper_id").agg(
+    status = hub.corpus_reviews(["paper_id", "conf", "year", "withdrawn", "decision"]).query("conf == 'ICLR' and year >= @first")
+    status = status.groupby(["year", "paper_id"]).agg(
         reviews=("paper_id", "size"), withdrawn=("withdrawn", "first"), decision=("decision", "first")
     )
     status = status[status.reviews >= settings.MIN_PANEL_REVIEWS]
-    left_share = (status.withdrawn | status.decision.eq("desk_reject")).mean()
+    left = (status.withdrawn | status.decision.eq("desk_reject")).groupby("year").mean()
+    left_share = left[first]
 
     def level(df, col, year):
         values = df[df.year == year][col].dropna() * 100
         return values.mean(), values.sem()
 
-    kept_level, left_level = level(main, "hit_rate_strict", first), level(wd.assign(year=first), "hit_rate_strict", first)
+    kept_level, left_level = level(main, "hit_rate_strict", first), level(wd, "hit_rate_strict", first)
     counted = (
         (1 - left_share) * kept_level[0] + left_share * left_level[0],
         np.hypot((1 - left_share) * kept_level[1], left_share * left_level[1]),
@@ -74,13 +74,14 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     pd.DataFrame(
         [
             dict(name="left_share", value=100 * left_share),
-            dict(name="left_papers", value=len(wd)),
+            dict(name="last_left_share", value=100 * left[last]),
+            dict(name="left_papers", value=wd.hit_rate_strict.notna().sum()),
             dict(name="left_level", value=left_level[0]),
             dict(name="left_level_se", value=left_level[1]),
         ]
     ).to_csv(Path(reports) / f"withdrawn_{model}.csv", index=False)
     variants = [
-        ("Main overlap rate", main, "hit_rate_strict"),
+        ("Overlap, withdrawn papers excluded", main, "hit_rate_strict"),
         ("Specific claims only", specific, "hit_spec"),
         ("Same part of paper (lenient)", main, "hit_rate_lenient"),
         ("3-review subsets, grouped again", sub3, "hit_rate_strict"),
@@ -88,10 +89,8 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     ]
     checks = [(name, level(df, col, first), level(df, col, last), first, last) for name, df, col in variants]
     checks.insert(1, (settings.WITHDRAWN_CHECK, counted, level(main, "hit_rate_strict", last), first, last))
-    for base_year, last_year in [settings.CONTRAST_YEARS]:
-        checks += [
-            (name, level(df, col, base_year), level(df, col, last_year), base_year, last_year) for name, df, col in variants
-        ]
+    base_year, last_year = settings.CONTRAST_YEARS
+    checks += [(name, level(df, col, base_year), level(df, col, last_year), base_year, last_year) for name, df, col in variants]
     rows = []
     for name, base, end, base_year, last_year in checks:
         rows.append(
@@ -219,6 +218,20 @@ def fe_gap(design, flag, controls=()):
     }
 
 
+def paper_gap(design, groups, top, base):
+    means = design.hit.groupby([design.panel_id.to_numpy(), np.asarray(groups)]).mean().unstack()
+    if not {top, base} <= set(means.columns):
+        return dict(est=np.nan, se=np.nan, papers=0)
+    difference = (means[top] - means[base]).dropna() * 100
+    return dict(est=difference.mean(), se=difference.sem(), papers=len(difference))
+
+
+def direct_gap(design, flag):
+    counts = pair_counts(design, flag).to_numpy()
+    two = paper_gap(design, counts, 2, 0)
+    return {"two": two["est"], "two_se": two["se"], "papers": two["papers"]}
+
+
 def meld_flag_at(meld, quantile):
     threshold = meld[meld.year <= settings.MELD_CALIBRATION_LAST_YEAR].score.quantile(quantile)
     return (meld.score > threshold).astype(int)
@@ -241,7 +254,9 @@ def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.WOR
         reviews = pd.Index(np.union1d(period_pairs.a, period_pairs.b))
         score = scores.score.reindex(reviews)
         flag = (score >= score.quantile(1 - share)).astype(int)
-        rows.append(dict(period=name, papers=period_pairs.panel_id.nunique(), **fe_gap(period_pairs, flag)))
+        gap = direct_gap(period_pairs, flag)
+        papers = period_pairs.panel_id.nunique()
+        rows.append(dict(period=name, two=gap["two"], two_se=gap["two_se"], papers=papers, identifying=gap["papers"]))
     out = pd.DataFrame(rows)
     out.to_csv(Path(reports) / f"detector_placebo_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
@@ -278,9 +293,13 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
     rows = []
 
     def add(group, label, subset_pairs, pair_flags, controls=()):
-        gap = fe_gap(subset_pairs, pair_flags, controls)
-        n_flagged = pair_flags.reindex(subset_pairs.a).to_numpy() + pair_flags.reindex(subset_pairs.b).to_numpy()
-        varying = pd.Series(n_flagged).groupby(subset_pairs.panel_id.to_numpy()).nunique().gt(1).sum()
+        if controls:
+            gap = fe_gap(subset_pairs, pair_flags, controls)
+            n_flagged = pair_flags.reindex(subset_pairs.a).to_numpy() + pair_flags.reindex(subset_pairs.b).to_numpy()
+            compared = pd.Series(n_flagged).groupby(subset_pairs.panel_id.to_numpy()).nunique().gt(1).sum()
+        else:
+            gap = direct_gap(subset_pairs, pair_flags)
+            compared = gap["papers"]
         rows.append(
             dict(
                 group=group,
@@ -288,21 +307,20 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
                 est=gap["two"],
                 se=gap["two_se"],
                 papers=subset_pairs.panel_id.nunique(),
-                identifying=varying,
+                identifying=compared,
             )
         )
 
     def add_written(group, label, subset_pairs):
-        types = pair_type(subset_pairs, flag, written).to_numpy()
-        fit = type_fit(subset_pairs.assign(hit=subset_pairs.hit * 100), types, "hit")
+        gap = paper_gap(subset_pairs, pair_type(subset_pairs, flag, written), "WW", "HH")
         rows.append(
             dict(
                 group=group,
                 label=label,
-                est=fit.params["WW"],
-                se=fit.bse["WW"],
+                est=gap["est"],
+                se=gap["se"],
                 papers=subset_pairs.panel_id.nunique(),
-                identifying=subset_pairs[types == "WW"].panel_id.nunique(),
+                identifying=gap["papers"],
             )
         )
 
@@ -321,7 +339,12 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
     for r in placebo.itertuples():
         rows.append(
             dict(
-                group="Placebo before ChatGPT", label=f"Top-45% scores, ICLR {r.period}", est=r.two, se=r.two_se, papers=r.papers
+                group="Placebo before ChatGPT",
+                label=f"Top-45% scores, ICLR {r.period}",
+                est=r.two,
+                se=r.two_se,
+                papers=r.papers,
+                identifying=r.identifying,
             )
         )
     out = pd.DataFrame(rows)
@@ -337,15 +360,14 @@ def journal_gaps(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
     journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= first_year)]
     rows = []
     for source, source_pairs in [*journals.groupby("conf"), ("All journals", journals)]:
-        n_flagged = source_pairs.a.map(flag) + source_pairs.b.map(flag)
-        gap = fe_gap(source_pairs, flag)
+        gap = direct_gap(source_pairs, flag)
         rows.append(
             dict(
                 source=source,
                 est=gap["two"],
                 se=gap["two_se"],
                 papers=source_pairs.panel_id.nunique(),
-                both_papers=source_pairs[n_flagged == 2].panel_id.nunique(),
+                both_papers=gap["papers"],
             )
         )
     out = pd.DataFrame(rows)
@@ -408,9 +430,7 @@ def pair_types(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=set
         X = X - X.groupby(cell.panel_id.to_numpy()).transform("mean")
         fit = sm.OLS(X.hit, X[list(PAIR_TYPES)]).fit(cov_type="cluster", cov_kwds={"groups": pd.factorize(cell.panel_id)[0]})
         for t in PAIR_TYPES:
-            rows.append(
-                dict(conf=conf, pair_type=t, est=fit.params[t], se=fit.bse[t], papers=cell[types == t].panel_id.nunique())
-            )
+            rows.append(dict(conf=conf, pair_type=t, **paper_gap(cell, types, t, "HH"), est_fe=fit.params[t], se_fe=fit.bse[t]))
     out = pd.DataFrame(rows)
     out.to_csv(Path(reports) / f"pair_types_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
@@ -418,7 +438,7 @@ def pair_types(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=set
 
 PAIR_SIZE_OUTCOMES = {"hit": "Overlap", "shared": "Shared", "smaller": "Smaller set", "union": "Union"}
 PAIR_TYPE_NAMES = {
-    "HH": "Neither flagged",
+    "HH": "Both unflagged",
     "HL": "One flagged",
     "LL": "Both flagged, not both LLM-written",
     "WW": "Both LLM-written",
@@ -492,13 +512,11 @@ def detector_row(label, quantile, flags, pairs, iclr_last, flagged=None):
     flag = flags[~flags.index.duplicated()].flag.astype(int)
     counts = pair_counts(pairs, flag)
     if flagged is None:
-        gap = fe_gap(pairs, flag)
-        varying = (counts.groupby(pairs.panel_id.to_numpy()).nunique() > 1).sum()
+        gap = direct_gap(pairs, flag)
     else:
         types = pair_type(pairs, flagged[~flagged.index.duplicated()].flag.astype(int), flag)
-        fit = type_fit(pairs.assign(hit=pairs.hit * 100), types.to_numpy(), "hit")
-        gap = dict(two=fit.params["WW"], two_se=fit.bse["WW"])
-        varying = (types.groupby(pairs.panel_id.to_numpy()).nunique() > 1).sum()
+        written_gap = paper_gap(pairs, types, "WW", "HH")
+        gap = dict(two=written_gap["est"], two_se=written_gap["se"], papers=written_gap["papers"])
     last = flag.reindex(iclr_last)
     return dict(
         label=label,
@@ -507,7 +525,7 @@ def detector_row(label, quantile, flags, pairs, iclr_last, flagged=None):
         iclr_last=last.mean() * 100,
         two=gap["two"],
         two_se=gap["two_se"],
-        papers=int(varying),
+        papers=int(gap["papers"]),
         two_pairs=int((counts == 2).sum()),
     )
 
@@ -637,36 +655,10 @@ def journal_subsets(
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
-def identification_table(out, tex):
-    lines = [
-        r"\begin{tabular}{@{}lrrrrrrrr@{}}",
-        r"\toprule",
-        r" & & \multicolumn{3}{c}{Papers by reports} & \multicolumn{2}{c}{Papers that identify} & "
-        r"\multicolumn{2}{c}{Gap (points)} \\",
-        r"\cmidrule(lr){3-5}\cmidrule(lr){6-7}\cmidrule(l){8-9}",
-        r"Sample & Papers & 2 & 3 & 4+ & Fixed effects & Direct & Fixed effects & Direct \\",
-        r"\midrule",
-    ]
-    for r in out.itertuples():
-        direct = f"{r.endpoint:+.1f}" if r.endpoint_papers >= MIN_DIRECT_PAPERS else "--"
-        lines.append(
-            f"{r.label} & {r.papers:,} & {r.reports_2:,} & {r.reports_3:,} & {r.reports_4 + r.reports_5:,} & "
-            f"{r.varying:,} & {r.endpoint_papers:,} & {r.two:+.1f} & {direct} \\\\"
-        )
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
-
-
-def identification_table_from_report(
-    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "identification.tex"
-):
-    identification_table(pd.read_csv(Path(reports) / f"identification_{model}.csv"), tex)
-
-
 def identification(
     model=settings.DEFAULT_MODEL,
     data=settings.WORK_DIR,
     reports=settings.ANALYSIS_REPORTS_DIR,
-    tex=settings.TABLES_DIR / "identification.tex",
 ):
     flag = hub.meld_flags().flag.astype(int)
     pairs = in_window(
@@ -684,7 +676,6 @@ def identification(
     out = pd.DataFrame([identification_row(label, cell, f) for label, cell, f in cells])
     out.round(3).to_csv(Path(reports) / f"identification_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    identification_table(out, tex)
 
 
 def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "coverage.tex"):
@@ -872,7 +863,7 @@ def second_detector(
     for label, cell in cells.items():
         row = dict(cell=label, papers=cell.panel_id.nunique())
         for name, flag in flags.items():
-            gap = fe_gap(cell, flag)
+            gap = direct_gap(cell, flag)
             row |= {name: gap["two"], f"{name}_se": gap["two_se"], f"{name}_pairs": int((pair_counts(cell, flag) == 2).sum())}
         rows.append(row)
     out = pd.DataFrame(rows)
@@ -1354,7 +1345,7 @@ def pipeline_contrasts(panels, name):
     column = f"overlap_{name}"
     same = panels[panels.kind == "same"]
     iclr = same[same.conf == "ICLR"]
-    first, last = settings.CONTRAST_YEARS
+    first, last = settings.ICLR_SNAPSHOT_YEARS
 
     def gap(frame, a, b):
         return frame[frame.stratum == a][column].mean() - frame[frame.stratum == b][column].mean()
@@ -1374,10 +1365,10 @@ def pipeline_contrasts(panels, name):
 
 
 def write_contrast_table(contrasts, tex):
-    first, last = settings.CONTRAST_YEARS
+    first, last = settings.ICLR_SNAPSHOT_YEARS
     columns = [
-        ("flag_gap", r"Flagged $-$ plain", 1),
-        ("written_gap", r"Written $-$ plain", 1),
+        ("flag_gap", r"Flagged $-$ unflagged", 1),
+        ("written_gap", r"Written $-$ unflagged", 1),
         ("iclr_slope", "ICLR slope", 2),
         ("iclr_step", f"ICLR {last} $-$ {first}", 1),
     ]
@@ -1597,7 +1588,6 @@ if __name__ == "__main__":
             "council_agreement": council_agreement,
             "pipelines": pipelines,
             "identification": identification,
-            "identification_table": identification_table_from_report,
             "pair_types": pair_types,
             "pair_type_sizes": pair_type_sizes,
             "pair_type_sizes_table": pair_type_sizes_table_from_report,

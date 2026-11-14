@@ -178,7 +178,7 @@ def kept_meld_flags():
 
 
 PAIR_TYPE_STYLES = {
-    "HH": ("Neither flagged", COLORS["grey"], COLORS["grey"], "o"),
+    "HH": ("Both unflagged", COLORS["grey"], COLORS["grey"], "o"),
     "HL": ("One flagged", COLORS["flag_light"], COLORS["flag"], "s"),
     "LL": ("Both flagged,\nnot both LLM-written", COLORS["flag"], COLORS["flag"], "D"),
     "WW": ("Both LLM-written", COLORS["ink"], COLORS["ink"], "^"),
@@ -230,10 +230,10 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     top.set_yticks([0, 10, 20, 30, 40])
     top.set_ylabel("Overlap (%)")
     top.set_title("a  Mean overlap by pair type", fontweight="bold")
-    bottom.set_ylim(-2, 19)
-    bottom.set_yticks([0, 5, 10, 15])
+    bottom.set_ylim(-2, 23)
+    bottom.set_yticks([0, 5, 10, 15, 20])
     bottom.set_ylabel("Difference (points)")
-    bottom.set_title("b  Difference from neither flagged", fontweight="bold")
+    bottom.set_title("b  Difference from both unflagged", fontweight="bold")
     fig.align_ylabels([top, bottom])
     top.legend(
         loc="lower center",
@@ -275,7 +275,7 @@ def ai_checks(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     ax.set_yticks([])
     ax.spines["left"].set_visible(False)
     ax.set_ylim(y + 0.9, 1.6)
-    ax.set_xlim(-5, 18.5)
+    ax.set_xlim(-10, 22)
     ax.set_xticks([-5, 0, 5, 10, 15])
     ax.set_xlabel("Difference in overlap (percentage points)")
     save(fig, figs, "figA_checks.pdf", PAGE_WIDTH)
@@ -426,9 +426,8 @@ def journal_change(by_year, conf):
 def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     gaps = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"journal_gaps_{model}.csv")
     iclr = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv").iloc[0]
-    ident = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"identification_{model}.csv")
-    identifying = ident.set_index(ident.label.str.rsplit(" ", n=1).str[0]).varying
-    sources = gaps.iloc[:-1].sort_values("est", ascending=False)
+    identifying = gaps.set_index("source").both_papers
+    sources = gaps.iloc[:-1].dropna(subset="se").sort_values("est", ascending=False)
     pooled = gaps.iloc[-1]
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.35, 1.75))
     fig.subplots_adjust(left=0.31, right=0.97, top=0.9, bottom=0.2)
@@ -891,6 +890,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     record("IclrSnapChange", counted.change, counted.se)
     left = pd.read_csv(reports / f"withdrawn_{model}.csv").set_index("name").value
     values["WithdrawnShare"] = f"{left.left_share:.0f}"
+    values["WithdrawnEarlyShare"] = f"{left.last_left_share:.0f}"
     values["WithdrawnPapers"] = f"{int(left.left_papers):,}"
     record("WithdrawnLevel", left.left_level, left.left_level_se)
     values["RobustSnapMin"] = f"{matched.change.min():.1f}"
@@ -905,6 +905,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
                 values[prefix + label + "Low"] = f"{row[name] - Z95 * row[name + '_se']:+.2f}"
                 values[prefix + label + "High"] = f"{row[name] + Z95 * row[name + '_se']:+.2f}"
     types = pd.read_csv(reports / f"pair_types_{model}.csv").set_index(["conf", "pair_type"])
+    values["FeWrittenGap"] = f"{types.loc[(next(iter(settings.GAP_CELLS)), 'WW')].est_fe:.1f}"
     for (conf, pair_type), row in types.iterrows():
         record(f"Type{pair_type.title()}{GAP_PREFIX[conf]}", row.est, row.se, row.papers)
     steps = pd.read_csv(reports / f"decomposition_{model}.csv").set_index(["conf", "year"])
@@ -914,8 +915,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["DecIclrMixEarly"] = f"{step_base.composition:.1f}"
     step_snap = steps.loc[("ICLR", settings.ICLR_SNAPSHOT_YEARS[1])]
     values["DecSnapMix"] = f"{step_snap.composition:.1f}"
-    values["DecSnapUnflagged"] = f"{step_snap.within_unflagged:.1f}"
-    values["DecSnapFlagged"] = f"{step_snap.within_flagged:.1f}"
     values["DecSnapNoneLast"] = f"{step_snap.overlap_HH:.1f}"
     values["DecIclrNoneBase"] = f"{step_base.overlap_HH:.1f}"
     values["DecIclrNoneLast"] = f"{step.overlap_HH:.1f}"

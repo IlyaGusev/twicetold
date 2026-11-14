@@ -17,7 +17,6 @@ QUOTA = {
     **{("NeurIPS", y): 1000 for y in range(2021, 2026)},
 }
 MAX_REVIEWS = 5
-MIN_REVIEWS = 3
 MIN_ICML_REVIEW_CHARS = 200
 NOQ_YEARS = (2024, 2025, 2026)
 SUB3_FULL_YEARS = (2023, 2026)
@@ -73,7 +72,7 @@ def ml(
     rng = np.random.default_rng(seed)
     reviews = pd.read_parquet(data / "reviews.parquet", columns=["conf", "year", "paper_id", "review_id"])
     papers = pd.read_parquet(data / "papers.parquet", columns=["conf", "year", "paper_id", "withdrawn", "n_reviews", "decision"])
-    eligible = papers[~papers.withdrawn & (papers.n_reviews >= MIN_REVIEWS) & papers.decision.ne("desk_reject")]
+    eligible = papers[~papers.withdrawn & (papers.n_reviews >= settings.MIN_PANEL_REVIEWS) & papers.decision.ne("desk_reject")]
 
     chosen_per_cell = []
     for (conf, year), g in eligible.groupby(["conf", "year"]):
@@ -90,7 +89,7 @@ def ml(
     sample.to_parquet(out / "sample_reviews.parquet")
     current_corpus_ids = pd.read_parquet(current_corpus / "reviews.parquet", columns=["review_id"]).review_id
     in_current_corpus = sample[sample.review_id.isin(current_corpus_ids)]
-    panels = [p for p in by_paper_panels(in_current_corpus) if len(p["review_ids"]) >= MIN_REVIEWS]
+    panels = [p for p in by_paper_panels(in_current_corpus) if len(p["review_ids"]) >= settings.MIN_PANEL_REVIEWS]
     write_jsonl(out / "panels.jsonl", panels)
 
     def placebo():
@@ -133,7 +132,7 @@ def icml_eligible(data, year):
     year_reviews = pd.read_parquet(data / f"icml{year}_reviews.parquet")
     year_reviews = year_reviews[year_reviews.text.str.len() > MIN_ICML_REVIEW_CHARS].drop_duplicates(["paper_id", "text"])
     reviews_per_paper = year_reviews.groupby("paper_id").size()
-    return year_reviews, reviews_per_paper[reviews_per_paper >= MIN_REVIEWS].index
+    return year_reviews, reviews_per_paper[reviews_per_paper >= settings.MIN_PANEL_REVIEWS].index
 
 
 def extend(data=str(settings.RAW_DIR), seed=2028):
@@ -142,14 +141,14 @@ def extend(data=str(settings.RAW_DIR), seed=2028):
     sample = pd.read_parquet(data / "sample_reviews.parquet")
     reviews = pd.read_parquet(data / "reviews.parquet", columns=["conf", "year", "paper_id", "review_id"])
     papers = pd.read_parquet(data / "papers.parquet", columns=["conf", "year", "paper_id", "withdrawn", "n_reviews", "decision"])
-    eligible = papers[~papers.withdrawn & (papers.n_reviews >= MIN_REVIEWS) & papers.decision.ne("desk_reject")]
+    eligible = papers[~papers.withdrawn & (papers.n_reviews >= settings.MIN_PANEL_REVIEWS) & papers.decision.ne("desk_reject")]
     in_quota_cell = pd.Series(list(zip(eligible.conf, eligible.year)), index=eligible.index).isin(QUOTA)
     new_ids = set(eligible.paper_id[in_quota_cell]) - set(sample.paper_id)
     added = cap_reviews_per_paper(rng, reviews[reviews.paper_id.isin(new_ids)])
     added = added.sort_values(["conf", "year", "paper_id", "review_id"])
     added["text"] = texts_by_id(data / "reviews.parquet", set(added.review_id)).reindex(added.review_id).to_numpy()
     pd.concat([sample, added], ignore_index=True).to_parquet(data / "sample_reviews.parquet")
-    append_jsonl(data / "panels.jsonl", (p for p in by_paper_panels(added) if len(p["review_ids"]) >= MIN_REVIEWS))
+    append_jsonl(data / "panels.jsonl", (p for p in by_paper_panels(added) if len(p["review_ids"]) >= settings.MIN_PANEL_REVIEWS))
     print(added.groupby(["conf", "year"]).agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")).to_string())
 
     icml_sample = pd.read_parquet(data / "icml_sample.parquet")
@@ -173,13 +172,13 @@ def new_cell(conf="ICLR", year=2027, data=str(settings.RAW_DIR), placebo_per_cel
     cell = [("conf", "==", conf), ("year", "==", year)]
     reviews = pd.read_parquet(data / "reviews.parquet", columns=["conf", "year", "paper_id", "review_id"], filters=cell)
     papers = pd.read_parquet(data / "papers.parquet", columns=["paper_id", "withdrawn", "n_reviews", "decision"], filters=cell)
-    eligible = papers[~papers.withdrawn & (papers.n_reviews >= MIN_REVIEWS) & papers.decision.ne("desk_reject")]
+    eligible = papers[~papers.withdrawn & (papers.n_reviews >= settings.MIN_PANEL_REVIEWS) & papers.decision.ne("desk_reject")]
     chosen = rng.choice(np.sort(eligible.paper_id.to_numpy()), QUOTA[(conf, year)], replace=False)
     added = cap_reviews_per_paper(rng, reviews[reviews.paper_id.isin(chosen)])
     added = added.sort_values(["conf", "year", "paper_id", "review_id"])
     added["text"] = texts_by_id(data / "reviews.parquet", set(added.review_id)).reindex(added.review_id).to_numpy()
     pd.concat([sample, added], ignore_index=True).to_parquet(data / "sample_reviews.parquet")
-    append_jsonl(data / "panels.jsonl", (p for p in by_paper_panels(added) if len(p["review_ids"]) >= MIN_REVIEWS))
+    append_jsonl(data / "panels.jsonl", (p for p in by_paper_panels(added) if len(p["review_ids"]) >= settings.MIN_PANEL_REVIEWS))
     by_paper = review_ids_by_paper(added)
     append_jsonl(
         data / "panels_placebo.jsonl",

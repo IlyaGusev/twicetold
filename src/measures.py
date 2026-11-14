@@ -18,8 +18,13 @@ MIN_NOVELTY_PAPERS = 30
 JOURNALS = "journals"
 PRE_PERIOD = tuple(range(2019, 2024))
 TRENDS = [
+    (
+        "ICLR, {} to {}".format(*settings.ICLR_SNAPSHOT_YEARS),
+        "ICLR",
+        settings.ICLR_SNAPSHOT_YEARS[:1],
+        settings.ICLR_SNAPSHOT_YEARS[1],
+    ),
     ("ICLR, 2025 to 2026", "ICLR", (2025,), 2026),
-    ("ICLR, 2023 to 2027", "ICLR", (2023,), 2027),
     ("NeurIPS, 2024 to 2025", "NeurIPS", (2024,), 2025),
     ("ICML, 2025 to 2026", "ICML", (2025,), 2026),
     ("F1000, 2019--23 to 2026", "F1000", PRE_PERIOD, 2026),

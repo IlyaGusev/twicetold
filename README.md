@@ -152,24 +152,24 @@ complete groups. Do not use this check to infer reference overlap levels or tren
 
    | File | Check |
    |---|---|
-   | `identification_gpt-6-luna-high.csv` | `varying`: identifying papers; `two`, `two_se`: two-versus-none estimate and paper-clustered SE; `endpoint*`: direct comparison and its interval |
-   | `pair_types_gpt-6-luna-high.csv` | Separate one-flagged, other two-flagged and two-AI-written contrasts against unflagged pairs |
+   | `rq1_evidence_gpt-6-luna-high.csv` | `est`, `se`: direct within-paper gap (two flagged minus unflagged, mean over papers) and its SE over papers; `identifying`: papers with both pair types |
+   | `pair_types_gpt-6-luna-high.csv` | One-flagged, other two-flagged and two-LLM-written gaps against unflagged pairs; `est_fe`, `se_fe`: the fixed-effects check |
+   | `identification_gpt-6-luna-high.csv` | `two`, `two_se`: fixed-effects estimate and paper-clustered SE; `endpoint*`: the direct gap again |
+   | `robust_gpt-6-luna-high.csv`, `withdrawn_gpt-6-luna-high.csv` | ICLR rise from 2026 to 2027 under each analysis choice; share and overlap of withdrawn 2026 papers |
    | `pair_type_sizes_gpt-6-luna-high.csv` | Shared-problem counts, set sizes, and size-adjusted contrasts |
    | `paper_numbers_gpt-6-luna-high.csv` | Numeric inputs to the paper |
 
-   Expected `identification` rows, rounded as in the paper:
+   Expected `rq1_evidence` rows, rounded as in the paper:
 
-   | Sample | Identifying papers | Two vs. none (points) | Clustered SE |
+   | Sample | Papers with both pair types | Gap (points) | SE |
    |---|---:|---:|---:|
-   | ICLR 2024–2027, flagged | 23,471 | 5.5 | 0.2 |
-   | ICLR 2024–2027, LLM-written | 18,368 | 9.8 | 0.3 |
-   | NeurIPS 2024–2025, flagged | 4,542 | 5.2 | 0.6 |
-   | ICML 2025–2026, flagged | 7,481 | 5.5 | 0.4 |
-   | All journals 2024–2026, flagged | 2,225 | 5.0 | 0.9 |
+   | ICLR 2024–26, flagged | 5,122 | 2.7 | 0.3 |
+   | ICLR 2024–26, LLM-written | 1,437 | 6.3 | 0.7 |
+   | NeurIPS 2024–25, flagged | 1,005 | 4.7 | 0.7 |
+   | ICML 2025–26, flagged | 2,433 | 4.0 | 0.5 |
 
-   The LLM-written row uses pairs with no LLM-written review as its reference; the other rows use unflagged pairs.
-   The fixed-effects 95% intervals are the estimate ± 1.96 times its unrounded clustered SE. Direct-comparison
-   intervals use the t distribution over papers. Source-year pair-type counts alone cannot reproduce either fit.
+   The pooled journal gap is in `journal_gaps_gpt-6-luna-high.csv`: 5.0 points, SE 1.8, 230 papers. Each 95%
+   interval is the estimate ± 1.96 times its unrounded SE.
 
 ### Rerun the detector when scores are unavailable
 
@@ -216,7 +216,11 @@ used an LLM. Detector labels must not support action against individual reviewer
 ```
 cd paper
 latexmk -pdf -bibtex main.tex
+cd ..
+uv run python scripts/check_layout.py
 ```
+
+`check_layout.py` fails when the introduction ends after page 1.
 
 The opening figure shows measured time trends. Section 3 defines the measure and its limits. The council
 reference protocol and robustness checks appear in the appendix. Figures and prose follow the guides in `CLAUDE.md`.
