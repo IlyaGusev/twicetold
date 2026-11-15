@@ -1,0 +1,5 @@
+pair_type,pair_tp,pair_fp,pair_fn,pair_candidates,pair_precision,pair_precision_low,pair_precision_high,pair_recall,pair_recall_low,pair_recall_high,pair_f1,pair_f1_low,pair_f1_high,pair_link_ratio,pair_link_ratio_low,pair_link_ratio_high,pair_accuracy,pair_accuracy_low,pair_accuracy_high
+HH,57,13,13,7604,81.429,72.464,90.909,81.429,70.175,90.741,81.429,72.83,88.276,100.0,85.184,113.846,99.658,99.455,99.81
+HL,348,75,70,38523,82.27,77.378,86.35,83.254,79.133,86.849,82.759,78.999,85.81,101.196,95.305,107.516,99.624,99.549,99.69
+LL,129,20,20,9611,86.577,81.547,91.0,86.577,79.592,92.353,86.577,81.781,90.566,100.0,91.558,108.065,99.584,99.435,99.708
+WW,89,16,14,4223,84.762,76.344,92.045,86.408,80.0,92.524,85.577,79.581,90.722,101.942,91.953,113.924,99.29,99.026,99.535

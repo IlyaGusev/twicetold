@@ -129,7 +129,7 @@ Use the majority of the raw votes from Sol, DeepSeek and Kimi for grouping check
 member, missing claim ID or repeated claim ID. Do not treat excluded pairs as separate problems.
 
 `validate.py extraction` compares the quoted spans and the aligned claims of Luna and the council (`reports/overlap/extraction*_MODEL.csv`).
-Run `scripts/post.sh --council-agreement` to score Luna's groupings against the majority votes. `validate.py pipelines`
+Run `scripts/post.sh --council-agreement` to score Luna's groupings against the majority votes, by stratum and by pair type. `validate.py pipelines`
 compares the panel overlap of Luna's full pipeline with each member's full pipeline (`reports/overlap/pipelines*_MODEL.csv`). `validate.py grouper_swap`
 regroups Luna's claims with each member and with the council majority and compares the within-paper gaps (`reports/overlap/grouper_swap_MODEL.csv`). The commands read
 the gold folder; `extraction` embeds the claim sentences with `settings.CLAIM_EMBED_MODEL` through OpenRouter, `council_agreement` and `grouper_swap` make no model calls. Agreement is not human-ground-truth accuracy. Unlabeled pairs do not define

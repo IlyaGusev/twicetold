@@ -1405,6 +1405,15 @@ def council_pair_label(groupings, a, b):
     return ("unanimous" if len(set(votes)) == 1 else "split"), 2 * sum(votes) > len(votes)
 
 
+def panel_counts(voted):
+    truth, predicted = voted.consensus.astype(bool), voted.predicted.astype(bool)
+    hits = pd.DataFrame(
+        {"pair_tp": truth & predicted, "pair_fp": ~truth & predicted, "pair_fn": truth & ~predicted, "pair_candidates": 1},
+        index=voted.index,
+    )
+    return hits.groupby(voted.panel_id.to_numpy(), sort=False).sum()[PAIR_COUNTS]
+
+
 def council_agreement(
     model=settings.DEFAULT_MODEL,
     gold=settings.GOLD_DIR,
@@ -1437,6 +1446,8 @@ def council_agreement(
             rows.append(
                 dict(
                     **panel_meta(panel),
+                    a=ids[ia],
+                    b=ids[ib],
                     claim_a=a,
                     claim_b=b,
                     status=status,
@@ -1452,17 +1463,6 @@ def council_agreement(
     for kind, by_kind in pairs.groupby("kind", sort=False):
         for label, cell in report_cells(by_kind):
             voted = cell[cell.status != "invalid"]
-            counts = []
-            for _, paper in voted.groupby("panel_id", sort=False):
-                truth, predicted = paper.consensus.astype(bool), paper.predicted
-                counts.append(
-                    dict(
-                        pair_tp=int((truth & predicted).sum()),
-                        pair_fp=int((~truth & predicted).sum()),
-                        pair_fn=int((truth & ~predicted).sum()),
-                        pair_candidates=len(paper),
-                    )
-                )
             summary.append(
                 dict(
                     kind=kind,
@@ -1475,12 +1475,20 @@ def council_agreement(
                     voted_pairs=len(voted),
                     model_positives=int(cell.predicted.sum()),
                     retained_model_positives=int(voted.predicted.sum()),
-                    **pair_detection_summary(pd.DataFrame(counts, columns=PAIR_COUNTS)),
+                    **pair_detection_summary(panel_counts(voted)),
                 )
             )
     out = pd.DataFrame(summary)
     out.round(3).to_csv(Path(reports) / f"council_agreement_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
+    meld = hub.meld_flags()
+    flagged = pairs[(pairs.kind == "same") & pairs.stratum.isin(["flagged", "written"]) & (pairs.status != "invalid")]
+    types = pair_type(flagged, meld.flag.astype(int), meld.written.astype(int)).to_numpy()
+    by_type = pd.DataFrame(
+        [dict(pair_type=t, **pair_detection_summary(panel_counts(cell))) for t, cell in flagged.groupby(types)]
+    )
+    by_type.round(3).to_csv(Path(reports) / f"council_pair_types_{model}.csv", index=False)
+    print(by_type.round(2).to_string(index=False))
     columns = [
         ("candidate_pairs", "Pairs", 0, False),
         ("voted_pairs", "With three votes", 0, False),

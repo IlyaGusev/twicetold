@@ -831,6 +831,10 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
             values["RefPair" + name.title().replace("1", "One") + suffix.title()[1:]] = f"{pairs['pair_' + name + suffix]:.1f}"
     for stratum in ["plain", "flagged", "written"]:
         values["RefRatio" + stratum.title()] = f"{council.loc[('same', 'all', 'all', stratum, 'all')].pair_link_ratio:.0f}"
+    council_types = pd.read_csv(reports / f"council_pair_types_{model}.csv").set_index("pair_type")
+    for kind, name in [("HH", "None"), ("LL", "Two"), ("WW", "Written")]:
+        values["RefTypeRatio" + name] = f"{council_types.loc[kind].pair_link_ratio:.0f}"
+    values["RefTypeLinksNone"] = f"{int(council_types.loc['HH', ['pair_tp', 'pair_fn']].sum())}"
     swap = pd.read_csv(reports / f"grouper_swap_{model}.csv").set_index("grouper")
     others = swap.drop(index=model)
     values["RefSwapPanels"] = f"{int(swap.panels.iloc[0])}"
