@@ -19,7 +19,6 @@ SAME_PANELS = {
 }
 JOURNAL_PANELS = 15
 JOURNAL_YEARS = (2024, 2026)
-FLAG_FROM = 2024
 CROSS_YEARS = (2018, 2022, 2024, 2026, 2027)
 CROSS_PER_YEAR = 12
 CROSS_PER_JOURNAL = 6
@@ -45,7 +44,7 @@ def stratum(review_ids, flag, written):
 
 
 def quotas(n, year, conf):
-    if year < FLAG_FROM:
+    if year < settings.FLAG_FROM:
         return {"plain": n}
     n_written = n // 4 if conf in settings.ML_VENUES else 0
     return {"plain": n - n // 2, "flagged": n // 2 - n_written, "written": n_written}

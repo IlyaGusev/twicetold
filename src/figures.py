@@ -829,6 +829,19 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for name in ["precision", "recall", "f1"]:
         for suffix in ["", "_low", "_high"]:
             values["RefPair" + name.title().replace("1", "One") + suffix.title()[1:]] = f"{pairs['pair_' + name + suffix]:.1f}"
+    for stratum in ["plain", "flagged", "written"]:
+        values["RefRatio" + stratum.title()] = f"{council.loc[('same', 'all', 'all', stratum, 'all')].pair_link_ratio:.0f}"
+    council_types = pd.read_csv(reports / f"council_pair_types_{model}.csv").set_index("pair_type")
+    for kind, name in [("HH", "None"), ("LL", "Two"), ("WW", "Written")]:
+        values["RefTypeRatio" + name] = f"{council_types.loc[kind].pair_link_ratio:.0f}"
+    values["RefTypeLinksNone"] = f"{int(council_types.loc['HH', ['pair_tp', 'pair_fn']].sum())}"
+    swap = pd.read_csv(reports / f"grouper_swap_{model}.csv").set_index("grouper")
+    others = swap.drop(index=model)
+    values["RefSwapPanels"] = f"{int(swap.panels.iloc[0])}"
+    for name, prefix in [("two", "RefSwapFlag"), ("panel_gap", "RefSwapPanel")]:
+        values[prefix + "Luna"] = f"{swap.loc[model, name]:.1f}"
+        values[prefix + "Min"] = f"{others[name].min():.1f}"
+        values[prefix + "Max"] = f"{others[name].max():.1f}"
     pipes = pd.read_csv(reports / f"pipelines_{model}.csv").set_index(index)
     same_pipes, cross_pipes = pipes.loc[("same", *total)], pipes.loc[("cross", *total)]
     values["RefPipePanels"] = f"{int(same_pipes.panels)}"
@@ -921,6 +934,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["DecSnapNoneLast"] = f"{step_snap.overlap_HH:.1f}"
     values["DecIclrNoneBase"] = f"{step_base.overlap_HH:.1f}"
     values["DecIclrNoneLast"] = f"{step.overlap_HH:.1f}"
+    values["DecIclrCleanBase"] = f"{step_base.overlap_clean:.1f}"
+    values["DecIclrCleanLast"] = f"{step.overlap_clean:.1f}"
+    values["DecSnapCleanLast"] = f"{step_snap.overlap_clean:.1f}"
     values["DecIclrTwoShareBase"] = f"{step_base.share_LL + step_base.share_WW:.1f}"
     earlier = by_year[(by_year.conf == "ICLR") & (by_year.year < settings.CONTRAST_YEARS[1])]
     values["IclrEarlierMax"] = f"{earlier.match.max():.1f}"

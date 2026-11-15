@@ -42,6 +42,8 @@ if [ -z "$OUT_DIR" ]; then
   step src/validate.py forms --model "$MODEL"
   step src/validate.py extraction --model "$MODEL"
   step src/validate.py council_agreement --model "$MODEL"
+  step src/validate.py council_pair_types --model "$MODEL"
+  step src/validate.py grouper_swap --model "$MODEL"
   step src/validate.py pipelines --model "$MODEL"
   step src/validate.py identification --model "$MODEL"
   for check in journal_subsets coverage decomposition rewrite_test detector_choices second_detector; do
@@ -58,6 +60,8 @@ else
   step src/validate.py forms --model "$MODEL" --tex "$OUT_DIR/tables/forms.tex"
   step src/validate.py extraction --model "$MODEL" --tex "$OUT_DIR/tables/extraction.tex"
   step src/validate.py council_agreement --model "$MODEL" --tex "$OUT_DIR/tables/council.tex"
+  step src/validate.py council_pair_types --model "$MODEL"
+  step src/validate.py grouper_swap --model "$MODEL" --tex "$OUT_DIR/tables/grouper_swap.tex"
   step src/validate.py identification --model "$MODEL"
   step src/validate.py pipelines --model "$MODEL" --contrasts_tex "$OUT_DIR/tables/pipeline_contrasts.tex"
   for check in journal_subsets coverage decomposition rewrite_test detector_choices second_detector; do
