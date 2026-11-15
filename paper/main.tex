@@ -32,7 +32,7 @@
 \maketitle
 
 \begin{abstract}
-Peer review relies on several readers finding different problems. We measure critique overlap in conference reviews and journal reports. At ICLR, measured overlap rose from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, in reviews from the same stage of the review process, with year-on-year rises at NeurIPS and ICML. We apply MELD, a detector of LLM-generated text, to all reviews. Within a paper, two reviews that MELD labels LLM-written overlap \WrittenGap{} points more than two unflagged reviews at ICLR in 2024--2027. Across five journal sources, two MELD-flagged reports of one paper overlap \JournalGap{} points more than two unflagged reports. These results provide evidence that LLM-flagged reviews of one paper are less distinct from each other than unflagged reviews, and suggest that the diversity of critiques among reviews of a single paper is falling.
+Peer review relies on several readers finding different problems. We measure critique overlap in conference reviews and journal reports. At ICLR, measured overlap rose from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, in reviews from the same stage of the review process, with year-on-year rises at NeurIPS and ICML. We apply MELD, a detector of LLM-generated text, to all reviews. Within a paper, two reviews that MELD labels LLM-written overlap \WrittenGapRound{} points more than two unflagged reviews at ICLR in 2024--2027. Across five journal sources, two MELD-flagged reports of one paper overlap \JournalGapRound{} points more than two unflagged reports. These results provide evidence that LLM-flagged reviews of one paper are less distinct from each other than unflagged reviews, and suggest that the diversity of critiques among reviews of a single paper is falling.
 \end{abstract}
 
 \begin{figure}[t]
@@ -52,8 +52,8 @@ Our findings are:
 
 \begin{itemize}[nosep]
 \item Critique overlap rose at ICLR from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, at ICML in 2026 and at NeurIPS in 2025 (Section~\ref{sec:trends}, Figure~\ref{fig:overlap}).
-\item Within a paper, two reviews that MELD labels LLM-written overlap \WrittenGap{} points more than two unflagged reviews at ICLR in 2024--2027 (Section~\ref{sec:ai}, Figure~\ref{fig:ai}).
-\item Pooled over five journal sources, two LLM-flagged reports of one paper overlap \JournalGap{} points more than two unflagged ones (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).\label{end:intro}
+\item Within a paper, two reviews that MELD labels LLM-written overlap \WrittenGapRound{} points more than two unflagged reviews at ICLR in 2024--2027 (Section~\ref{sec:ai}, Figure~\ref{fig:ai}).
+\item Pooled over five journal sources, two LLM-flagged reports of one paper overlap \JournalGapRound{} points more than two unflagged ones (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).\label{end:intro}
 \end{itemize}
 
 \section{Related Work}

@@ -723,6 +723,8 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(prefix + "Gap", row.est, row.se, row.papers)
     pooled = gaps.loc["All journals"]
     record("JournalGap", pooled.est, pooled.se, pooled.papers)
+    values["JournalGapRound"] = f"{pooled.est:.0f}"
+    values["WrittenGapRound"] = f"{evidence.loc['LLM-written, ICLR 2024–27'].est:.0f}"
     values["JournalGapBothN"] = f"{int(pooled.both_papers):,}"
     meld = pd.read_csv(settings.REPORTS_DIR / "meld_summary.csv").set_index("name").value
     values["MeldThreshold"] = f"{meld.threshold:.2f}"
