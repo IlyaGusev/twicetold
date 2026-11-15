@@ -78,6 +78,8 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
             dict(name="left_papers", value=wd.hit_rate_strict.notna().sum()),
             dict(name="left_level", value=left_level[0]),
             dict(name="left_level_se", value=left_level[1]),
+            dict(name="counted_level", value=counted[0]),
+            dict(name="counted_level_se", value=counted[1]),
         ]
     ).to_csv(Path(reports) / f"withdrawn_{model}.csv", index=False)
     variants = [
@@ -332,7 +334,7 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
     add_written(pipe, f"LLM-written, {main}", iclr)
     for label in list(cells)[2:]:
         add(pipe, label, cells[label], flag)
-    for year, year_pairs in pd.concat([iclr, late]).groupby("year"):
+    for year, year_pairs in iclr.groupby("year"):
         add("ICLR by year", f"ICLR {year}", year_pairs, flag)
     add_written("ICLR by year", f"LLM-written, {late_label}", late)
     placebo = pd.read_csv(reports / f"detector_placebo_{model}.csv")
@@ -667,7 +669,7 @@ def identification(
     iclr = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)]
     journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= 2024)]
     cells = [
-        ("ICLR 2024–26", iclr, flag),
+        ("ICLR 2024–27", iclr, flag),
         ("NeurIPS 2024–25", pairs[(pairs.conf == "NeurIPS") & (pairs.year >= 2024)], flag),
         ("ICML 2025–26", pairs[pairs.conf == "ICML"], flag),
         *[(f"{source} {cell.year.min()}–{cell.year.max() % 100}", cell, flag) for source, cell in journals.groupby("conf")],

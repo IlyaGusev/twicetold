@@ -316,6 +316,9 @@ def overlap_panel(ax, by_year, styles, label_x, gap):
 
 def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     by_year = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv")
+    left = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"withdrawn_{model}.csv").set_index("name").value
+    snapshot = (by_year.conf == "ICLR") & (by_year.year == settings.ICLR_SNAPSHOT_YEARS[0])
+    by_year.loc[snapshot, ["match", "match_se"]] = [left.counted_level, left.counted_level_se]
     fig, (top, bottom) = plt.subplots(2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.1, 3.1))
     fig.subplots_adjust(left=0.13, right=0.76, top=0.93, bottom=0.11, hspace=0.42)
     conferences, journals = CONFERENCE_STYLES, JOURNAL_STYLES
@@ -692,11 +695,11 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(prefix, row.hit_removed, row.hit_removed_se, row.removed_papers)
         record(prefix + "Change", row.removed_change, row.removed_change_se, row.removed_papers)
     for label, prefix in [
-        ("ICLR 2024–26", "FlagGap"),
+        ("ICLR 2024–27", "FlagGap"),
         ("+ length and claim count", "ControlGap"),
         ("NeurIPS 2024–25", "NeuripsFlagGap"),
         ("ICML 2025–26", "IcmlFlagGap"),
-        ("LLM-written, ICLR 2024–26", "WrittenGap"),
+        ("LLM-written, ICLR 2024–27", "WrittenGap"),
         ("LLM-written, ICLR 2027", "WrittenGapLate"),
         ("ICLR 2024", "FlagGapTwentyFour"),
         ("ICLR 2025", "FlagGapTwentyFive"),
@@ -867,7 +870,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         values[prefix + "ClaimsBias"] = f"{row.claims_bias:.1f}"
     ident = pd.read_csv(reports / f"identification_{model}.csv").set_index("label")
     for label, prefix in [
-        ("ICLR 2024–26", "IdIclr"),
+        ("ICLR 2024–27", "IdIclr"),
         ("NeurIPS 2024–25", "IdNeurips"),
         ("ICML 2025–26", "IdIcml"),
         ("All journals 2024–26", "IdJournal"),
@@ -968,9 +971,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         texts = meld_rates[meld_rates.set == meld_set]
         record(base + "Flagged", (texts.flagged * texts.n).sum() / texts.n.sum())
     detector_gaps = {
-        "Flag": evidence.loc["ICLR 2024–26"],
-        "Written": evidence.loc["LLM-written, ICLR 2024–26"],
-        "Ll": types.loc[("ICLR 2024–26", "LL")],
+        "Flag": evidence.loc["ICLR 2024–27"],
+        "Written": evidence.loc["LLM-written, ICLR 2024–27"],
+        "Ll": types.loc[("ICLR 2024–27", "LL")],
     }
     for condition, base in [("outline", "Rw"), ("outline_second", "Rk")]:
         effect = rewrite.loc[(condition, "ICLR")]
@@ -1000,7 +1003,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     editlens_labels = pd.read_csv(settings.REPORTS_DIR / "editlens_labels.csv").set_index("known").flagged
     record("EditlensHeldoutFlagged", editlens_labels["heldout"], digits=2)
     second = pd.read_csv(reports / f"second_detector_{model}.csv").set_index("cell")
-    for cell, name in [("ICLR 2024–26", "EditlensFlagGap"), (f"ICLR {settings.ICLR_LAST}", "EditlensFlagGapLast")]:
+    for cell, name in [("ICLR 2024–27", "EditlensFlagGap"), (f"ICLR {settings.ICLR_LAST}", "EditlensFlagGapLast")]:
         record(name, second.loc[cell].editlens, second.loc[cell].editlens_se, second.loc[cell].papers)
     second_steps = pd.read_csv(reports / f"second_detector_decomposition_{model}.csv").set_index(["conf", "year"])
     second_step = second_steps.loc[("ICLR", settings.CONTRAST_YEARS[1])]
