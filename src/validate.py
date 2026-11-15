@@ -1481,14 +1481,6 @@ def council_agreement(
     out = pd.DataFrame(summary)
     out.round(3).to_csv(Path(reports) / f"council_agreement_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    meld = hub.meld_flags()
-    flagged = pairs[(pairs.kind == "same") & pairs.stratum.isin(["flagged", "written"]) & (pairs.status != "invalid")]
-    types = pair_type(flagged, meld.flag.astype(int), meld.written.astype(int)).to_numpy()
-    by_type = pd.DataFrame(
-        [dict(pair_type=t, **pair_detection_summary(panel_counts(cell))) for t, cell in flagged.groupby(types)]
-    )
-    by_type.round(3).to_csv(Path(reports) / f"council_pair_types_{model}.csv", index=False)
-    print(by_type.round(2).to_string(index=False))
     columns = [
         ("candidate_pairs", "Pairs", 0, False),
         ("voted_pairs", "With three votes", 0, False),
@@ -1498,6 +1490,18 @@ def council_agreement(
         ("pair_link_ratio", "Links per 100", 0, False),
     ]
     write_cell_table(out[(out.kind == "same") & (out.years == "all")], tex, columns)
+
+
+def council_pair_types(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
+    pairs = pd.read_csv(Path(reports) / f"council_agreement_pairs_{model}.csv", low_memory=False)
+    meld = hub.meld_flags()
+    flagged = pairs[(pairs.kind == "same") & pairs.stratum.isin(["flagged", "written"]) & (pairs.status != "invalid")]
+    types = pair_type(flagged, meld.flag.astype(int), meld.written.astype(int)).to_numpy()
+    by_type = pd.DataFrame(
+        [dict(pair_type=t, **pair_detection_summary(panel_counts(cell))) for t, cell in flagged.groupby(types)]
+    )
+    by_type.round(3).to_csv(Path(reports) / f"council_pair_types_{model}.csv", index=False)
+    print(by_type.round(2).to_string(index=False))
 
 
 MAJORITY = "majority"
@@ -1704,6 +1708,7 @@ if __name__ == "__main__":
             "extraction": extraction,
             "extraction_table": extraction_table_from_report,
             "council_agreement": council_agreement,
+            "council_pair_types": council_pair_types,
             "grouper_swap": grouper_swap,
             "pipelines": pipelines,
             "identification": identification,
