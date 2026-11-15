@@ -16,7 +16,6 @@ import ai
 import extract
 import hub
 from between import normalize_rows, openai_embed
-from gold import FLAG_FROM
 from jsonl import load_jsonl, read_jsonl
 from metrics import assign, mean_overlap, review_groups
 from metrics import overlap as pair_overlap
@@ -793,7 +792,6 @@ def decomposition_rows(pairs, flag, written):
             cell = pairs[(pairs.conf == conf) & (pairs.year == year)]
             types = pair_type(cell, flag, written)
             weight = 1 / cell.groupby("panel_id").hit.transform("size")
-            clean = pair_counts(cell, flag).groupby(cell.panel_id.to_numpy()).transform("max").eq(0)
             weights = (
                 weight.groupby([cell.panel_id, types]).sum().unstack(fill_value=0).reindex(columns=ALL_PAIR_TYPES, fill_value=0)
             )
@@ -811,7 +809,8 @@ def decomposition_rows(pairs, flag, written):
             row = dict(conf=conf, year=year, papers=len(weights))
             row.update({f"share_{t}": 100 * v for t, v in zip(ALL_PAIR_TYPES, share, strict=True)})
             row.update({f"overlap_{t}": v for t, v in zip(ALL_PAIR_TYPES, mean, strict=True)})
-            row["overlap_clean"] = 100 * (weight * cell.hit)[clean].sum() / weight[clean].sum()
+            clean = weights[:, 1:].sum(axis=1) == 0
+            row["overlap_clean"] = 100 * hits[clean, 0].sum() / weights[clean, 0].sum()
             if previous is not None:
                 terms = shift_share(previous[0], (share, mean))
                 errors = np.std([shift_share(a, b) for a, b in zip(previous[1], resampled, strict=True)], axis=0)
@@ -1085,6 +1084,7 @@ def pair_detection_summary(panels):
         ("precision", tp, tp + fp),
         ("recall", tp, tp + fn),
         ("f1", 2 * tp, 2 * tp + fp + fn),
+        ("link_ratio", tp + fp, tp + fn),
         ("accuracy", candidates - fp - fn, candidates),
     ]:
         scores = np.divide(100.0 * numerator, denominator, out=np.full(len(tp), np.nan), where=denominator > 0)
@@ -1479,7 +1479,6 @@ def council_agreement(
                 )
             )
     out = pd.DataFrame(summary)
-    out["link_ratio"] = 100 * (out.pair_tp + out.pair_fp) / (out.pair_tp + out.pair_fn)
     out.round(3).to_csv(Path(reports) / f"council_agreement_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     columns = [
@@ -1488,7 +1487,7 @@ def council_agreement(
         ("pair_precision", "Precision", 1, False),
         ("pair_recall", "Recall", 1, False),
         ("pair_f1", "F1", 1, False),
-        ("link_ratio", "Links per 100", 0, False),
+        ("pair_link_ratio", "Links per 100", 0, False),
     ]
     write_cell_table(out[(out.kind == "same") & (out.years == "all")], tex, columns)
 
@@ -1497,40 +1496,33 @@ MAJORITY = "majority"
 SWAP_LABELS = {**settings.MODEL_LABELS, MAJORITY: "Council majority"}
 
 
-def majority_clusters(cids, groupings):
-    index = {cid: i for i, cid in enumerate(cids)}
-    links = [
-        (index[a], index[b])
-        for a, b in combinations(cids, 2)
-        if 2 * sum(g.get(a, a) == g.get(b, b) for g in groupings) > len(groupings)
-    ]
+def majority_clusters(cids, votes):
+    links = [(i, j) for (i, a), (j, b) in combinations(enumerate(cids), 2) if council_pair_label(votes, a, b)[1]]
     rows, cols = zip(*links) if links else ((), ())
     graph = csr_matrix((np.ones(len(rows)), (rows, cols)), shape=(len(cids), len(cids)))
-    _, component = connected_components(graph, directed=False)
-    return [{"claim_ids": [cid for cid in cids if component[index[cid]] == c]} for c in sorted(set(component))]
+    n, component = connected_components(graph, directed=False)
+    return [{"claim_ids": [cid for cid, k in zip(cids, component) if k == c]} for c in range(n)]
 
 
 def grouper_pairs(model, gold, council):
-    panels = [p for p in read_jsonl(gold / "panels_tune.jsonl") if p["kind"] == "same" and p["year"] >= FLAG_FROM]
+    panels = [p for p in read_jsonl(gold / "panels_tune.jsonl") if p["kind"] == "same" and p["year"] >= settings.FLAG_FROM]
     claims = extract.load_claims(gold / f"claims_{model}.jsonl")
     ours = load_jsonl(gold / f"clusters_{model}.jsonl", "panel_id")
     raw = {(row["panel_id"], row["model"]): row for row in read_jsonl(gold / "clusters_council.jsonl")}
     rows = []
     for panel in panels:
         pid, ids = panel["panel_id"], panel["review_ids"]
-        proposals = [ours.get(pid, {}), *(raw.get((pid, member), {}) for member in council)]
-        if any("clusters" not in proposal for proposal in proposals):
+        proposals = {model: ours.get(pid, {}), **{member: raw.get((pid, member), {}) for member in council}}
+        if any("clusters" not in proposal for proposal in proposals.values()):
             continue
-        clusters = {name: proposal["clusters"] for name, proposal in zip([model, *council], proposals)}
+        clusters = {name: proposal["clusters"] for name, proposal in proposals.items()}
         cids = [f"R{j}-{k}" for j, rid in enumerate(ids) for k in range(len(claims[rid]))]
-        clusters[MAJORITY] = majority_clusters(cids, [claim_group_ids(clusters[member]) for member in council])
+        clusters[MAJORITY] = majority_clusters(cids, [unique_claim_group_ids(clusters[member]) for member in council])
         sets = {name: grouped(ids, claims, groups) for name, groups in clusters.items()}
         for i, j in combinations(range(len(ids)), 2):
             rows.append(
                 dict(
                     panel_id=pid,
-                    conf=panel["conf"],
-                    year=panel["year"],
                     stratum=panel["stratum"],
                     a=ids[i],
                     b=ids[j],
@@ -1546,7 +1538,9 @@ def swap_row(pairs, types, flag, panels, model, name):
 
     row = dict(grouper=name, panels=len(panels))
     row.update(bootstrap_interval(panels, panel_gap, "panel_gap"))
-    outcomes = {"": pairs[name]} | ({} if name == model else {"diff_": pairs[model] - pairs[name]})
+    outcomes = {"": pairs[name]}
+    if name != model:
+        outcomes["diff_"] = pairs[model] - pairs[name]
     for prefix, outcome in outcomes.items():
         two = fe_gap(pairs.assign(hit=outcome), flag)
         written = type_fit(pairs.assign(y=100 * outcome), types, "y")
@@ -1555,26 +1549,24 @@ def swap_row(pairs, types, flag, panels, model, name):
     return row
 
 
-SWAP_COLUMNS = [
-    ("two", "Two flagged"),
-    ("written", "Two written"),
-    ("diff_two", "Two flagged"),
-    ("diff_written", "Two written"),
-]
-
-
 def grouper_swap_table(out, tex):
+    columns = [
+        ("two", "Two flagged"),
+        ("written", "Two written"),
+        ("diff_two", "Two flagged"),
+        ("diff_written", "Two written"),
+    ]
     lines = [
         r"\begin{tabular}{@{}lrrrrr@{}}",
         r"\toprule",
         r" & Flagged $-$ plain & \multicolumn{2}{c}{Within-paper gap} & \multicolumn{2}{c}{Luna $-$ grouper} \\",
         r"\cmidrule(lr){3-4}\cmidrule(l){5-6}",
-        r"Grouper & panels & " + " & ".join(title for _, title in SWAP_COLUMNS) + r" \\",
+        r"Grouper & panels & " + " & ".join(title for _, title in columns) + r" \\",
         r"\midrule",
     ]
     for r in out.itertuples():
         cells = [f"{r.panel_gap:+.1f} [{r.panel_gap_low:+.1f}, {r.panel_gap_high:+.1f}]"]
-        for name, _ in SWAP_COLUMNS:
+        for name, _ in columns:
             value, se = getattr(r, name), getattr(r, name + "_se")
             cells.append("--" if pd.isna(value) else f"{value:+.1f} [{value - Z95 * se:+.1f}, {value + Z95 * se:+.1f}]")
         lines.append(f"{SWAP_LABELS[r.grouper]} & " + " & ".join(cells) + r" \\")
@@ -1592,8 +1584,9 @@ def grouper_swap(
     meld = hub.meld_flags()
     flag = meld.flag.astype(int)
     types = pair_type(pairs, flag, meld.written.astype(int)).to_numpy()
-    panels = pairs.groupby(["panel_id", "stratum"])[[model, *council, MAJORITY]].mean().reset_index()
-    out = pd.DataFrame([swap_row(pairs, types, flag, panels, model, name) for name in [model, *council, MAJORITY]])
+    groupers = [model, *council, MAJORITY]
+    panels = pairs.groupby(["panel_id", "stratum"])[groupers].mean().reset_index()
+    out = pd.DataFrame([swap_row(pairs, types, flag, panels, model, name) for name in groupers])
     out.to_csv(Path(reports) / f"grouper_swap_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     grouper_swap_table(out, tex)
