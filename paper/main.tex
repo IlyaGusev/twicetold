@@ -135,6 +135,8 @@ The shift toward flagged pairs explains a small part of the ICLR rise. A shift-s
 
 The gap could come from wording and not from content. Two reviews in the same LLM style can be easier to match, although their critiques are the same as before. To test this style effect, Luna changes two human reviews in each of \RwIclrPapers{} pre-2023 ICLR panels and keeps their points. Polishing the language changes overlap by $+\PlIclrTwo$ points. Rewriting each review from an outline of its points changes overlap by $+\RwIclrTwo$ points. Both numbers are relative to the pairs of the same panel that we did not change, because a second grouping run moves the overlap of all pairs a little. The 2024--2027 flagged-pair gap exceeds this rewrite effect by \RwFlagDiff{} points, the LLM-written gap by \RwWrittenDiff{} and the gap of other two-flagged pairs by \RwLlDiff. Style effects can therefore explain the gap of other two-flagged pairs and part of the 2024--2027 flagged-pair gap, but not the LLM-written gap.
 
+The gap could also come from the detector and not from LLM use, if MELD gives high scores to reviewers who raise common critiques with or without an LLM. Such reviewers also wrote before ChatGPT. In a pre-ChatGPT check, we flag the top 45\% of MELD scores in ICLR 2020--2023, a share close to the 2026 flag rate, and repeat the comparison. The gap is $\PlaceboFirstGap$ points in 2020, $\PlaceboMidGap$ in 2021--2022 and $\PlaceboLastGap$ in 2023. A high detector score alone does not produce the gap.
+
 \paragraph{RQ3: Do LLM-flagged journal reports also repeat more critiques?}
 \label{sec:journals}
 From the 2019--2023 mean to 2026, journal overlap rose most at F1000 ($+\FResearchChange$ points) and PLOS ($+\PlosChange$, Figure~\ref{fig:overlap}). Within a paper, two flagged reports overlap \JournalGap{} points [\JournalGapLow, \JournalGapHigh] more than two unflagged reports. Only \JournalGapBothN{} of the \JournalGapN{} papers from 2024 on have both pair types, because such a paper needs four reports. Each single source has few such papers, and its interval includes zero (Figure~\ref{fig:fields}).
@@ -151,7 +153,7 @@ Our results suggest that the reviews of one paper have lost part of their indepe
 
 \clearpage
 \section*{Limitations}
-\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference uses LLMs, not humans, and does not rule out shared model errors. The human check covers pass 1 only. Extraction and grouping errors can affect measured levels and changes over time. The overlap level depends on the grouper: council members give \RefPipeLevelMemberMin{} to \RefPipeLevelMemberMax\% against Luna's \RefPipeLuna\%. Every level in this paper is Luna's, and the contrasts hold in all four pipelines. Luna misses more links in papers with no flagged review. LLM groupers agree that this error changes comparisons between papers but not within-paper gaps (Appendix~\ref{app:reference}). No human annotator checked the grouping.
+\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference uses LLMs, not humans, and does not rule out shared model errors. The human check covers pass 1 only. Extraction and grouping errors can affect measured levels and changes over time. The overlap level depends on the grouper: council members give \RefPipeLevelMemberMin{} to \RefPipeLevelMemberMax\% against Luna's \RefPipeLuna\%. Every level in this paper is Luna's, and the contrasts hold in all four pipelines. Luna misses more links in papers with no flagged review. LLM groupers agree that this error changes comparisons between papers but not within-paper gaps. No human annotator checked the grouping.
 
 \textbf{Review snapshots.} The ICLR reviews of 2026 and 2027 come from the start of the discussion phase, and earlier years hold final reviews. This snapshot difference can bias the comparison of 2025 with 2026 in either direction. We did not rerun earlier years on initial review versions where OpenReview keeps them. The 2026 reviews come from ten days after their release and the 2027 reviews from the day of their release, and the 2027 form renamed two fields. We do not know if the 2027 level holds after the discussion phase.
 
@@ -354,10 +356,6 @@ A regression with paper fixed effects gives larger estimates at ICLR and a close
 \caption{The within-paper flagged-pair gap persists across venues, thresholds and controls. Each row is one gap (Equation~\ref{eq:gap}) with its 95\% interval. The row with controls is a regression with paper fixed effects. The dotted line marks the ICLR 2024--2027 estimate, and the open circles are the pre-ChatGPT checks.}
 \label{fig:checks}
 \end{figure}
-
-\question{app:placebo}{Do pre-ChatGPT reviews with high detector scores show the same gap?}
-No. We flag the top 45\% of MELD scores in ICLR years before ChatGPT, a share close to the 2026 flag rate, and repeat the comparison. The estimates are $\PlaceboFirstGap$ points in 2020, $\PlaceboMidGap$ in 2021--2022 and $\PlaceboLastGap$ in 2023 (Figure~\ref{fig:checks}). A high detector score alone does not produce the gap.
-
 
 \question{app:sizes}{Do flagged pairs share more problems, or do they only raise fewer?}
 They share more. Against two unflagged reviews of the same paper, two LLM-written reviews share $\SizeWwShared$ more problems, and $\SizeWwSharedAdj$ more with both set sizes as controls. Other two-flagged pairs raise fewer problems and share $\SizeLlShared$ more. With both set sizes as controls, they share $\SizeLlSharedAdj$ more. Two unflagged reviews share \SizeHhShared{} problems. Table~\ref{tab:sizes} applies a regression with paper fixed effects and one term for each pair type to problem counts in ICLR 2024--2027 pairs.
