@@ -14,7 +14,7 @@ from matplotlib.transforms import Bbox
 
 import extract
 import hub
-from outcomes import excluded_review_ids, in_window, main_sample_review_ids
+from outcomes import excluded_review_ids, in_window, main_sample_review_ids, scored_pairs
 from prompts import render
 from settings import settings
 
@@ -187,8 +187,8 @@ PAIR_TYPE_STYLES = {
 
 def pair_type_means(model):
     flags = kept_meld_flags()
-    pairs = pd.read_parquet(
-        settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+    pairs = scored_pairs(
+        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
     cells = []
     for label, (conf, first, last) in settings.GAP_CELLS.items():
@@ -733,7 +733,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     record("IclrFlaggedLast", iclr_last.ai_flagged)
     record("IclrWrittenLast", iclr_last.ai_written)
     flags = kept_meld_flags().flag
-    pairs = pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")
+    pairs = scored_pairs(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")).copy()
     pairs["nflag"] = pairs.a.map(flags).astype(float) + pairs.b.map(flags).astype(float)
     main_conf, main_first, main_last = next(iter(settings.GAP_CELLS.values()))
     in_main = (pairs.conf == main_conf) & pairs.year.between(main_first, main_last)
@@ -960,6 +960,13 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record("CovShared" + suffix, row.shared_per_pair, row.shared_per_pair_se, digits=2)
     rewrite = pd.read_csv(reports / f"rewrite_test_{model}.csv").set_index(["condition", "group"])
     meld_rates = pd.read_csv(settings.REPORTS_DIR / "meld_rates.csv")
+    sampled_rates = pd.read_csv(settings.REPORTS_DIR / "editlens_rates.csv")
+    for year, suffix in zip(settings.ICLR_SNAPSHOT_YEARS, ["Base", "Last"]):
+        scored, sampled = (
+            rates[(rates.set == "sample") & (rates.conf == "ICLR") & (rates.year == year)].n.sum()
+            for rates in (meld_rates, sampled_rates)
+        )
+        values["MeldCover" + suffix] = f"{100 * scored / sampled:.0f}"
     for condition, base, meld_set in REWRITE_MACROS:
         for group, suffix in [("All", ""), ("ICLR", "Iclr"), ("Journals", "Journal")]:
             if (condition, group) not in rewrite.index:

@@ -190,7 +190,7 @@ def flags(
     assert real.review_id.is_unique
     meld = pd.read_parquet(settings.RAW_DIR / "meld_flags.parquet", columns=["review_id", "score", "flag"])
     meld = meld.set_index("review_id").rename(columns={"score": "meld_score", "flag": "meld"})
-    post = real[real.year > settings.MELD_CALIBRATION_LAST_YEAR].join(meld, on="review_id")
+    post = real[real.year > settings.MELD_CALIBRATION_LAST_YEAR].join(meld, on="review_id", how="inner")
     agree = (post.flag == post.meld).mean()
     chance = post.flag.mean() * post.meld.mean() + (1 - post.flag.mean()) * (1 - post.meld.mean())
     summary = {

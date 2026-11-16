@@ -165,8 +165,8 @@ complete groups. Do not use this check to infer reference overlap levels or tren
 
    | Sample | Papers with both pair types | Gap (points) | SE |
    |---|---:|---:|---:|
-   | ICLR 2024–27, flagged | 5,414 | 3.3 | 0.3 |
-   | ICLR 2024–27, LLM-written | 1,559 | 7.0 | 0.7 |
+   | ICLR 2024–27, flagged | 5,775 | 3.2 | 0.3 |
+   | ICLR 2024–27, LLM-written | 1,649 | 6.9 | 0.6 |
    | NeurIPS 2024–25, flagged | 1,005 | 4.7 | 0.7 |
    | ICML 2025–26, flagged | 2,433 | 4.0 | 0.5 |
 

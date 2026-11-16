@@ -139,6 +139,7 @@ class Settings(BaseSettings):
     CONTRAST_YEARS: tuple[int, int] = (2025, 2026)
     ICLR_SNAPSHOT_YEARS: tuple[int, int] = (2026, 2027)
     MIN_PANEL_REVIEWS: int = 3
+    ROW_GROUP_ROWS: int = 20000
     FLAG_FROM: int = 2024
     WITHDRAWN_CHECK: str = "Overlap, withdrawn papers excluded"
     REFERENCE_BOOTSTRAPS: int = 5000

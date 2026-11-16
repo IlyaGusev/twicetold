@@ -331,7 +331,7 @@ def write_final(model, review_parts, variants, papers, panel_rows):
     summary = []
     for source, part in review_parts:
         part = with_editlens(with_new_claims(part, claims_path))
-        part.to_parquet(out / "reviews" / f"{source}.parquet", index=False)
+        part.to_parquet(out / "reviews" / f"{source}.parquet", index=False, row_group_size=settings.ROW_GROUP_ROWS)
         summary.append(
             dict(
                 source=source,
@@ -346,7 +346,9 @@ def write_final(model, review_parts, variants, papers, panel_rows):
         )
         print(summary[-1], flush=True)
     for name, variant in variants:
-        with_new_claims(variant, claims_path).to_parquet(out / "variants" / f"{name}.parquet", index=False)
+        with_new_claims(variant, claims_path).to_parquet(
+            out / "variants" / f"{name}.parquet", index=False, row_group_size=settings.ROW_GROUP_ROWS
+        )
         print(name, len(variant), flush=True)
     papers.to_parquet(out / "papers" / "papers.parquet", index=False)
     panel_counts = []

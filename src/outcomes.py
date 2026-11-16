@@ -36,8 +36,7 @@ def load_outputs(model):
     clusters_by_tag = {}
     for panel_id, panel in hub.clusters(model).items():
         clusters_by_tag.setdefault(tag_of(panel_id), {})[panel_id] = panel
-    claims = {review_id: [{"specific": claim["specific"]} for claim in claims] for review_id, claims in hub.claims(model).items()}
-    return claims, clusters_by_tag
+    return hub.claims(model, fields=["specific"]), clusters_by_tag
 
 
 def in_main_sample(frame):
@@ -58,6 +57,16 @@ def excluded_review_ids():
 def main_sample_review_ids():
     reviews = review_status()
     return set(reviews.review_id[in_main_sample(reviews)])
+
+
+@cache
+def scored_review_ids():
+    return set(hub.meld_flags(["flag"]).index)
+
+
+def scored_pairs(pairs):
+    scored = scored_review_ids()
+    return pairs[pairs.a.isin(scored) & pairs.b.isin(scored)]
 
 
 def ml_papers():
