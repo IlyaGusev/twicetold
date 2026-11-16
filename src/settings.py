@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     RAW_ML_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources"
     RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources" / "other"
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
-    HF_DATASET_REVISION: str = "3092f852465ecca3b85e8c55f1d1bc7eae018950"
+    HF_DATASET_REVISION: str = "9fff9459eae209cae80634f3da0dc5bd0db92dd7"
     HF_PULL_PATTERNS: list[str] = ["final/**", "gold/**", "additional/**", "README.md", "stats.json"]
     HF_RAW_PATTERNS: list[str] = [
         "raw/*_raw.jsonl*",
@@ -48,6 +48,7 @@ class Settings(BaseSettings):
         "raw/other/stats.json*",
         "raw/meld_scores.jsonl*",
         "raw/editlens_scores.jsonl*",
+        "raw/gpttrace_scores.jsonl*",
     ]
     HF_PUSH_IGNORE: list[str] = ["additional/paper_reviews/raw/**"]
     KIM_DATASET_REPO: str = "prometheus-eval/peerreview-bench"
@@ -165,6 +166,9 @@ class Settings(BaseSettings):
     EDITLENS_BASE_REVISION: str = "d4446454d87d51aa42e1fb174f25acc5f8762331"
     EDITLENS_BUCKETS: int = 4
     EDITLENS_MAX_LENGTH: int = 1024
+    GPTTRACE_REPO: str = "nakas/gpttrace-v8s-1b"
+    GPTTRACE_REVISION: str = "ac748e32ca8c90bb8858fadc427757728e27b063"
+    GPTTRACE_MAX_LENGTH: int = 512
 
     PRICES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
         "gpt-6-luna": (0.10, 0.50),

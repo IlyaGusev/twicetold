@@ -19,5 +19,7 @@ step src/meld.py input
 step src/meld.py flags
 [ -f data/raw/editlens_scores.jsonl ] || { echo "run src/editlens.py scores on a GPU, then rerun"; exit 1; }
 step src/editlens.py flags
+[ -f data/raw/gpttrace_scores.jsonl ] || { echo "run src/gpttrace.py scores on a GPU, then rerun"; exit 1; }
+step src/gpttrace.py flags
 step src/release.py from_raw
 echo "RAW DONE $(date)"

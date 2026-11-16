@@ -1,0 +1,16 @@
+name,value
+threshold,10.8125
+calibration_reviews,110080.0
+pre_source_max,0.41826420355524574
+meld_reviews,302889.0
+meld_both,18.387924289096006
+meld_only,10.259203866763071
+gpttrace_not_meld,10.21232200575128
+meld_kappa,0.4989968972891329
+meld_spearman,0.6684034110575146
+editlens_reviews,415248.0
+editlens_both,15.171656455901052
+editlens_only,6.356683235078796
+gpttrace_not_editlens,12.609332254459984
+editlens_kappa,0.4921779263297873
+editlens_spearman,0.7372230347837052

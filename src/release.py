@@ -54,6 +54,12 @@ MELD_COLUMNS = {
     "written": "meld_written",
 }
 EDITLENS_COLUMNS = {"score": "editlens_score", "n_tokens": "editlens_tokens", "flag": "editlens_flag"}
+GPTTRACE_COLUMNS = {
+    "score": "gpttrace_score",
+    "score_mean": "gpttrace_score_mean",
+    "n_tokens": "gpttrace_tokens",
+    "flag": "gpttrace_flag",
+}
 PANEL_KINDS = [
     ("placeboA_", "placebo_area"),
     ("placebo_", "placebo_venue"),
@@ -282,6 +288,16 @@ def with_editlens(part):
     return part.astype({"editlens_tokens": "Int64", "editlens_flag": "boolean"})
 
 
+def with_gpttrace(part):
+    path = settings.RAW_DIR / "gpttrace_flags.parquet"
+    if not path.exists():
+        return part
+    flags = pd.read_parquet(path, columns=["review_id", *GPTTRACE_COLUMNS]).set_index("review_id")
+    for column, name in GPTTRACE_COLUMNS.items():
+        part[name] = part.review_id.map(flags[column])
+    return part.astype({"gpttrace_tokens": "Int64", "gpttrace_flag": "boolean"})
+
+
 def with_raw_marks(part):
     ids = pd.read_parquet(settings.RAW_DIR / SAMPLES["main"], columns=["review_id"]).review_id
     new = ids[ids.isin(part.review_id[part["sample"].isna()])]
@@ -330,7 +346,7 @@ def write_final(model, review_parts, variants, papers, panel_rows):
     claims_path = settings.WORK_DIR / f"claims_{model}.jsonl"
     summary = []
     for source, part in review_parts:
-        part = with_editlens(with_new_claims(part, claims_path))
+        part = with_gpttrace(with_editlens(with_new_claims(part, claims_path)))
         part.to_parquet(out / "reviews" / f"{source}.parquet", index=False, row_group_size=settings.ROW_GROUP_ROWS)
         summary.append(
             dict(
@@ -342,6 +358,7 @@ def write_final(model, review_parts, variants, papers, panel_rows):
                 with_claims=int(part.claims.notna().sum()),
                 with_meld=int(part.meld_score.notna().sum()),
                 with_editlens=int(part.editlens_score.notna().sum()),
+                with_gpttrace=int(part.gpttrace_score.notna().sum()),
             )
         )
         print(summary[-1], flush=True)
@@ -360,6 +377,7 @@ def write_final(model, review_parts, variants, papers, panel_rows):
         print(kind, len(rows), flush=True)
     meld = pd.read_csv(settings.REPORTS_DIR / "meld_summary.csv", index_col="name").value
     editlens = pd.read_csv(settings.REPORTS_DIR / "editlens_summary.csv", index_col="name").value
+    gpttrace = pd.read_csv(settings.REPORTS_DIR / "gpttrace_summary.csv", index_col="name").value
     card = render(
         "dataset_card",
         sources=markdown_table(pd.DataFrame(summary)),
@@ -378,6 +396,10 @@ def write_final(model, review_parts, variants, papers, panel_rows):
         editlens_revision=settings.EDITLENS_REVISION,
         editlens_base_repo=settings.EDITLENS_BASE_REPO,
         editlens_max_length=f"{settings.EDITLENS_MAX_LENGTH:,}",
+        gpttrace_threshold=f"{gpttrace.threshold:.2f}",
+        gpttrace_repo=settings.GPTTRACE_REPO,
+        gpttrace_revision=settings.GPTTRACE_REVISION,
+        gpttrace_max_length=settings.GPTTRACE_MAX_LENGTH,
         model=model,
         route=settings.OPENROUTER_ROUTES[model],
         efforts=settings.REASONING_EFFORTS[model],
@@ -425,7 +447,7 @@ def push():
         repo_id=settings.HF_DATASET_REPO,
         folder_path=settings.DATA_DIR,
         repo_type="dataset",
-        commit_message="Release reviews, papers, claims, panels, MELD and EditLens scores",
+        commit_message="Release reviews, papers, claims, panels, MELD, EditLens and GPTTrace scores",
         allow_patterns=settings.HF_PULL_PATTERNS + settings.HF_RAW_PATTERNS,
         ignore_patterns=settings.HF_PUSH_IGNORE,
         delete_patterns=["final/**", "gold/**", "additional/**"],

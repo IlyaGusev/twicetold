@@ -71,8 +71,9 @@ in `.env`). All files of this path live in `data/raw/`. Run commands as `uv run 
    (`fetch.py icml`), builds the ICML, journal and robustness inputs (`panels.py icml`, `other`, `robust`, `nocq`)
    and the MELD input (`meld.py input`). It stops when `data/raw/meld_scores.jsonl` is missing: score the MELD input
    on a GPU with `meld.py scores`, then run the script again. It stops in the same way when
-   `data/raw/editlens_scores.jsonl` is missing (`editlens.py scores`). It then rebuilds the MELD flags
-   (`meld.py flags`) and the EditLens flags (`editlens.py flags`) and
+   `data/raw/editlens_scores.jsonl` (`editlens.py scores`) or `data/raw/gpttrace_scores.jsonl` (`gpttrace.py scores`)
+   is missing. It then rebuilds the MELD flags (`meld.py flags`), the EditLens flags (`editlens.py flags`) and the
+   GPTTrace flags (`gpttrace.py flags`) and
    writes `data/final/` (`release.py from_raw`), keeping the claims and groups that `data/final/` already holds.
    No step calls a paid API.
 
@@ -210,7 +211,16 @@ OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python src/editlens.py scores
 published scores. The scorer loads the adapter on `unsloth/Llama-3.2-3B` in 4 bits and scores 1,024-token windows;
 the recorded run took 9 h 45 min on an RTX 3090. See `raw/editlens_scores.jsonl.md` in the dataset.
 
-The dataset holds review-linked MELD and EditLens scores and flags. A flag is a detector output, not proof that a reviewer
+GPTTrace is a third detector (dataset only, not in the paper). In the same CUDA environment, run:
+
+```
+OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python src/gpttrace.py scores
+```
+
+The scorer loads `nakas/gpttrace-v8s-1b` in bfloat16 and scores 512-token windows. See
+`raw/gpttrace_scores.jsonl.md` in the dataset.
+
+The dataset holds review-linked MELD, EditLens and GPTTrace scores and flags. A flag is a detector output, not proof that a reviewer
 used an LLM. Detector labels must not support action against individual reviewers.
 
 ## Paper

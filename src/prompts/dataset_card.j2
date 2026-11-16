@@ -36,7 +36,7 @@ configs:
 # Twice-Told Critiques
 
 Peer reviews from three ML conferences and five open-review journal sources, with claims extracted by an LLM,
-problem groups for each paper's reviews, and MELD and EditLens scores for LLM-generated text. This is the data of the paper
+problem groups for each paper's reviews, and MELD, EditLens and GPTTrace scores for LLM-generated text. This is the data of the paper
 "Twice-Told Critiques: Claim-Level Homogenization of Peer Review in the LLM Era". Code:
 https://github.com/IlyaGusev/twicetold.
 
@@ -50,6 +50,7 @@ https://github.com/IlyaGusev/twicetold.
 - `with_claims`: the review has extracted claims.
 - `with_meld`: the review has a MELD score.
 - `with_editlens`: the review has an EditLens score.
+- `with_gpttrace`: the review has a GPTTrace score.
 
 Conference reviews: ICLR and NeurIPS from OpenReview via
 [ResearchArcade](https://huggingface.co/datasets/ulab-ai/ResearchArcade-openreview-reviews) and
@@ -93,6 +94,10 @@ One row per review. One file per source.
 | `editlens_score` | EditLens score of the first {{ editlens_max_length }} tokens, from 0 (human) to 1 (LLM-written) |
 | `editlens_tokens` | Number of tokens of the whole text |
 | `editlens_flag` | `editlens_score` is above the threshold |
+| `gpttrace_score` | GPTTrace score of the first {{ gpttrace_max_length }} tokens: logit of machine-generated minus logit of human |
+| `gpttrace_score_mean` | Token-weighted mean of the GPTTrace scores of all {{ gpttrace_max_length }}-token windows of the text |
+| `gpttrace_tokens` | Number of tokens of the whole text |
+| `gpttrace_flag` | `gpttrace_score` is above the threshold |
 
 ### `papers`
 
@@ -132,7 +137,7 @@ without the clarity field. Columns: `variant`, `review_id` (with the variant pre
 | `final/` | The four configs above: `reviews`, `papers`, `panels`, `variants`. The paper's analysis reads only this folder, `gold/` and `additional/` |
 | `gold/` | Reference annotations of the extraction and grouping checks, and the two external human benchmarks |
 | `additional/` | Side experiments: the rewrite test, LLM reviews of arXiv papers, the known-origin texts of the detector checks, and Gemini Embedding 2 vectors (1,536 dimensions) of the first 20,000 characters of each `main` sample review, in `sample_row` order |
-| `raw/` | Inputs of the corpus build: OpenReview API dumps of ICML 2025 and 2026 accepted papers and all ICLR 2027 submissions, predicted research areas, journal fetch statistics, the panel files and the MELD and EditLens scores of all scored texts |
+| `raw/` | Inputs of the corpus build: OpenReview API dumps of ICML 2025 and 2026 accepted papers and all ICLR 2027 submissions, predicted research areas, journal fetch statistics, the panel files and the MELD, EditLens and GPTTrace scores of all scored texts |
 
 `python src/release.py pull` copies `final/`, `gold/` and `additional/` into `data/`; `--raw` adds `raw/`.
 
@@ -157,8 +162,17 @@ adapter on Llama-3.2-3B (loaded from `{{ editlens_base_repo }}` in 4 bits). The 
 quantile of the same reviews as for MELD. `raw/editlens_scores.jsonl` also holds the token-weighted mean score over
 all windows of a text. The same warning applies: a flag is a detector output.
 
+## GPTTrace
+
+Detector: [{{ gpttrace_repo }}](https://huggingface.co/{{ gpttrace_repo }}), revision `{{ gpttrace_revision }}`, a
+binary classifier on the Ettin 1B encoder. Its author trained it on the first {{ gpttrace_max_length }} tokens of each
+text, so `gpttrace_score` covers the first {{ gpttrace_max_length }} tokens. Threshold {{ gpttrace_threshold }}: the
+same quantile of the same reviews as for MELD. The paper does not use these scores. The same warning applies: a flag
+is a detector output.
+
 ## Licence
 
 Each row carries its licence. Journal reports keep their CC BY or CC0 terms. Conference reviews are public
 OpenReview reviews; follow OpenReview's terms. Extracted claims, panels and MELD scores: CC BY 4.0. EditLens scores are outputs of a model
-that Pangram released for non-commercial use (CC BY-NC-SA 4.0).
+that Pangram released for non-commercial use (CC BY-NC-SA 4.0). GPTTrace scores are outputs of a model with licence
+CC BY-SA 4.0.
