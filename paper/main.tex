@@ -38,7 +38,7 @@ Peer review relies on several readers finding different problems. We measure cri
 \begin{figure}[t]
 \centering
 \includegraphics{figs/fig1_trends.pdf}
-\caption{Measured critique overlap rose at ICLR in 2027, at ICML in 2026 and at NeurIPS in 2025. Journal overlap rose most at F1000 and PLOS. We define overlap as shared problems divided by the smaller critique set, averaged within papers, then over papers. Dashed segment: from 2026 on, the ICLR reviews come from the start of the discussion phase. The 2026 point counts withdrawn papers through a weighted sample.}
+\caption{Measured critique overlap rose at ICLR in 2027, at ICML in 2026 and at NeurIPS in 2025. Journal overlap rose most at F1000 and PLOS. We define overlap as shared problems divided by the smaller critique set, averaged within papers, then over papers. Dashed segment: from 2026 on, ICLR samples hold reviews before the discussion phase. The 2026 point counts withdrawn papers through a weighted sample.}
 \label{fig:overlap}
 \end{figure}
 
@@ -117,7 +117,7 @@ MELD \citep{li2026meld} scores reviews for LLM-generated or edited text. \textbf
 
 \paragraph{RQ1: Do reviewers of one paper repeat more of each other's critiques?}
 \label{sec:trends}
-ICLR overlap rose from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, by $+\IclrSnapChange$ points. These two years are directly comparable: both hold reviews from the start of the discussion phase. NeurIPS and ICML also rose in their latest cycles (Figure~\ref{fig:overlap}).
+ICLR overlap rose from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, by $+\IclrSnapChange$ points. These two years are directly comparable: both hold reviews before the discussion phase. NeurIPS and ICML also rose in their latest cycles (Figure~\ref{fig:overlap}).
 
 Table~\ref{tab:coverage} counts claims in all three-review subsets of each ICLR paper. From 2026 to 2027, claims per review rose from \CovPerReviewLast{} to \CovPerReviewSnap, but distinct claims per three-review panel fell from \CovProblemsLast{} to \CovProblemsSnap. Claims lost to repetition rose from \CovLostLast{} to \CovLostSnap, and the new claims that a third review added fell from \CovNewLast{} to \CovNewSnap.
 
@@ -127,7 +127,7 @@ Earlier ICLR years hold final reviews, with an overlap of at most \IclrEarlierMa
 \centering\footnotesize
 \setlength{\tabcolsep}{0pt}
 \input{tables/coverage}
-\caption{ICLR three-review panels lose more claims to repetition in 2027 than in any year from 2020. Claims lost to repetition: three times the claims per review minus the distinct claims. $^\dagger$Reviews from the start of the discussion phase; earlier years hold final reviews.}
+\caption{ICLR three-review panels lose more claims to repetition in 2027 than in any year from 2020. Claims lost to repetition: three times the claims per review minus the distinct claims. $^\dagger$Reviews before the discussion phase; earlier years hold final reviews.}
 \label{tab:coverage}
 \end{table}
 
@@ -159,7 +159,7 @@ Our results suggest that the reviews of one paper have lost part of their indepe
 \section*{Limitations}
 \textbf{LLM measurement.} An LLM extracts and groups claims. The council reference uses LLMs, not humans, and does not rule out shared model errors. The human check covers pass 1 only. Extraction and grouping errors can affect measured levels and changes over time. The overlap level depends on the grouper: council members give \RefPipeLevelMemberMin{} to \RefPipeLevelMemberMax\% against Luna's \RefPipeLuna\%. Every level in this paper is Luna's, and the contrasts hold in all four pipelines. Luna misses more links in papers with no flagged review. LLM groupers agree that this error changes comparisons between papers but not within-paper gaps. No human annotator checked the grouping.
 
-\textbf{Review snapshots.} The ICLR reviews of 2026 and 2027 come from the start of the discussion phase, and earlier years hold final reviews. This snapshot difference can bias the comparison of 2025 with 2026 in either direction. We did not rerun earlier years on initial review versions where OpenReview keeps them. The 2026 reviews come from ten days after their release and the 2027 reviews from the day of their release, and the 2027 form renamed two fields. We do not know if the 2027 level holds after the discussion phase.
+\textbf{Review snapshots.} The ICLR samples of 2026 and 2027 hold reviews before the discussion phase, and earlier years hold final reviews. This snapshot difference can bias the comparison of 2025 with 2026 in either direction. We did not rerun earlier years on initial review versions where OpenReview keeps them.
 
 \textbf{Detector labels.} MELD trained on peer reviews from sources it does not name. If these include our pre-2023 reviews, the threshold is too low and later flag rates too high. EditLens flags fewer recent reviews than MELD, so flag rates depend on the detector. Only MELD supplies the LLM-written label. MELD labels \PolishWritten\% of our polished reviews as LLM-written, but other tools and prompts can polish differently, and detectors label part of LLM-polished reviews as AI-generated \citep{saha2026policies}. The rewrite control uses two models, two prompts and pre-2023 reviews. Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates. Their labels must not support action against an individual reviewer.
 
@@ -393,7 +393,7 @@ No. The rise from 2026 to 2027 is between \RobustSnapMin{} and \RobustSnapMax{} 
 \begin{table}[!htp]
 \centering\small
 \input{tables/robust}
-\caption{The ICLR rise holds under each analysis choice. The top rows compare 2026 with 2027, both with reviews from the start of the discussion phase. The bottom rows compare 2025, with final reviews, with 2026. SE in parentheses. Luna and a council member give the same specificity flag to \RefSpecific\% of the claims that both extract.}
+\caption{The ICLR rise holds under each analysis choice. The top rows compare 2026 with 2027, both with reviews before the discussion phase. The bottom rows compare 2025, with final reviews, with 2026. SE in parentheses. Luna and a council member give the same specificity flag to \RefSpecific\% of the claims that both extract.}
 \label{tab:robust}
 \end{table}
 
