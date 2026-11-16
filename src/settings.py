@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     RAW_ML_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources"
     RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources" / "other"
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
-    HF_DATASET_REVISION: str = "e665fe9cd9cb69fe1e01de7972ed49f1560a61f8"
+    HF_DATASET_REVISION: str = "4b491a0a5c831c77c7a6fd4bb735bb085ba0bd2f"
     HF_PULL_PATTERNS: list[str] = ["final/**", "gold/**", "additional/**", "README.md", "stats.json"]
     HF_RAW_PATTERNS: list[str] = [
         "raw/*_raw.jsonl*",
@@ -140,7 +140,7 @@ class Settings(BaseSettings):
     ICLR_SNAPSHOT_YEARS: tuple[int, int] = (2026, 2027)
     MIN_PANEL_REVIEWS: int = 3
     FLAG_FROM: int = 2024
-    WITHDRAWN_CHECK: str = "Overlap, withdrawn 2026 papers counted"
+    WITHDRAWN_CHECK: str = "Overlap, withdrawn papers excluded"
     REFERENCE_BOOTSTRAPS: int = 5000
     REFERENCE_BOOTSTRAP_SEED: int = 0
     REVIEW_TEXT_MAX_CHARS: int = 14000

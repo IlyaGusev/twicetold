@@ -54,8 +54,8 @@ https://github.com/IlyaGusev/twicetold.
 Conference reviews: ICLR and NeurIPS from OpenReview via
 [ResearchArcade](https://huggingface.co/datasets/ulab-ai/ResearchArcade-openreview-reviews) and
 [iclr-2026](https://huggingface.co/datasets/davidheineman/iclr-2026); ICML 2025–2026 accepted papers and ICLR
-2027 submissions from the OpenReview API. ICLR 2027 reviews were downloaded on 7 November 2026, before author responses
-and decisions. Journal reports: SciPost (API); F1000Research, Wellcome Open Research, Open Research Europe and PLOS
+2027 submissions from the OpenReview API. ICLR 2027 reviews were downloaded on 15 November 2026, after the first
+author responses and before decisions. Journal reports: SciPost (API); F1000Research, Wellcome Open Research, Open Research Europe and PLOS
 (Europe PMC); BMC Medicine ([JerMa88/BMC_Medicine_Peer_Reviews](https://huggingface.co/datasets/JerMa88/BMC_Medicine_Peer_Reviews));
 Copernicus/EGU (journal discussion pages). Journal samples hold up to 2,000 papers per source-year, first-round
 reports only.
@@ -82,7 +82,7 @@ One row per review. One file per source.
 | `licence` | Licence of the text |
 | `in_corpus` | The review is in the current corpus; `false` for 414 early ICLR sample reviews that a later corpus build dropped |
 | `corpus_row` | Row order in the corpus files of the code repository |
-| `sample`, `sample_row` | Analysis sample (`main`: ICLR and NeurIPS, `icml`, `journal`, `withdrawn`: reviews of withdrawn ICLR 2026 papers) and row order in it |
+| `sample`, `sample_row` | Analysis sample (`main`: ICLR and NeurIPS, `icml`, `journal`) and row order in it |
 | `claims` | Extracted claims: list of `{claim, quote, category, target, specific}`; empty list when the review has no critique; null when not extracted |
 | `claims_error` | API error when extraction failed after four attempts |
 | `meld_score` | MELD score: mean of the top token scores |
@@ -106,10 +106,10 @@ One row per panel: a set of reviews whose claims the LLM grouped into shared pro
 
 {{ panels }}
 
-- `paper`: the reviews of one ICLR or NeurIPS paper (main analysis).
+- `paper`: the reviews of one ICLR or NeurIPS paper (main analysis). ICLR 2026 and 2027 hold all papers with three or more
+  reviews, withdrawn and desk-rejected papers included.
 - `icml`, `journal`: the reviews of one ICML or journal paper.
 - `subset3`: three-review subsets of papers with at least four reviews.
-- `withdrawn`: reviews of withdrawn ICLR 2026 papers.
 - `noq`, `nocq`: the same papers with review variants from the `variants` config.
 - `placebo_venue`, `placebo_area`, `journal_placebo`: one review each from different papers of one venue-year (or
   one predicted area-year). Overlap here measures matches that do not come from a shared paper.

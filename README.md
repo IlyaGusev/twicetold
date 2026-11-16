@@ -54,7 +54,7 @@ extracts them again. `release.py build` copies the rows of both work files into 
 settings. A different model or reasoning effort needs a different short name. Each pass has its own budget cap;
 inspect the script's argument and logs before a run.
 
-The panel `kind` names the sample: `paper`, `icml`, `journal`, `withdrawn`, `subset3`, `noq`, `nocq`, and the
+The panel `kind` names the sample: `paper`, `icml`, `journal`, `subset3`, `noq`, `nocq`, and the
 cross-paper controls `placebo_venue`, `placebo_area` and `journal_placebo`.
 
 ## Corpus build from raw sources

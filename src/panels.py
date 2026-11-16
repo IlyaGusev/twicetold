@@ -4,8 +4,10 @@ from pathlib import Path
 import fire
 import numpy as np
 import pandas as pd
+import pyarrow.dataset as ds
 import pyarrow.parquet as pq
 
+import hub
 from jsonl import append_jsonl, read_jsonl, write_jsonl
 from settings import settings
 
@@ -364,9 +366,18 @@ def nocq(data=str(settings.RAW_DIR), out=str(settings.RAW_DIR)):
     print("nocq panels", len(panels))
 
 
-def wd(data=str(settings.RAW_DIR), out=str(settings.RAW_DIR)):
-    reviews = pd.read_parquet(Path(data) / "wd_reviews.parquet", columns=["paper_id", "review_id"])
-    write_jsonl(Path(out) / "panels_wd.jsonl", by_paper_panels(reviews, "wd_", sort=True))
+def snapshot_rest(out=str(settings.RAW_DIR), seed=7):
+    out = Path(out)
+    columns = ["conf", "year", "paper_id", "review_id", "sample", "text"]
+    reviews = hub.corpus_reviews(columns, ds.field("year") >= settings.ICLR_SNAPSHOT_YEARS[0])
+    reviews = reviews[reviews.conf == "ICLR"]
+    new = reviews[~reviews.paper_id.isin(reviews[reviews["sample"].notna()].paper_id)]
+    new = new[new.groupby("paper_id").review_id.transform("size") >= settings.MIN_PANEL_REVIEWS]
+    new = cap_reviews_per_paper(np.random.default_rng(seed), new).sort_values(["year", "paper_id", "review_id"])
+    kept = pd.read_parquet(out / "sample_reviews.parquet")
+    pd.concat([kept, new[["review_id", "text"]]], ignore_index=True).to_parquet(out / "sample_reviews.parquet")
+    append_jsonl(out / "panels.jsonl", by_paper_panels(new, sort=True))
+    print(new.groupby("year").agg(papers=("paper_id", "nunique"), reviews=("review_id", "size")).to_string())
 
 
 if __name__ == "__main__":
@@ -380,6 +391,6 @@ if __name__ == "__main__":
             "other": other,
             "robust": robust,
             "nocq": nocq,
-            "wd": wd,
+            "snapshot_rest": snapshot_rest,
         }
     )

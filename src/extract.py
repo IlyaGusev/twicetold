@@ -358,7 +358,7 @@ def final_pass1(model=settings.DEFAULT_MODEL, threads=256, budget=60.0, redo=Fal
     settings.WORK_DIR.mkdir(parents=True, exist_ok=True)
     done = set() if redo else hub.reviews_with_claims()
     for paper_kind in PASS1_PAPER_WORDING:
-        items = hub.sampled_reviews(journal=paper_kind == "general")
+        items = hub.sampled_reviews(journal=paper_kind == "general", without_claims=not redo)
         worker = partial(pass1_worker, model=model, instructions=pass1_instructions(paper_kind), effort=effort)
         run(items, worker, settings.WORK_DIR / f"claims_{model}.jsonl", done, review_key, model, effort, threads, budget)
 
@@ -367,10 +367,12 @@ def final_pass2(model=settings.DEFAULT_MODEL, threads=160, budget=60.0, redo=Fal
     hub.check_model(model)
     effort = reasoning_efforts(model).pass2
     settings.WORK_DIR.mkdir(parents=True, exist_ok=True)
-    claims_by_review = {**hub.claims(model), **load_claims(settings.WORK_DIR / f"claims_{model}.jsonl")}
+    new_claims = load_claims(settings.WORK_DIR / f"claims_{model}.jsonl")
     done = set() if redo else hub.grouped_panels()
     for paper_kind in PASS2_PAPER_WORDING:
-        items = panel_items(hub.panel_rows(journal=paper_kind == "general"), claims_by_review)
+        rows = [row for row in hub.panel_rows(journal=paper_kind == "general") if panel_key(row) not in done]
+        review_ids = {review_id for row in rows for review_id in row["review_ids"]}
+        items = panel_items(rows, {**hub.claims(model, review_ids), **new_claims})
         worker = partial(
             pass2_worker, model=model, instructions=render("pass2", paper=PASS2_PAPER_WORDING[paper_kind]), effort=effort
         )

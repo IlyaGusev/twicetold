@@ -20,7 +20,6 @@ SAMPLES = {
     "main": "sample_reviews.parquet",
     "icml": "icml_sample.parquet",
     "journal": "other_pass1.parquet",
-    "withdrawn": "wd_reviews.parquet",
 }
 VARIANTS = {"noq": "noq_reviews.parquet", "nocq": "nocq_reviews.parquet"}
 REVIEW_COLUMNS = [
@@ -62,7 +61,6 @@ PANEL_KINDS = [
     ("other_", "journal"),
     ("icml_", "icml"),
     ("sub3_", "subset3"),
-    ("wd_", "withdrawn"),
     ("noq_", "noq"),
     ("nocq_", "nocq"),
 ]
@@ -91,7 +89,6 @@ PANEL_FILES = [
     "panels_icml",
     "panels_noq",
     "panels_nocq",
-    "panels_wd",
     "panels_placebo",
     "panels_placebo_area",
     "panels_sub3",
@@ -285,6 +282,27 @@ def with_editlens(part):
     return part.astype({"editlens_tokens": "Int64", "editlens_flag": "boolean"})
 
 
+def with_raw_marks(part):
+    ids = pd.read_parquet(settings.RAW_DIR / SAMPLES["main"], columns=["review_id"]).review_id
+    new = ids[ids.isin(part.review_id[part["sample"].isna()])]
+    if len(new):
+        main = ds.dataset(settings.FINAL_DIR / "reviews", format="parquet").to_table(
+            columns=["sample_row"], filter=ds.field("sample") == "main"
+        )
+        row = pd.Series(main.column("sample_row").to_pandas().max() + 1 + np.arange(len(new)), index=new.to_numpy())
+        found = part.review_id.isin(row.index)
+        part.loc[found, "sample"] = "main"
+        part.loc[found, "sample_row"] = part.review_id[found].map(row)
+    meld = pd.read_parquet(settings.RAW_DIR / "meld_flags.parquet", columns=["review_id", *MELD_COLUMNS]).set_index("review_id")
+    for column, name in MELD_COLUMNS.items():
+        part[name] = part.review_id.map(meld[column])
+    return part.astype({"meld_family": "string", "meld_task": "string", "meld_flag": "boolean", "meld_written": "boolean"})
+
+
+def built_panel_rows(kind):
+    return raw_panel_rows(settings.RAW_DIR, kind) if kind == "paper" else final_panel_rows(kind)
+
+
 def final_panel_rows(kind):
     path = settings.FINAL_DIR / "panels" / f"{kind}.parquet"
     return pq.read_table(path).to_pylist() if path.exists() else []
@@ -370,10 +388,10 @@ def build(model=settings.DEFAULT_MODEL):
     final = settings.FINAL_DIR
     write_final(
         model,
-        ((path.stem, pd.read_parquet(path)) for path in sorted((final / "reviews").glob("*.parquet"))),
+        ((path.stem, with_raw_marks(pd.read_parquet(path))) for path in sorted((final / "reviews").glob("*.parquet"))),
         ((name, pd.read_parquet(final / "variants" / f"{name}.parquet")) for name in VARIANTS),
         pd.read_parquet(final / "papers" / "papers.parquet"),
-        final_panel_rows,
+        built_panel_rows,
     )
 
 

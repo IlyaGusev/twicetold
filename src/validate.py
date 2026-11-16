@@ -54,45 +54,40 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     specific = pair_table[pair_table.conf == "ICLR"].groupby(["panel_id", "year"]).hit_spec.mean().reset_index()
     sub3 = pd.read_parquet(settings.ANALYSIS_DIR / f"sub3_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
     noq = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_noq.parquet").query("n_claims > 0")
-    wd = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_wd.parquet").query("n_claims > 0")
     first, last = settings.ICLR_SNAPSHOT_YEARS
     status = hub.corpus_reviews(["paper_id", "conf", "year", "withdrawn", "decision"]).query("conf == 'ICLR' and year >= @first")
     status = status.groupby(["year", "paper_id"]).agg(
         reviews=("paper_id", "size"), withdrawn=("withdrawn", "first"), decision=("decision", "first")
     )
     status = status[status.reviews >= settings.MIN_PANEL_REVIEWS]
-    left = (status.withdrawn | status.decision.eq("desk_reject")).groupby("year").mean()
-    left_share = left[first]
+    status["left"] = status.withdrawn | status.decision.eq("desk_reject")
+    left_share = status.left.groupby("year").mean()
+    left_ids = status.index.get_level_values("paper_id")[status.left]
+    kept, left = main[~main.paper_id.isin(left_ids)], main[main.paper_id.isin(left_ids)]
 
     def level(df, col, year):
         values = df[df.year == year][col].dropna() * 100
         return values.mean(), values.sem()
 
-    kept_level, left_level = level(main, "hit_rate_strict", first), level(wd, "hit_rate_strict", first)
-    counted = (
-        (1 - left_share) * kept_level[0] + left_share * left_level[0],
-        np.hypot((1 - left_share) * kept_level[1], left_share * left_level[1]),
-    )
+    left_level = level(left, "hit_rate_strict", first)
     pd.DataFrame(
         [
-            dict(name="left_share", value=100 * left_share),
-            dict(name="last_left_share", value=100 * left[last]),
-            dict(name="left_papers", value=wd.hit_rate_strict.notna().sum()),
+            dict(name="left_share", value=100 * left_share[first]),
+            dict(name="last_left_share", value=100 * left_share[last]),
+            dict(name="left_papers", value=left.hit_rate_strict.notna().sum()),
             dict(name="left_level", value=left_level[0]),
             dict(name="left_level_se", value=left_level[1]),
-            dict(name="counted_level", value=counted[0]),
-            dict(name="counted_level_se", value=counted[1]),
         ]
     ).to_csv(Path(reports) / f"withdrawn_{model}.csv", index=False)
     variants = [
-        ("Overlap, withdrawn papers excluded", main, "hit_rate_strict"),
+        ("Overlap", main, "hit_rate_strict"),
+        (settings.WITHDRAWN_CHECK, kept, "hit_rate_strict"),
         ("Specific claims only", specific, "hit_spec"),
         ("Same part of paper (lenient)", main, "hit_rate_lenient"),
         ("3-review subsets, grouped again", sub3, "hit_rate_strict"),
         ("Questions field removed", noq, "hit_rate_strict"),
     ]
     checks = [(name, level(df, col, first), level(df, col, last), first, last) for name, df, col in variants]
-    checks.insert(1, (settings.WITHDRAWN_CHECK, counted, level(main, "hit_rate_strict", last), first, last))
     base_year, last_year = settings.CONTRAST_YEARS
     checks += [(name, level(df, col, base_year), level(df, col, last_year), base_year, last_year) for name, df, col in variants]
     rows = []
@@ -725,7 +720,7 @@ def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular*}"]) + "\n")
 
 
-PASS1_SAMPLES = {"ml": ["main", "icml", "withdrawn"], "journal": ["journal"]}
+PASS1_SAMPLES = {"ml": ["main", "icml"], "journal": ["journal"]}
 PASS1_VARIANTS = {"ml": ["noq", "nocq"], "journal": []}
 
 

@@ -1,3 +1,4 @@
+import pyarrow as pa
 import pyarrow.dataset as ds
 
 from settings import settings
@@ -85,11 +86,12 @@ def texts(review_ids):
     }
 
 
-def sampled_reviews(journal):
+def sampled_reviews(journal, without_claims=False):
+    pending = ~ds.field("claims").is_valid() if without_claims else None
     in_sample = ds.field("sample").is_valid() & ((ds.field("venue_type") == "journal") == journal)
-    tables = [arrow("reviews", ["review_id", "text"], in_sample)]
+    tables = [arrow("reviews", ["review_id", "text"], in_sample if pending is None else in_sample & pending)]
     if not journal:
-        tables.append(arrow("variants", ["review_id", "text"]))
+        tables.append(arrow("variants", ["review_id", "text"], pending))
     return [row for table in tables for row in table.to_pylist()]
 
 
@@ -102,7 +104,7 @@ def claims(model, review_ids=None):
     check_model(model)
     condition = ds.field("claims").is_valid()
     if review_ids is not None:
-        condition = condition & ds.field("review_id").isin(list(review_ids))
+        condition = condition & ds.field("review_id").isin(pa.array(list(review_ids), pa.string()))
     out = {}
     for config in ["reviews", "variants"]:
         table = arrow(config, ["review_id", "claims"], condition)
