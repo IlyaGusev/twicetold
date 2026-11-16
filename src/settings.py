@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     RAW_ML_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources"
     RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources" / "other"
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
-    HF_DATASET_REVISION: str = "4b491a0a5c831c77c7a6fd4bb735bb085ba0bd2f"
+    HF_DATASET_REVISION: str = "3092f852465ecca3b85e8c55f1d1bc7eae018950"
     HF_PULL_PATTERNS: list[str] = ["final/**", "gold/**", "additional/**", "README.md", "stats.json"]
     HF_RAW_PATTERNS: list[str] = [
         "raw/*_raw.jsonl*",
