@@ -80,6 +80,12 @@ def editlens_flags():
     )
 
 
+def abstract_scores(detector):
+    score = f"abstract_{detector}_score"
+    df = frame("papers", ["conf", "year", "paper_id", score], ds.field(score).is_valid())
+    return df.rename(columns={score: "score"})
+
+
 def texts(review_ids):
     ids = list(review_ids)
     tables = [arrow(config, ["review_id", "text"], ds.field("review_id").isin(ids)) for config in ["reviews", "variants"]]

@@ -71,9 +71,9 @@ in `.env`). All files of this path live in `data/raw/`. Run commands as `uv run 
    (`fetch.py icml`), builds the ICML, journal and robustness inputs (`panels.py icml`, `other`, `robust`, `nocq`)
    and the MELD input (`meld.py input`). It stops when `data/raw/meld_scores.jsonl` is missing: score the MELD input
    on a GPU with `meld.py scores`, then run the script again. It stops in the same way when
-   `data/raw/editlens_scores.jsonl` (`editlens.py scores`) or `data/raw/gpttrace_scores.jsonl` (`gpttrace.py scores`)
-   is missing. It then rebuilds the MELD flags (`meld.py flags`), the EditLens flags (`editlens.py flags`) and the
-   GPTTrace flags (`gpttrace.py flags`) and
+   `data/raw/editlens_scores.jsonl` (`editlens.py scores`), `data/raw/gpttrace_scores.jsonl` (`gpttrace.py scores`) or
+   `data/raw/gigacheck_scores.jsonl` (`gigacheck_detector.py scores`) is missing. It then rebuilds the flags of the
+   four detectors (`meld.py flags`, `editlens.py flags`, `gpttrace.py flags`, `gigacheck_detector.py flags`) and
    writes `data/final/` (`release.py from_raw`), keeping the claims and groups that `data/final/` already holds.
    No step calls a paid API.
 
@@ -220,7 +220,29 @@ OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python src/gpttrace.py scores
 The scorer loads `nakas/gpttrace-v8s-1b` in bfloat16 and scores 512-token windows. See
 `raw/gpttrace_scores.jsonl.md` in the dataset.
 
-The dataset holds review-linked MELD, EditLens and GPTTrace scores and flags. A flag is a detector output, not proof that a reviewer
+GigaCheck is a fourth detector (dataset only, not in the paper). It needs its own environment with the `gigacheck`
+package (`pip install git+https://github.com/ai-forever/gigacheck`, Python 3.11) and `fire`, `openai` and
+`pydantic-settings`. In that environment, run:
+
+```
+PYTHONPATH=src python src/gigacheck_detector.py scores
+```
+
+The scorer loads `iitolstykh/GigaCheck-Classifier-Multi` in bfloat16 and scores the first 1,024 tokens of each text.
+See `raw/gigacheck_scores.jsonl.md` in the dataset.
+
+The two detectors also score the abstracts of the conference papers. `src/abstracts.py input` writes
+`data/raw/abstract_input.parquet` from the `papers` config. In the two GPU environments, run:
+
+```
+PYTHONPATH=src python src/gigacheck_detector.py scores --input data/raw/abstract_input.parquet --out data/raw/gigacheck_abstract_scores.jsonl
+OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python src/editlens.py scores --input data/raw/abstract_input.parquet --out data/raw/editlens_abstract_scores.jsonl
+```
+
+`src/abstracts.py flags` then sets each abstract threshold from the abstracts of papers from 2022 and earlier and
+writes `data/raw/abstract_flags.parquet` and `reports/abstract_*.csv`. `scripts/raw.sh` runs both commands.
+
+The dataset holds review-linked MELD, EditLens, GPTTrace and GigaCheck scores and flags. A flag is a detector output, not proof that a reviewer
 used an LLM. Detector labels must not support action against individual reviewers.
 
 ## Paper

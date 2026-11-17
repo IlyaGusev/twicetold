@@ -36,7 +36,7 @@ configs:
 # Twice-Told Critiques
 
 Peer reviews from three ML conferences and five open-review journal sources, with claims extracted by an LLM,
-problem groups for each paper's reviews, and MELD, EditLens and GPTTrace scores for LLM-generated text. This is the data of the paper
+problem groups for each paper's reviews, and MELD, EditLens, GPTTrace and GigaCheck scores for LLM-generated text. This is the data of the paper
 "Twice-Told Critiques: Claim-Level Homogenization of Peer Review in the LLM Era". Code:
 https://github.com/IlyaGusev/twicetold.
 
@@ -51,6 +51,7 @@ https://github.com/IlyaGusev/twicetold.
 - `with_meld`: the review has a MELD score.
 - `with_editlens`: the review has an EditLens score.
 - `with_gpttrace`: the review has a GPTTrace score.
+- `with_gigacheck`: the review has a GigaCheck score.
 
 Conference reviews: ICLR and NeurIPS from OpenReview via
 [ResearchArcade](https://huggingface.co/datasets/ulab-ai/ResearchArcade-openreview-reviews) and
@@ -98,12 +99,32 @@ One row per review. One file per source.
 | `gpttrace_score_mean` | Token-weighted mean of the GPTTrace scores of all {{ gpttrace_max_length }}-token windows of the text |
 | `gpttrace_tokens` | Number of tokens of the whole text |
 | `gpttrace_flag` | `gpttrace_score` is above the threshold |
+| `gigacheck_score` | GigaCheck score of the first {{ gigacheck_max_length }} tokens: logit of `ai` minus logit of `human` |
+| `gigacheck_tokens` | Number of tokens of the whole text |
+| `gigacheck_flag` | `gigacheck_score` is above the threshold |
 
 ### `papers`
 
 One row per paper with at least one review in `reviews`: title, abstract (conferences), decision, withdrawn
 status, OpenReview primary area, predicted area (`area_pred`, ICLR and NeurIPS sample papers), licence and number of
 reviews.
+
+Detector columns for the abstract (conference papers only; null for journals). These columns describe the abstract
+of the paper, not its reviews:
+
+| Column | Meaning |
+|---|---|
+| `abstract_editlens_score` | EditLens score of the abstract, from 0 (human) to 1 (LLM-written) |
+| `abstract_editlens_tokens` | Number of tokens of the abstract (EditLens tokenizer) |
+| `abstract_editlens_flag` | `abstract_editlens_score` is above the abstract threshold of EditLens |
+| `abstract_gigacheck_score` | GigaCheck score of the abstract: logit of `ai` minus logit of `human` |
+| `abstract_gigacheck_tokens` | Number of tokens of the abstract (GigaCheck tokenizer) |
+| `abstract_gigacheck_flag` | `abstract_gigacheck_score` is above the abstract threshold of GigaCheck |
+
+Each abstract threshold is the {{ quantile }} quantile of that detector's scores on the abstracts of papers from
+{{ calibration_last_year }} and earlier: {{ abstract_editlens_threshold }} for EditLens and
+{{ abstract_gigacheck_threshold }} for GigaCheck. These thresholds differ from the review thresholds. An abstract has
+about 185 words, so these scores are less reliable than the review scores. The paper does not use them.
 
 ### `panels`
 
@@ -137,7 +158,7 @@ without the clarity field. Columns: `variant`, `review_id` (with the variant pre
 | `final/` | The four configs above: `reviews`, `papers`, `panels`, `variants`. The paper's analysis reads only this folder, `gold/` and `additional/` |
 | `gold/` | Reference annotations of the extraction and grouping checks, and the two external human benchmarks |
 | `additional/` | Side experiments: the rewrite test, LLM reviews of arXiv papers, the known-origin texts of the detector checks, and Gemini Embedding 2 vectors (1,536 dimensions) of the first 20,000 characters of each `main` sample review, in `sample_row` order |
-| `raw/` | Inputs of the corpus build: OpenReview API dumps of ICML 2025 and 2026 accepted papers and all ICLR 2027 submissions, predicted research areas, journal fetch statistics, the panel files and the MELD, EditLens and GPTTrace scores of all scored texts |
+| `raw/` | Inputs of the corpus build: OpenReview API dumps of ICML 2025 and 2026 accepted papers and all ICLR 2027 submissions, predicted research areas, journal fetch statistics, the panel files and the MELD, EditLens, GPTTrace and GigaCheck scores of all scored texts |
 
 `python src/release.py pull` copies `final/`, `gold/` and `additional/` into `data/`; `--raw` adds `raw/`.
 
@@ -170,9 +191,23 @@ text, so `gpttrace_score` covers the first {{ gpttrace_max_length }} tokens. Thr
 same quantile of the same reviews as for MELD. The paper does not use these scores. The same warning applies: a flag
 is a detector output.
 
+GPTTrace scores depend on the layout of the text. On 600 ICML reviews, it flags 40% with the form headers in the text
+and 87% without them. The scores here are without the headers. ICML has no reviews from before 2023 to set a
+threshold on, so do not rely on the ICML flags.
+
+## GigaCheck
+
+Detector: [{{ gigacheck_repo }}](https://huggingface.co/{{ gigacheck_repo }}), revision `{{ gigacheck_revision }}`, a
+binary classifier on Mistral-7B from the LLMTrace project. It needs the `gigacheck` package
+(https://github.com/ai-forever/gigacheck). The score covers the first {{ gigacheck_max_length }} tokens of a text, as
+in the model's own code. Threshold {{ gigacheck_threshold }}: the same quantile of the same reviews as for MELD. The
+paper does not use these scores. Form headers do not change the scores, but line breaks do for ICML: on 400 ICML
+reviews, the share above a test threshold fell from 55% to 39% when we removed all line breaks. The same warning
+applies: a flag is a detector output.
+
 ## Licence
 
 Each row carries its licence. Journal reports keep their CC BY or CC0 terms. Conference reviews are public
 OpenReview reviews; follow OpenReview's terms. Extracted claims, panels and MELD scores: CC BY 4.0. EditLens scores are outputs of a model
 that Pangram released for non-commercial use (CC BY-NC-SA 4.0). GPTTrace scores are outputs of a model with licence
-CC BY-SA 4.0.
+CC BY-SA 4.0. GigaCheck scores are outputs of a model with licence Apache-2.0.

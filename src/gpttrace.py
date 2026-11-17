@@ -86,27 +86,22 @@ def scores(
             print(f"{start + len(chunk)}/{len(df)}", flush=True)
 
 
-def agreement(post, other):
+def agreement(name, post, other):
     agree = (post.flag == post[other]).mean()
     chance = post.flag.mean() * post[other].mean() + (1 - post.flag.mean()) * (1 - post[other].mean())
     return {
         f"{other}_reviews": len(post),
         f"{other}_both": (post.flag & post[other]).mean() * 100,
         f"{other}_only": (~post.flag & post[other]).mean() * 100,
-        f"gpttrace_not_{other}": (post.flag & ~post[other]).mean() * 100,
+        f"{name}_not_{other}": (post.flag & ~post[other]).mean() * 100,
         f"{other}_kappa": (agree - chance) / (1 - chance),
         f"{other}_spearman": post.score.corr(post[f"{other}_score"], method="spearman"),
     }
 
 
-def flags(
-    input=settings.RAW_DIR / "meld_input.parquet",
-    scored=settings.RAW_DIR / "gpttrace_scores.jsonl",
-    out=settings.RAW_DIR / "gpttrace_flags.parquet",
-    reports=settings.REPORTS_DIR,
-):
+def flag_reports(name, score_columns, others, input, scored, out, reports):
     df = pd.read_parquet(input, columns=["key", "set", "review_id", "conf", "year"]).merge(
-        pd.read_json(scored, lines=True)[["key", "score", "score_mean", "n_tokens"]], on="key"
+        pd.read_json(scored, lines=True)[["key", *score_columns]], on="key"
     )
     is_real = df.set.isin(REAL_SETS)
     pre = is_real & (df.year <= settings.MELD_CALIBRATION_LAST_YEAR)
@@ -114,14 +109,14 @@ def flags(
     df["flag"] = df.score > threshold
     rates = df.groupby(["set", "conf", "year"]).flag.agg(n="size", flagged="mean")
     rates["flagged"] *= 100
-    rates.round(3).to_csv(Path(reports) / "gpttrace_rates.csv")
+    rates.round(3).to_csv(Path(reports) / f"{name}_rates.csv")
     print(rates.round(2).to_string())
     heldout = is_real & (df.conf == "ICLR") & (df.year == settings.MELD_CALIBRATION_LAST_YEAR + 1)
     known = df.set.where(~is_real).mask(pre, "human").mask(heldout, "heldout")
     labels = df.groupby(known).flag.agg(texts="size", flagged="mean").rename_axis("known")
     labels["flagged"] *= 100
     labels = labels.loc[[k for k in KNOWN_SETS if k in labels.index]]
-    labels.round(3).to_csv(Path(reports) / "gpttrace_labels.csv")
+    labels.round(3).to_csv(Path(reports) / f"{name}_labels.csv")
     print(labels.round(1).to_string())
     real = df[is_real]
     assert real.review_id.is_unique
@@ -131,13 +126,22 @@ def flags(
         "calibration_reviews": int(pre.sum()),
         "pre_source_max": df[pre].groupby("conf").flag.mean().max() * 100,
     }
-    for other in ["meld", "editlens"]:
+    for other in others:
         marks = pd.read_parquet(settings.RAW_DIR / f"{other}_flags.parquet", columns=["review_id", "score", "flag"])
         marks = marks.set_index("review_id").rename(columns={"score": f"{other}_score", "flag": other})
-        summary.update(agreement(post.join(marks, on="review_id", how="inner"), other))
-    pd.Series(summary).to_csv(Path(reports) / "gpttrace_summary.csv", header=["value"], index_label="name")
+        summary.update(agreement(name, post.join(marks, on="review_id", how="inner"), other))
+    pd.Series(summary).to_csv(Path(reports) / f"{name}_summary.csv", header=["value"], index_label="name")
     print(pd.Series(summary).round(3).to_string())
-    real[["review_id", "conf", "year", "score", "score_mean", "n_tokens", "flag"]].to_parquet(out, index=False)
+    real[["review_id", "conf", "year", *score_columns, "flag"]].to_parquet(out, index=False)
+
+
+def flags(
+    input=settings.RAW_DIR / "meld_input.parquet",
+    scored=settings.RAW_DIR / "gpttrace_scores.jsonl",
+    out=settings.RAW_DIR / "gpttrace_flags.parquet",
+    reports=settings.REPORTS_DIR,
+):
+    flag_reports("gpttrace", ["score", "score_mean", "n_tokens"], ["meld", "editlens"], input, scored, out, reports)
 
 
 if __name__ == "__main__":

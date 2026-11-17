@@ -21,5 +21,12 @@ step src/meld.py flags
 step src/editlens.py flags
 [ -f data/raw/gpttrace_scores.jsonl ] || { echo "run src/gpttrace.py scores on a GPU, then rerun"; exit 1; }
 step src/gpttrace.py flags
+[ -f data/raw/gigacheck_scores.jsonl ] || { echo "run src/gigacheck_detector.py scores on a GPU, then rerun"; exit 1; }
+step src/gigacheck_detector.py flags
+step src/abstracts.py input
+for detector in editlens gigacheck; do
+  [ -f "data/raw/${detector}_abstract_scores.jsonl" ] || { echo "score data/raw/abstract_input.parquet with $detector on a GPU, then rerun"; exit 1; }
+done
+step src/abstracts.py flags
 step src/release.py from_raw
 echo "RAW DONE $(date)"
