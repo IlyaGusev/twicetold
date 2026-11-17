@@ -7,7 +7,7 @@ import pyarrow.dataset as ds
 import hub
 from settings import settings
 
-DETECTORS = ["editlens", "gigacheck"]
+DETECTORS = ["meld", "editlens", "gigacheck"]
 
 
 def build_input(out=settings.RAW_DIR / "abstract_input.parquet"):

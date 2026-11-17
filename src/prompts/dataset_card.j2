@@ -114,6 +114,9 @@ of the paper, not its reviews:
 
 | Column | Meaning |
 |---|---|
+| `abstract_meld_score` | MELD score of the abstract: mean of the top token scores |
+| `abstract_meld_tokens` | Number of scored tokens of the abstract (MELD tokenizer) |
+| `abstract_meld_flag` | `abstract_meld_score` is above the abstract threshold of MELD |
 | `abstract_editlens_score` | EditLens score of the abstract, from 0 (human) to 1 (LLM-written) |
 | `abstract_editlens_tokens` | Number of tokens of the abstract (EditLens tokenizer) |
 | `abstract_editlens_flag` | `abstract_editlens_score` is above the abstract threshold of EditLens |
@@ -122,8 +125,8 @@ of the paper, not its reviews:
 | `abstract_gigacheck_flag` | `abstract_gigacheck_score` is above the abstract threshold of GigaCheck |
 
 Each abstract threshold is the {{ quantile }} quantile of that detector's scores on the abstracts of papers from
-{{ calibration_last_year }} and earlier: {{ abstract_editlens_threshold }} for EditLens and
-{{ abstract_gigacheck_threshold }} for GigaCheck. These thresholds differ from the review thresholds. An abstract has
+{{ calibration_last_year }} and earlier: {{ abstract_meld_threshold }} for MELD, {{ abstract_editlens_threshold }} for
+EditLens and {{ abstract_gigacheck_threshold }} for GigaCheck. These thresholds differ from the review thresholds. An abstract has
 about 185 words, so these scores are less reliable than the review scores. The paper does not use them.
 
 ### `panels`

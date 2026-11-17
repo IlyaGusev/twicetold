@@ -231,10 +231,11 @@ PYTHONPATH=src python src/gigacheck_detector.py scores
 The scorer loads `iitolstykh/GigaCheck-Classifier-Multi` in bfloat16 and scores the first 1,024 tokens of each text.
 See `raw/gigacheck_scores.jsonl.md` in the dataset.
 
-The two detectors also score the abstracts of the conference papers. `src/abstracts.py input` writes
-`data/raw/abstract_input.parquet` from the `papers` config. In the two GPU environments, run:
+MELD, EditLens and GigaCheck also score the abstracts of the conference papers. `src/abstracts.py input` writes
+`data/raw/abstract_input.parquet` from the `papers` config. In the GPU environments, run:
 
 ```
+OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python src/meld.py scores --input data/raw/abstract_input.parquet --out data/raw/meld_abstract_scores.jsonl
 PYTHONPATH=src python src/gigacheck_detector.py scores --input data/raw/abstract_input.parquet --out data/raw/gigacheck_abstract_scores.jsonl
 OMP_NUM_THREADS=2 nice -n 19 uv run --no-sync python src/editlens.py scores --input data/raw/abstract_input.parquet --out data/raw/editlens_abstract_scores.jsonl
 ```

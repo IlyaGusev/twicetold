@@ -409,6 +409,7 @@ def write_final(model, review_parts, variants, papers, panel_rows):
         gpttrace_revision=settings.GPTTRACE_REVISION,
         gpttrace_max_length=settings.GPTTRACE_MAX_LENGTH,
         gigacheck_threshold=f"{gigacheck.threshold:.2f}",
+        abstract_meld_threshold=f"{abstracts.meld_threshold:.4f}",
         abstract_editlens_threshold=f"{abstracts.editlens_threshold:.4f}",
         abstract_gigacheck_threshold=f"{abstracts.gigacheck_threshold:.2f}",
         gigacheck_repo=settings.GIGACHECK_REPO,

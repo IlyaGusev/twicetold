@@ -701,7 +701,7 @@ def identification(
     print(out.round(2).to_string(index=False))
 
 
-ABSTRACT_DETECTORS = ("editlens", "gigacheck")
+ABSTRACT_DETECTORS = ("meld", "editlens", "gigacheck")
 ABSTRACT_QUANTILES = (0.999, 0.99)
 ABSTRACT_TERMS = ("change", "composition", "within_flagged", "within_other")
 
@@ -813,6 +813,68 @@ def abstract_papers(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPO
     steps.to_csv(Path(reports) / f"abstract_decomposition_{model}.csv", index=False)
     print(gaps.round(2).to_string(index=False))
     print(steps.round(2).to_string(index=False))
+
+
+APPENDIX_PATTERN = re.compile(
+    r"\bappendi(?:x|ces)\b|\bsupplementa(?:ry|l)\b|\bapp\.\s?[A-H]\b"
+    r"|\b(?:table|figure|fig\.|section|sec\.|equation|eq\.|theorem|lemma|algorithm)\s?\(?[A-H]\.?\d",
+    re.IGNORECASE,
+)
+
+
+def appendix_panel(panel, claims, n_reviews):
+    df = assign(panel, claims)
+    df["appendix"] = (df.quote.fillna("") + " " + df.claim.fillna("")).str.contains(APPENDIX_PATTERN)
+    groups = review_groups(df.review, df.cluster, n_reviews)
+    shared = set().union(*(a & b for a, b in combinations(groups, 2)))
+    kept = df[~df.appendix]
+    counts = df.groupby("review_id").appendix.agg(["size", "sum"])
+    return (
+        dict(
+            hit=mean_overlap(groups),
+            hit_without=mean_overlap(review_groups(kept.review, kept.cluster, n_reviews)),
+            appendix_claims=df.appendix.mean(),
+            appendix_shared=len(shared & set(df.cluster[df.appendix])) / len(shared) if shared else np.nan,
+        ),
+        counts,
+    )
+
+
+def claim_share(counts):
+    share = counts["sum"].sum() / counts["size"].sum()
+    se = np.sqrt(((counts["sum"] - share * counts["size"]) ** 2).sum()) / counts["size"].sum()
+    return dict(reviews=len(counts), claims=int(counts["size"].sum()), share=share * 100, se=se * 100)
+
+
+def appendix_claims(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
+    main = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").query("n_claims > 0"))
+    clusters = hub.clusters(model, panel_ids=main.panel_id)
+    claims = hub.panel_claims(model, clusters, ["quote", "claim"])
+    rows, counts = [], []
+    for p in tqdm(main.itertuples(), total=len(main)):
+        row, review_counts = appendix_panel(clusters[p.panel_id], claims, p.n_reviews)
+        rows.append(dict(conf=p.conf, year=p.year, **row))
+        counts.append(review_counts)
+    panels = pd.DataFrame(rows)
+    panels["removed_change"] = panels.hit_without - panels.hit
+    cols = ["hit", "hit_without", "removed_change", "appendix_claims", "appendix_shared"]
+    by_year = panels.groupby(["conf", "year"])[cols]
+    out = pd.concat([by_year.mean(), by_year.sem().add_suffix("_se")], axis=1) * 100
+    out.insert(0, "papers", panels.groupby(["conf", "year"]).size())
+    out = out.reset_index()
+    out.round(3).to_csv(Path(reports) / f"appendix_panels_{model}.csv", index=False)
+    print(out.round(2).to_string(index=False))
+    counts = pd.concat(counts)
+    counts = counts[~counts.index.duplicated()]
+    flags = hub.meld_flags(["conf", "year", "flag"]).join(hub.editlens_flags())
+    counts = counts.join(flags, how="inner")
+    shares = []
+    for detector, column in (("meld", "flag"), ("editlens", "editlens_flag")):
+        for (conf, year, flag), cell in counts.dropna(subset=[column]).groupby(["conf", "year", column]):
+            shares.append(dict(detector=detector, conf=conf, year=year, flagged=flag) | claim_share(cell))
+    shares = pd.DataFrame(shares)
+    shares.round(3).to_csv(Path(reports) / f"appendix_claims_{model}.csv", index=False)
+    print(shares.round(2).to_string(index=False))
 
 
 def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "coverage.tex"):
@@ -1847,6 +1909,7 @@ if __name__ == "__main__":
             "pipelines": pipelines,
             "identification": identification,
             "abstract_papers": abstract_papers,
+            "appendix_claims": appendix_claims,
             "pair_types": pair_types,
             "pair_type_sizes": pair_type_sizes,
             "pair_type_sizes_table": pair_type_sizes_table_from_report,
