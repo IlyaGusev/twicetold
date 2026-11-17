@@ -5,5 +5,5 @@ year,form,papers,removed_papers,hit,hit_removed,hit_without,hit_spec,form_share,
 2023,"clarity, quality, novelty and reproducibility+strength and weaknesses+summary of the paper+summary of the review",3789,3789,10.799,9.73,8.401,8.338,49.659,-1.069,0.17,0.169,0.178,0.159,0.677,0.15
 2024,questions+strengths+summary+weaknesses,5690,3000,8.894,8.699,8.2,7.513,39.015,-0.242,0.113,0.18,0.133,0.111,0.562,0.153
 2025,questions+strengths+summary+weaknesses,8629,3000,9.097,9.058,8.71,8.037,35.465,-0.093,0.09,0.18,0.104,0.09,0.423,0.151
-2026,questions+strengths+summary+weaknesses,13746,4761,11.578,11.326,11.61,10.779,26.842,-0.187,0.082,0.156,0.095,0.083,0.294,0.124
-2027,critical_strengths+critical_weaknesses+paper_summary+questions_for_authors,10000,400,21.173,20.461,21.756,20.531,21.487,-0.662,0.162,0.843,0.183,0.166,0.315,0.57
+2026,questions+strengths+summary+weaknesses,19461,6000,12.018,11.575,11.919,11.15,28.099,-0.26,0.07,0.139,0.08,0.071,0.244,0.11
+2027,critical_strengths+critical_weaknesses+paper_summary+questions_for_authors,40559,400,21.296,20.473,21.871,20.569,21.674,-0.691,0.08,0.844,0.091,0.082,0.155,0.571

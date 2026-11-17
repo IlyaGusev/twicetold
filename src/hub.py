@@ -1,3 +1,7 @@
+import numpy as np
+import pandas as pd
+import pyarrow as pa
+import pyarrow.compute as pc
 import pyarrow.dataset as ds
 
 from settings import settings
@@ -13,6 +17,7 @@ NAMES = {
 }
 
 JOURNAL_PANEL_KINDS = ["journal", "journal_placebo"]
+STREAM = dict(batch_size=20000, batch_readahead=1, fragment_readahead=1)
 
 
 def check_model(model):
@@ -75,6 +80,12 @@ def editlens_flags():
     )
 
 
+def abstract_scores(detector):
+    score = f"abstract_{detector}_score"
+    df = frame("papers", ["conf", "year", "paper_id", score], ds.field(score).is_valid())
+    return df.rename(columns={score: "score"})
+
+
 def texts(review_ids):
     ids = list(review_ids)
     tables = [arrow(config, ["review_id", "text"], ds.field("review_id").isin(ids)) for config in ["reviews", "variants"]]
@@ -85,11 +96,22 @@ def texts(review_ids):
     }
 
 
-def sampled_reviews(journal):
+def text_chars(review_ids):
+    wanted = ds.field("review_id").isin(pa.array(list(review_ids), pa.string()))
+    parts = []
+    for config in ["reviews", "variants"]:
+        dataset = ds.dataset(settings.FINAL_DIR / config, format="parquet")
+        for batch in dataset.to_batches(columns=["review_id", "text"], filter=wanted, **STREAM):
+            parts.append(pd.Series(pc.utf8_length(batch.column("text")).to_numpy(), index=batch.column("review_id").to_pandas()))
+    return pd.concat(parts)
+
+
+def sampled_reviews(journal, without_claims=False):
+    pending = ~ds.field("claims").is_valid() if without_claims else None
     in_sample = ds.field("sample").is_valid() & ((ds.field("venue_type") == "journal") == journal)
-    tables = [arrow("reviews", ["review_id", "text"], in_sample)]
+    tables = [arrow("reviews", ["review_id", "text"], in_sample if pending is None else in_sample & pending)]
     if not journal:
-        tables.append(arrow("variants", ["review_id", "text"]))
+        tables.append(arrow("variants", ["review_id", "text"], pending))
     return [row for table in tables for row in table.to_pylist()]
 
 
@@ -98,16 +120,54 @@ def reviews_with_claims():
     return {review_id for table in tables for review_id in table.column("review_id").to_pylist()}
 
 
-def claims(model, review_ids=None):
+def projected_claims(lists, fields):
+    values = lists.flatten()
+    rows = list(zip(*(values.field(name).to_pylist() for name in fields)))
+    ends = np.cumsum(lists.value_lengths().to_numpy())
+    return [[dict(zip(fields, row)) for row in rows[end - size : end]] for end, size in zip(ends, np.diff(ends, prepend=0))]
+
+
+def claims(model, review_ids=None, fields=None):
     check_model(model)
     condition = ds.field("claims").is_valid()
     if review_ids is not None:
-        condition = condition & ds.field("review_id").isin(list(review_ids))
+        condition = condition & ds.field("review_id").isin(pa.array(list(review_ids), pa.string()))
     out = {}
     for config in ["reviews", "variants"]:
-        table = arrow(config, ["review_id", "claims"], condition)
-        out.update(zip(table.column("review_id").to_pylist(), table.column("claims").to_pylist()))
+        dataset = ds.dataset(settings.FINAL_DIR / config, format="parquet")
+        for batch in dataset.to_batches(columns=["review_id", "claims"], filter=condition, **STREAM):
+            lists = batch.column("claims")
+            out.update(
+                zip(
+                    batch.column("review_id").to_pylist(),
+                    lists.to_pylist() if fields is None else projected_claims(lists, fields),
+                )
+            )
     return out
+
+
+def texts_with_claims(model, fields):
+    check_model(model)
+    for config in ["reviews", "variants"]:
+        dataset = ds.dataset(settings.FINAL_DIR / config, format="parquet")
+        columns = ["review_id", "text", "claims"]
+        for batch in dataset.to_batches(columns=columns, filter=ds.field("claims").is_valid(), **STREAM):
+            claims_of_batch = projected_claims(batch.column("claims"), fields)
+            yield from zip(batch.column("review_id").to_pylist(), batch.column("text").to_pylist(), claims_of_batch)
+
+
+def claim_frames(model, fields):
+    check_model(model)
+    for config in ["reviews", "variants"]:
+        dataset = ds.dataset(settings.FINAL_DIR / config, format="parquet")
+        for batch in dataset.to_batches(columns=["review_id", "claims"], filter=ds.field("claims").is_valid(), **STREAM):
+            lists = batch.column("claims")
+            values = lists.flatten()
+            sizes = lists.value_lengths().to_numpy()
+            frame = pd.DataFrame({name: values.field(name).to_pandas() for name in fields})
+            frame.insert(0, "review_id", np.repeat(batch.column("review_id").to_pandas().to_numpy(), sizes))
+            frame.insert(1, "k", np.concatenate([np.arange(size) for size in sizes]) if len(sizes) else [])
+            yield frame
 
 
 def extraction_counts(model):
@@ -135,8 +195,8 @@ def clusters(model, kinds=None, panel_ids=None):
     return {row["panel_id"]: row for row in rows}
 
 
-def panel_claims(model, panels):
-    return claims(model, {review_id for panel in panels.values() for review_id in panel["review_ids"]})
+def panel_claims(model, panels, fields=None):
+    return claims(model, {review_id for panel in panels.values() for review_id in panel["review_ids"]}, fields)
 
 
 def panel_definitions(kinds):

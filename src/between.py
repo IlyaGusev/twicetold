@@ -43,27 +43,11 @@ def openai_embed(texts, model, batch, threads, desc, client=None, **options):
 
 def claims_table(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR):
     data = Path(data)
-    reviews = hub.corpus_reviews(["review_id", "paper_id", "conf", "year"]).set_index("review_id")
-    rows = []
-    for review_id, claims in tqdm(hub.claims(model).items(), desc="claims table"):
-        if review_id not in reviews.index:
-            continue
-        review = reviews.loc[review_id]
-        for k, claim in enumerate(claims):
-            rows.append(
-                {
-                    "review_id": review_id,
-                    "k": k,
-                    "paper_id": review.paper_id,
-                    "conf": review.conf,
-                    "year": int(review.year),
-                    "claim": claim["claim"],
-                    "category": claim["category"],
-                    "target": claim["target"],
-                    "specific": claim["specific"],
-                }
-            )
-    pd.DataFrame(rows).to_parquet(data / f"claims_table_{model}.parquet", index=False)
+    reviews = hub.corpus_reviews(["review_id", "paper_id", "conf", "year"])
+    claims = pd.concat(hub.claim_frames(model, ["claim", "category", "target", "specific"]), ignore_index=True)
+    table = claims.merge(reviews, on="review_id")
+    columns = ["review_id", "k", "paper_id", "conf", "year", "claim", "category", "target", "specific"]
+    table[columns].to_parquet(data / f"claims_table_{model}.parquet", index=False)
 
 
 def normalize_rows(X):
@@ -73,14 +57,20 @@ def normalize_rows(X):
 
 def embed_reviews(data, threads, reembed):
     path = data / "review_emb.npy"
-    R = hub.sample("main", ["review_id", "text"])
-    done = None if reembed or not path.exists() else np.load(path)
+    review_ids = hub.sample("main", ["review_id"]).review_id.tolist()
+    vectors = np.empty((len(review_ids), settings.REVIEW_EMBED_DIMENSIONS), dtype=np.float32)
+    start = 0
+    if path.exists() and not reembed:
+        done = np.load(path, mmap_mode="r")
+        start = len(done)
+        vectors[:start] = done
+        del done
     client = extract.openrouter_client()
-    while done is None or len(done) < len(R):
-        start = 0 if done is None else len(done)
-        texts = [t[:REVIEW_EMBED_CHARS] for t in R.text.iloc[start : start + REVIEW_EMBED_SLICE].fillna("")]
-        E = openai_embed(
-            texts,
+    while start < len(review_ids):
+        chunk = review_ids[start : start + REVIEW_EMBED_SLICE]
+        by_id = hub.texts(chunk)
+        vectors[start : start + len(chunk)] = openai_embed(
+            [(by_id[review_id] or "")[:REVIEW_EMBED_CHARS] for review_id in chunk],
             settings.REVIEW_EMBED_MODEL,
             batch=64,
             threads=threads,
@@ -88,8 +78,8 @@ def embed_reviews(data, threads, reembed):
             client=client,
             dimensions=settings.REVIEW_EMBED_DIMENSIONS,
         )
-        done = E if done is None else np.concatenate([done, E])
-        np.save(path, done)
+        start += len(chunk)
+        np.save(path, vectors[:start])
 
 
 def load_reviews(data):

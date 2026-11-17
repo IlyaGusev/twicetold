@@ -36,7 +36,7 @@ configs:
 # Twice-Told Critiques
 
 Peer reviews from three ML conferences and five open-review journal sources, with claims extracted by an LLM,
-problem groups for each paper's reviews, and MELD and EditLens scores for LLM-generated text. This is the data of the paper
+problem groups for each paper's reviews, and MELD, EditLens, GPTTrace and GigaCheck scores for LLM-generated text. This is the data of the paper
 "Twice-Told Critiques: Claim-Level Homogenization of Peer Review in the LLM Era". Code:
 https://github.com/IlyaGusev/twicetold.
 
@@ -50,12 +50,14 @@ https://github.com/IlyaGusev/twicetold.
 - `with_claims`: the review has extracted claims.
 - `with_meld`: the review has a MELD score.
 - `with_editlens`: the review has an EditLens score.
+- `with_gpttrace`: the review has a GPTTrace score.
+- `with_gigacheck`: the review has a GigaCheck score.
 
 Conference reviews: ICLR and NeurIPS from OpenReview via
 [ResearchArcade](https://huggingface.co/datasets/ulab-ai/ResearchArcade-openreview-reviews) and
 [iclr-2026](https://huggingface.co/datasets/davidheineman/iclr-2026); ICML 2025–2026 accepted papers and ICLR
-2027 submissions from the OpenReview API. ICLR 2027 reviews were downloaded on 7 November 2026, before author responses
-and decisions. Journal reports: SciPost (API); F1000Research, Wellcome Open Research, Open Research Europe and PLOS
+2027 submissions from the OpenReview API. ICLR 2027 reviews were downloaded on 15 November 2026, after the first
+author responses and before decisions. Journal reports: SciPost (API); F1000Research, Wellcome Open Research, Open Research Europe and PLOS
 (Europe PMC); BMC Medicine ([JerMa88/BMC_Medicine_Peer_Reviews](https://huggingface.co/datasets/JerMa88/BMC_Medicine_Peer_Reviews));
 Copernicus/EGU (journal discussion pages). Journal samples hold up to 2,000 papers per source-year, first-round
 reports only.
@@ -82,7 +84,7 @@ One row per review. One file per source.
 | `licence` | Licence of the text |
 | `in_corpus` | The review is in the current corpus; `false` for 414 early ICLR sample reviews that a later corpus build dropped |
 | `corpus_row` | Row order in the corpus files of the code repository |
-| `sample`, `sample_row` | Analysis sample (`main`: ICLR and NeurIPS, `icml`, `journal`, `withdrawn`: reviews of withdrawn ICLR 2026 papers) and row order in it |
+| `sample`, `sample_row` | Analysis sample (`main`: ICLR and NeurIPS, `icml`, `journal`) and row order in it |
 | `claims` | Extracted claims: list of `{claim, quote, category, target, specific}`; empty list when the review has no critique; null when not extracted |
 | `claims_error` | API error when extraction failed after four attempts |
 | `meld_score` | MELD score: mean of the top token scores |
@@ -93,6 +95,13 @@ One row per review. One file per source.
 | `editlens_score` | EditLens score of the first {{ editlens_max_length }} tokens, from 0 (human) to 1 (LLM-written) |
 | `editlens_tokens` | Number of tokens of the whole text |
 | `editlens_flag` | `editlens_score` is above the threshold |
+| `gpttrace_score` | GPTTrace score of the first {{ gpttrace_max_length }} tokens: logit of machine-generated minus logit of human |
+| `gpttrace_score_mean` | Token-weighted mean of the GPTTrace scores of all {{ gpttrace_max_length }}-token windows of the text |
+| `gpttrace_tokens` | Number of tokens of the whole text |
+| `gpttrace_flag` | `gpttrace_score` is above the threshold |
+| `gigacheck_score` | GigaCheck score of the first {{ gigacheck_max_length }} tokens: logit of `ai` minus logit of `human` |
+| `gigacheck_tokens` | Number of tokens of the whole text |
+| `gigacheck_flag` | `gigacheck_score` is above the threshold |
 
 ### `papers`
 
@@ -100,16 +109,36 @@ One row per paper with at least one review in `reviews`: title, abstract (confer
 status, OpenReview primary area, predicted area (`area_pred`, ICLR and NeurIPS sample papers), licence and number of
 reviews.
 
+Detector columns for the abstract (conference papers only; null for journals). These columns describe the abstract
+of the paper, not its reviews:
+
+| Column | Meaning |
+|---|---|
+| `abstract_meld_score` | MELD score of the abstract: mean of the top token scores |
+| `abstract_meld_tokens` | Number of scored tokens of the abstract (MELD tokenizer) |
+| `abstract_meld_flag` | `abstract_meld_score` is above the abstract threshold of MELD |
+| `abstract_editlens_score` | EditLens score of the abstract, from 0 (human) to 1 (LLM-written) |
+| `abstract_editlens_tokens` | Number of tokens of the abstract (EditLens tokenizer) |
+| `abstract_editlens_flag` | `abstract_editlens_score` is above the abstract threshold of EditLens |
+| `abstract_gigacheck_score` | GigaCheck score of the abstract: logit of `ai` minus logit of `human` |
+| `abstract_gigacheck_tokens` | Number of tokens of the abstract (GigaCheck tokenizer) |
+| `abstract_gigacheck_flag` | `abstract_gigacheck_score` is above the abstract threshold of GigaCheck |
+
+Each abstract threshold is the {{ quantile }} quantile of that detector's scores on the abstracts of papers from
+{{ calibration_last_year }} and earlier: {{ abstract_meld_threshold }} for MELD, {{ abstract_editlens_threshold }} for
+EditLens and {{ abstract_gigacheck_threshold }} for GigaCheck. These thresholds differ from the review thresholds. An abstract has
+about 185 words, so these scores are less reliable than the review scores. The paper does not use them.
+
 ### `panels`
 
 One row per panel: a set of reviews whose claims the LLM grouped into shared problems.
 
 {{ panels }}
 
-- `paper`: the reviews of one ICLR or NeurIPS paper (main analysis).
+- `paper`: the reviews of one ICLR or NeurIPS paper (main analysis). ICLR 2026 and 2027 hold all papers with three or more
+  reviews, withdrawn and desk-rejected papers included.
 - `icml`, `journal`: the reviews of one ICML or journal paper.
 - `subset3`: three-review subsets of papers with at least four reviews.
-- `withdrawn`: reviews of withdrawn ICLR 2026 papers.
 - `noq`, `nocq`: the same papers with review variants from the `variants` config.
 - `placebo_venue`, `placebo_area`, `journal_placebo`: one review each from different papers of one venue-year (or
   one predicted area-year). Overlap here measures matches that do not come from a shared paper.
@@ -132,7 +161,7 @@ without the clarity field. Columns: `variant`, `review_id` (with the variant pre
 | `final/` | The four configs above: `reviews`, `papers`, `panels`, `variants`. The paper's analysis reads only this folder, `gold/` and `additional/` |
 | `gold/` | Reference annotations of the extraction and grouping checks, and the two external human benchmarks |
 | `additional/` | Side experiments: the rewrite test, LLM reviews of arXiv papers, the known-origin texts of the detector checks, and Gemini Embedding 2 vectors (1,536 dimensions) of the first 20,000 characters of each `main` sample review, in `sample_row` order |
-| `raw/` | Inputs of the corpus build: OpenReview API dumps of ICML 2025 and 2026 accepted papers and all ICLR 2027 submissions, predicted research areas, journal fetch statistics, the panel files and the MELD and EditLens scores of all scored texts |
+| `raw/` | Inputs of the corpus build: OpenReview API dumps of ICML 2025 and 2026 accepted papers and all ICLR 2027 submissions, predicted research areas, journal fetch statistics, the panel files and the MELD, EditLens, GPTTrace and GigaCheck scores of all scored texts |
 
 `python src/release.py pull` copies `final/`, `gold/` and `additional/` into `data/`; `--raw` adds `raw/`.
 
@@ -157,8 +186,31 @@ adapter on Llama-3.2-3B (loaded from `{{ editlens_base_repo }}` in 4 bits). The 
 quantile of the same reviews as for MELD. `raw/editlens_scores.jsonl` also holds the token-weighted mean score over
 all windows of a text. The same warning applies: a flag is a detector output.
 
+## GPTTrace
+
+Detector: [{{ gpttrace_repo }}](https://huggingface.co/{{ gpttrace_repo }}), revision `{{ gpttrace_revision }}`, a
+binary classifier on the Ettin 1B encoder. Its author trained it on the first {{ gpttrace_max_length }} tokens of each
+text, so `gpttrace_score` covers the first {{ gpttrace_max_length }} tokens. Threshold {{ gpttrace_threshold }}: the
+same quantile of the same reviews as for MELD. The paper does not use these scores. The same warning applies: a flag
+is a detector output.
+
+GPTTrace scores depend on the layout of the text. On 600 ICML reviews, it flags 40% with the form headers in the text
+and 87% without them. The scores here are without the headers. ICML has no reviews from before 2023 to set a
+threshold on, so do not rely on the ICML flags.
+
+## GigaCheck
+
+Detector: [{{ gigacheck_repo }}](https://huggingface.co/{{ gigacheck_repo }}), revision `{{ gigacheck_revision }}`, a
+binary classifier on Mistral-7B from the LLMTrace project. It needs the `gigacheck` package
+(https://github.com/ai-forever/gigacheck). The score covers the first {{ gigacheck_max_length }} tokens of a text, as
+in the model's own code. Threshold {{ gigacheck_threshold }}: the same quantile of the same reviews as for MELD. The
+paper does not use these scores. Form headers do not change the scores, but line breaks do for ICML: on 400 ICML
+reviews, the share above a test threshold fell from 55% to 39% when we removed all line breaks. The same warning
+applies: a flag is a detector output.
+
 ## Licence
 
 Each row carries its licence. Journal reports keep their CC BY or CC0 terms. Conference reviews are public
 OpenReview reviews; follow OpenReview's terms. Extracted claims, panels and MELD scores: CC BY 4.0. EditLens scores are outputs of a model
-that Pangram released for non-commercial use (CC BY-NC-SA 4.0).
+that Pangram released for non-commercial use (CC BY-NC-SA 4.0). GPTTrace scores are outputs of a model with licence
+CC BY-SA 4.0. GigaCheck scores are outputs of a model with licence Apache-2.0.

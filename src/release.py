@@ -20,7 +20,6 @@ SAMPLES = {
     "main": "sample_reviews.parquet",
     "icml": "icml_sample.parquet",
     "journal": "other_pass1.parquet",
-    "withdrawn": "wd_reviews.parquet",
 }
 VARIANTS = {"noq": "noq_reviews.parquet", "nocq": "nocq_reviews.parquet"}
 REVIEW_COLUMNS = [
@@ -55,6 +54,14 @@ MELD_COLUMNS = {
     "written": "meld_written",
 }
 EDITLENS_COLUMNS = {"score": "editlens_score", "n_tokens": "editlens_tokens", "flag": "editlens_flag"}
+GPTTRACE_COLUMNS = {
+    "score": "gpttrace_score",
+    "score_mean": "gpttrace_score_mean",
+    "n_tokens": "gpttrace_tokens",
+    "flag": "gpttrace_flag",
+}
+GIGACHECK_COLUMNS = {"score": "gigacheck_score", "n_tokens": "gigacheck_tokens", "flag": "gigacheck_flag"}
+DETECTOR_COLUMNS = {"editlens": EDITLENS_COLUMNS, "gpttrace": GPTTRACE_COLUMNS, "gigacheck": GIGACHECK_COLUMNS}
 PANEL_KINDS = [
     ("placeboA_", "placebo_area"),
     ("placebo_", "placebo_venue"),
@@ -62,7 +69,6 @@ PANEL_KINDS = [
     ("other_", "journal"),
     ("icml_", "icml"),
     ("sub3_", "subset3"),
-    ("wd_", "withdrawn"),
     ("noq_", "noq"),
     ("nocq_", "nocq"),
 ]
@@ -91,7 +97,6 @@ PANEL_FILES = [
     "panels_icml",
     "panels_noq",
     "panels_nocq",
-    "panels_wd",
     "panels_placebo",
     "panels_placebo_area",
     "panels_sub3",
@@ -275,14 +280,48 @@ def with_new_claims(part, path):
     return part.astype({"claims_error": "string"})
 
 
-def with_editlens(part):
-    path = settings.RAW_DIR / "editlens_flags.parquet"
+def with_detectors(part):
+    for name, columns in DETECTOR_COLUMNS.items():
+        path = settings.RAW_DIR / f"{name}_flags.parquet"
+        if not path.exists():
+            continue
+        flags = pd.read_parquet(path, columns=["review_id", *columns]).set_index("review_id")
+        for column, target in columns.items():
+            part[target] = part.review_id.map(flags[column])
+        part = part.astype({f"{name}_tokens": "Int64", f"{name}_flag": "boolean"})
+    return part
+
+
+def with_abstract_flags(papers):
+    path = settings.RAW_DIR / "abstract_flags.parquet"
     if not path.exists():
-        return part
-    flags = pd.read_parquet(path, columns=["review_id", *EDITLENS_COLUMNS]).set_index("review_id")
-    for column, name in EDITLENS_COLUMNS.items():
-        part[name] = part.review_id.map(flags[column])
-    return part.astype({"editlens_tokens": "Int64", "editlens_flag": "boolean"})
+        return papers
+    flags = pd.read_parquet(path).rename(columns={"conf": "source"}).drop(columns=["year"])
+    columns = [c for c in flags.columns if c not in ("source", "paper_id")]
+    papers = papers.drop(columns=columns, errors="ignore").merge(flags, on=["source", "paper_id"], how="left")
+    kinds = {c: "Int64" if c.endswith("_tokens") else "boolean" for c in columns if not c.endswith("_score")}
+    return papers.astype(kinds)
+
+
+def with_raw_marks(part):
+    ids = pd.read_parquet(settings.RAW_DIR / SAMPLES["main"], columns=["review_id"]).review_id
+    new = ids[ids.isin(part.review_id[part["sample"].isna()])]
+    if len(new):
+        main = ds.dataset(settings.FINAL_DIR / "reviews", format="parquet").to_table(
+            columns=["sample_row"], filter=ds.field("sample") == "main"
+        )
+        row = pd.Series(main.column("sample_row").to_pandas().max() + 1 + np.arange(len(new)), index=new.to_numpy())
+        found = part.review_id.isin(row.index)
+        part.loc[found, "sample"] = "main"
+        part.loc[found, "sample_row"] = part.review_id[found].map(row)
+    meld = pd.read_parquet(settings.RAW_DIR / "meld_flags.parquet", columns=["review_id", *MELD_COLUMNS]).set_index("review_id")
+    for column, name in MELD_COLUMNS.items():
+        part[name] = part.review_id.map(meld[column])
+    return part.astype({"meld_family": "string", "meld_task": "string", "meld_flag": "boolean", "meld_written": "boolean"})
+
+
+def built_panel_rows(kind):
+    return raw_panel_rows(settings.RAW_DIR, kind) if kind == "paper" else final_panel_rows(kind)
 
 
 def final_panel_rows(kind):
@@ -312,8 +351,8 @@ def write_final(model, review_parts, variants, papers, panel_rows):
     claims_path = settings.WORK_DIR / f"claims_{model}.jsonl"
     summary = []
     for source, part in review_parts:
-        part = with_editlens(with_new_claims(part, claims_path))
-        part.to_parquet(out / "reviews" / f"{source}.parquet", index=False)
+        part = with_detectors(with_new_claims(part, claims_path))
+        part.to_parquet(out / "reviews" / f"{source}.parquet", index=False, row_group_size=settings.ROW_GROUP_ROWS)
         summary.append(
             dict(
                 source=source,
@@ -324,13 +363,17 @@ def write_final(model, review_parts, variants, papers, panel_rows):
                 with_claims=int(part.claims.notna().sum()),
                 with_meld=int(part.meld_score.notna().sum()),
                 with_editlens=int(part.editlens_score.notna().sum()),
+                with_gpttrace=int(part.gpttrace_score.notna().sum()),
+                with_gigacheck=int(part.gigacheck_score.notna().sum()),
             )
         )
         print(summary[-1], flush=True)
     for name, variant in variants:
-        with_new_claims(variant, claims_path).to_parquet(out / "variants" / f"{name}.parquet", index=False)
+        with_new_claims(variant, claims_path).to_parquet(
+            out / "variants" / f"{name}.parquet", index=False, row_group_size=settings.ROW_GROUP_ROWS
+        )
         print(name, len(variant), flush=True)
-    papers.to_parquet(out / "papers" / "papers.parquet", index=False)
+    with_abstract_flags(papers).to_parquet(out / "papers" / "papers.parquet", index=False)
     panel_counts = []
     for kind in [kind for _, kind in PANEL_KINDS] + ["paper"]:
         rows = {row["panel_id"]: row for row in panel_rows(kind)}
@@ -340,6 +383,9 @@ def write_final(model, review_parts, variants, papers, panel_rows):
         print(kind, len(rows), flush=True)
     meld = pd.read_csv(settings.REPORTS_DIR / "meld_summary.csv", index_col="name").value
     editlens = pd.read_csv(settings.REPORTS_DIR / "editlens_summary.csv", index_col="name").value
+    gpttrace = pd.read_csv(settings.REPORTS_DIR / "gpttrace_summary.csv", index_col="name").value
+    gigacheck = pd.read_csv(settings.REPORTS_DIR / "gigacheck_summary.csv", index_col="name").value
+    abstracts = pd.read_csv(settings.REPORTS_DIR / "abstract_summary.csv", index_col="name").value
     card = render(
         "dataset_card",
         sources=markdown_table(pd.DataFrame(summary)),
@@ -358,6 +404,17 @@ def write_final(model, review_parts, variants, papers, panel_rows):
         editlens_revision=settings.EDITLENS_REVISION,
         editlens_base_repo=settings.EDITLENS_BASE_REPO,
         editlens_max_length=f"{settings.EDITLENS_MAX_LENGTH:,}",
+        gpttrace_threshold=f"{gpttrace.threshold:.2f}",
+        gpttrace_repo=settings.GPTTRACE_REPO,
+        gpttrace_revision=settings.GPTTRACE_REVISION,
+        gpttrace_max_length=settings.GPTTRACE_MAX_LENGTH,
+        gigacheck_threshold=f"{gigacheck.threshold:.2f}",
+        abstract_meld_threshold=f"{abstracts.meld_threshold:.4f}",
+        abstract_editlens_threshold=f"{abstracts.editlens_threshold:.4f}",
+        abstract_gigacheck_threshold=f"{abstracts.gigacheck_threshold:.2f}",
+        gigacheck_repo=settings.GIGACHECK_REPO,
+        gigacheck_revision=settings.GIGACHECK_REVISION,
+        gigacheck_max_length=f"{settings.GIGACHECK_MAX_LENGTH:,}",
         model=model,
         route=settings.OPENROUTER_ROUTES[model],
         efforts=settings.REASONING_EFFORTS[model],
@@ -370,10 +427,10 @@ def build(model=settings.DEFAULT_MODEL):
     final = settings.FINAL_DIR
     write_final(
         model,
-        ((path.stem, pd.read_parquet(path)) for path in sorted((final / "reviews").glob("*.parquet"))),
+        ((path.stem, with_raw_marks(pd.read_parquet(path))) for path in sorted((final / "reviews").glob("*.parquet"))),
         ((name, pd.read_parquet(final / "variants" / f"{name}.parquet")) for name in VARIANTS),
         pd.read_parquet(final / "papers" / "papers.parquet"),
-        final_panel_rows,
+        built_panel_rows,
     )
 
 
@@ -405,7 +462,7 @@ def push():
         repo_id=settings.HF_DATASET_REPO,
         folder_path=settings.DATA_DIR,
         repo_type="dataset",
-        commit_message="Release reviews, papers, claims, panels, MELD and EditLens scores",
+        commit_message="Release reviews, papers, claims, panels and detector scores",
         allow_patterns=settings.HF_PULL_PATTERNS + settings.HF_RAW_PATTERNS,
         ignore_patterns=settings.HF_PUSH_IGNORE,
         delete_patterns=["final/**", "gold/**", "additional/**"],

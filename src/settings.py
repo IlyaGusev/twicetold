@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     RAW_ML_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources"
     RAW_JOURNAL_REVIEWS_DIR: Path = ROOT / "data" / "raw" / "sources" / "other"
     HF_DATASET_REPO: str = "IlyaGusev/twicetold"
-    HF_DATASET_REVISION: str = "e665fe9cd9cb69fe1e01de7972ed49f1560a61f8"
+    HF_DATASET_REVISION: str = "cd0334a09f3c8442107a8e84d760b12cb6e5fbe4"
     HF_PULL_PATTERNS: list[str] = ["final/**", "gold/**", "additional/**", "README.md", "stats.json"]
     HF_RAW_PATTERNS: list[str] = [
         "raw/*_raw.jsonl*",
@@ -48,6 +48,9 @@ class Settings(BaseSettings):
         "raw/other/stats.json*",
         "raw/meld_scores.jsonl*",
         "raw/editlens_scores.jsonl*",
+        "raw/gpttrace_scores.jsonl*",
+        "raw/gigacheck_scores.jsonl*",
+        "raw/*_abstract_scores.jsonl*",
     ]
     HF_PUSH_IGNORE: list[str] = ["additional/paper_reviews/raw/**"]
     KIM_DATASET_REPO: str = "prometheus-eval/peerreview-bench"
@@ -139,8 +142,9 @@ class Settings(BaseSettings):
     CONTRAST_YEARS: tuple[int, int] = (2025, 2026)
     ICLR_SNAPSHOT_YEARS: tuple[int, int] = (2026, 2027)
     MIN_PANEL_REVIEWS: int = 3
+    ROW_GROUP_ROWS: int = 20000
     FLAG_FROM: int = 2024
-    WITHDRAWN_CHECK: str = "Overlap, withdrawn 2026 papers counted"
+    WITHDRAWN_CHECK: str = "Overlap, withdrawn papers excluded"
     REFERENCE_BOOTSTRAPS: int = 5000
     REFERENCE_BOOTSTRAP_SEED: int = 0
     REVIEW_TEXT_MAX_CHARS: int = 14000
@@ -164,6 +168,12 @@ class Settings(BaseSettings):
     EDITLENS_BASE_REVISION: str = "d4446454d87d51aa42e1fb174f25acc5f8762331"
     EDITLENS_BUCKETS: int = 4
     EDITLENS_MAX_LENGTH: int = 1024
+    GPTTRACE_REPO: str = "nakas/gpttrace-v8s-1b"
+    GPTTRACE_REVISION: str = "ac748e32ca8c90bb8858fadc427757728e27b063"
+    GPTTRACE_MAX_LENGTH: int = 512
+    GIGACHECK_REPO: str = "iitolstykh/GigaCheck-Classifier-Multi"
+    GIGACHECK_REVISION: str = "1b885318d0317a7c7138a52b3b53e0c747604da4"
+    GIGACHECK_MAX_LENGTH: int = 1024
 
     PRICES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
         "gpt-6-luna": (0.10, 0.50),

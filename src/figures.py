@@ -14,7 +14,7 @@ from matplotlib.transforms import Bbox
 
 import extract
 import hub
-from outcomes import excluded_review_ids, in_window, main_sample_review_ids
+from outcomes import excluded_review_ids, in_window, main_sample_review_ids, scored_pairs
 from prompts import render
 from settings import settings
 
@@ -187,8 +187,8 @@ PAIR_TYPE_STYLES = {
 
 def pair_type_means(model):
     flags = kept_meld_flags()
-    pairs = pd.read_parquet(
-        settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+    pairs = scored_pairs(
+        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
     cells = []
     for label, (conf, first, last) in settings.GAP_CELLS.items():
@@ -316,9 +316,6 @@ def overlap_panel(ax, by_year, styles, label_x, gap):
 
 def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     by_year = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv")
-    left = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"withdrawn_{model}.csv").set_index("name").value
-    snapshot = (by_year.conf == "ICLR") & (by_year.year == settings.ICLR_SNAPSHOT_YEARS[0])
-    by_year.loc[snapshot, ["match", "match_se"]] = [left.counted_level, left.counted_level_se]
     fig, (top, bottom) = plt.subplots(2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.1, 3.1))
     fig.subplots_adjust(left=0.13, right=0.76, top=0.93, bottom=0.11, hspace=0.42)
     conferences, journals = CONFERENCE_STYLES, JOURNAL_STYLES
@@ -671,7 +668,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for conf, prefix, base_year, last_year in [
         ("ICLR", "Iclr", 2023, settings.ICLR_LAST),
         ("ICLR", "IclrRecent", 2025, 2026),
-        ("ICLR", "IclrKept", *settings.ICLR_SNAPSHOT_YEARS),
         ("NeurIPS", "Neurips", 2024, 2025),
         ("ICML", "Icml", 2025, 2026),
     ]:
@@ -737,7 +733,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     record("IclrFlaggedLast", iclr_last.ai_flagged)
     record("IclrWrittenLast", iclr_last.ai_written)
     flags = kept_meld_flags().flag
-    pairs = pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")
+    pairs = scored_pairs(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")).copy()
     pairs["nflag"] = pairs.a.map(flags).astype(float) + pairs.b.map(flags).astype(float)
     main_conf, main_first, main_last = next(iter(settings.GAP_CELLS.values()))
     in_main = (pairs.conf == main_conf) & pairs.year.between(main_first, main_last)
@@ -902,10 +898,11 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["RobustMin"] = f"{recent.change.min():.1f}"
     values["RobustMax"] = f"{recent.change.max():.1f}"
     matched = pd.read_csv(reports / f"robust_{model}.csv").query("base_year == @settings.ICLR_SNAPSHOT_YEARS[0]")
-    counted = matched.set_index("check").loc[settings.WITHDRAWN_CHECK]
-    values["IclrSnapBase"] = f"{counted.base:.1f}"
-    values["IclrSnapLast"] = f"{counted['last']:.1f}"
-    record("IclrSnapChange", counted.change, counted.se)
+    for check, prefix in [("Overlap", "IclrSnap"), (settings.WITHDRAWN_CHECK, "IclrKept")]:
+        row = matched.set_index("check").loc[check]
+        values[prefix + "Base"] = f"{row.base:.1f}"
+        values[prefix + "Last"] = f"{row['last']:.1f}"
+        record(prefix + "Change", row.change, row.se)
     left = pd.read_csv(reports / f"withdrawn_{model}.csv").set_index("name").value
     values["WithdrawnShare"] = f"{left.left_share:.0f}"
     values["WithdrawnEarlyShare"] = f"{left.last_left_share:.0f}"

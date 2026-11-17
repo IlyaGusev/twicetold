@@ -13,13 +13,11 @@ from metrics import assign, panel_metrics, review_groups
 from metrics import overlap as hit
 from settings import settings
 
-WITHDRAWN_TAG = "_wd"
 REVIEW_PREFIXES = {"_noq": "noq_", "_nocq": "nocq_"}
 PANEL_PREFIXES = {
     "_icml": ("icml_",),
     "_other": ("other_", "otherplacebo_"),
     **{tag: (prefix,) for tag, prefix in REVIEW_PREFIXES.items()},
-    WITHDRAWN_TAG: ("wd_",),
 }
 DROP_REASON = "a review of a withdrawn or desk-rejected paper, or a review not in reviews.parquet"
 MIN_PLACEBO_REVIEWS = 2
@@ -38,17 +36,17 @@ def load_outputs(model):
     clusters_by_tag = {}
     for panel_id, panel in hub.clusters(model).items():
         clusters_by_tag.setdefault(tag_of(panel_id), {})[panel_id] = panel
-    claims = {review_id: [{"specific": claim["specific"]} for claim in claims] for review_id, claims in hub.claims(model).items()}
-    return claims, clusters_by_tag
+    return hub.claims(model, fields=["specific"]), clusters_by_tag
 
 
 def in_main_sample(frame):
-    return ~frame.withdrawn & frame.decision.ne("desk_reject")
+    snapshot = frame.conf.eq("ICLR") & (frame.year >= settings.ICLR_SNAPSHOT_YEARS[0])
+    return snapshot | (~frame.withdrawn & frame.decision.ne("desk_reject"))
 
 
 @cache
 def review_status():
-    return hub.corpus_reviews(["review_id", "withdrawn", "decision"])
+    return hub.corpus_reviews(["review_id", "conf", "year", "withdrawn", "decision"])
 
 
 def excluded_review_ids():
@@ -59,6 +57,16 @@ def excluded_review_ids():
 def main_sample_review_ids():
     reviews = review_status()
     return set(reviews.review_id[in_main_sample(reviews)])
+
+
+@cache
+def scored_review_ids():
+    return set(hub.meld_flags(["flag"]).index)
+
+
+def scored_pairs(pairs):
+    scored = scored_review_ids()
+    return pairs[pairs.a.isin(scored) & pairs.b.isin(scored)]
 
 
 def ml_papers():
@@ -76,13 +84,13 @@ def claims_of_reviews(df, review_ids):
 def ml_panels(model, tag, clusters, claims, out):
     papers = ml_papers()
     corpus_reviews = set(review_status().review_id)
-    excluded = set() if tag == WITHDRAWN_TAG else excluded_review_ids()
+    excluded = excluded_review_ids()
 
     rows_by_kind = {"panel": [], "placebo": [], "sub3": []}
     dropped = Counter()
     for panel_id, panel in tqdm(clusters.items(), desc=f"panels{tag}"):
         kind = "placebo" if panel_id.startswith("placebo") else "sub3" if panel_id.startswith("sub3_") else "panel"
-        paper = re.sub(r"^(noq|nocq|wd|sub3)_", "", panel_id)
+        paper = re.sub(r"^(noq|nocq|sub3)_", "", panel_id)
         if kind == "panel" and paper not in papers.index:
             continue
         if kind == "placebo":

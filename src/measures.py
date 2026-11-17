@@ -8,7 +8,7 @@ import statsmodels.api as sm
 from tqdm import tqdm
 
 import hub
-from outcomes import in_window
+from outcomes import in_window, scored_pairs, scored_review_ids
 from settings import settings
 from validate import pair_counts
 
@@ -64,11 +64,15 @@ def pair_measures(pairs):
     )
 
 
-def size_cells(*sizes):
+def cell_key(*sizes):
     key = pd.Series("", index=sizes[0].index)
     for size in sizes:
         key = key + "_" + size.clip(upper=MAX_CELL_SIZE).astype(str)
-    return pd.get_dummies(key, prefix="cell", drop_first=True, dtype=float)
+    return key
+
+
+def size_cells(*sizes):
+    return pd.get_dummies(cell_key(*sizes), prefix="cell", drop_first=True, dtype=float)
 
 
 def pair_specs(frame):
@@ -79,6 +83,13 @@ def pair_specs(frame):
     return frame.join(cells), specs
 
 
+def trend_specs(frame):
+    specs = {name: (name, [], None) for name in ("hit", "jaccard", "dice", "shared")}
+    specs["shared_linear"] = ("shared", ["smaller", "larger"], None)
+    specs["shared_cells"] = ("shared", [], "cell")
+    return frame.assign(cell=cell_key(frame.smaller, frame.larger)), specs
+
+
 def in_venue(frame, venue):
     return ~frame.conf.isin(settings.ML_VENUES) if venue == JOURNALS else frame.conf == venue
 
@@ -87,13 +98,24 @@ def cluster_fit(model):
     return lambda groups: model.fit(cov_type="cluster", cov_kwds={"groups": pd.factorize(groups)[0]})
 
 
-def trend(frame, base_years, last_year, outcome, controls=()):
+def trend(frame, base_years, last_year, outcome, controls=(), absorbed=None):
     d = frame[frame.year.isin([*base_years, last_year])]
     controls = [c for c in controls if d[c].nunique() > 1]
     weight = 1 / (d.groupby("panel_id").panel_id.transform("size") * d.groupby("year").panel_id.transform("nunique"))
-    X = sm.add_constant(d[list(controls)].assign(late=(d.year == last_year) * 1.0))
-    fit = cluster_fit(sm.WLS(d[outcome], X, weights=weight))(d.panel_id)
-    return fit.params["late"], fit.bse["late"], d.panel_id.nunique()
+    late = (d.year == last_year) * 1.0
+    if absorbed is None:
+        X = sm.add_constant(d[list(controls)].assign(late=late))
+        fit = cluster_fit(sm.WLS(d[outcome], X, weights=weight))(d.panel_id)
+        return fit.params["late"], fit.bse["late"], d.panel_id.nunique()
+    cells = d[absorbed]
+    cell_weight = weight.groupby(cells).transform("sum")
+
+    def centred(values):
+        return values - (values * weight).groupby(cells).transform("sum") / cell_weight
+
+    fit = cluster_fit(sm.WLS(centred(d[outcome]), centred(late).rename("late"), weights=weight))(d.panel_id)
+    lost = np.sqrt((len(d) - 1) / (len(d) - 1 - cells.nunique()))
+    return fit.params["late"], fit.bse["late"] * lost, d.panel_id.nunique()
 
 
 def within_paper(frame, outcome, terms, controls=()):
@@ -143,9 +165,9 @@ def estimates(model):
     papers = reviews.drop_duplicates("panel_id").dropna(subset=["third"])
     rows = []
     for claim, venue, base_years, last_year in tqdm(TRENDS, desc="trends"):
-        frame, specs = pair_specs(pairs[in_venue(pairs, venue)])
-        for name, (outcome, controls) in specs.items():
-            fit = trend(frame, base_years, last_year, outcome, controls)
+        frame, specs = trend_specs(pairs[in_venue(pairs, venue)])
+        for name, (outcome, controls, absorbed) in specs.items():
+            fit = trend(frame, base_years, last_year, outcome, controls, absorbed)
             rows.append(dict(kind="trend", claim=claim, measure=name, **summarize(*fit, MEASURES[name][2], 1)))
         venue_papers = papers[in_venue(papers, venue)]
         counts = venue_papers.year.value_counts()
@@ -153,11 +175,12 @@ def estimates(model):
             fit = trend(venue_papers, base_years, last_year, "third")
             rows.append(dict(kind="trend", claim=claim, measure="novelty", **summarize(*fit, 2, -1)))
     for claim, venue, years, label in tqdm(GAPS, desc="gaps"):
-        frame, specs = pair_specs(pairs[in_venue(pairs, venue) & pairs.year.between(*years)])
+        frame, specs = pair_specs(scored_pairs(pairs[in_venue(pairs, venue) & pairs.year.between(*years)]))
         for name, (outcome, controls) in specs.items():
             fit = pair_gap(frame, labels[label], outcome, controls)
             rows.append(dict(kind="gap", claim=claim, measure=name, **summarize(*fit, MEASURES[name][2], 1)))
         venue_reviews = reviews[in_venue(reviews, venue) & reviews.year.between(*years)]
+        venue_reviews = venue_reviews[venue_reviews.review_id.isin(scored_review_ids())]
         fit = review_gap(venue_reviews, labels[label])
         rows.append(dict(kind="gap", claim=claim, measure="novelty", **summarize(*fit, 2, -1)))
     return pd.DataFrame(rows)

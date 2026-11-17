@@ -19,7 +19,7 @@ from between import normalize_rows, openai_embed
 from jsonl import load_jsonl, read_jsonl
 from metrics import assign, mean_overlap, review_groups
 from metrics import overlap as pair_overlap
-from outcomes import excluded_review_ids, in_window
+from outcomes import excluded_review_ids, in_window, scored_pairs
 from settings import settings
 
 REMOVED_FIELD_TAGS = ("_nocq", "_noq")
@@ -54,45 +54,40 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     specific = pair_table[pair_table.conf == "ICLR"].groupby(["panel_id", "year"]).hit_spec.mean().reset_index()
     sub3 = pd.read_parquet(settings.ANALYSIS_DIR / f"sub3_outcomes_{model}.parquet").query("conf == 'ICLR' and n_claims > 0")
     noq = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_noq.parquet").query("n_claims > 0")
-    wd = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}_wd.parquet").query("n_claims > 0")
     first, last = settings.ICLR_SNAPSHOT_YEARS
     status = hub.corpus_reviews(["paper_id", "conf", "year", "withdrawn", "decision"]).query("conf == 'ICLR' and year >= @first")
     status = status.groupby(["year", "paper_id"]).agg(
         reviews=("paper_id", "size"), withdrawn=("withdrawn", "first"), decision=("decision", "first")
     )
     status = status[status.reviews >= settings.MIN_PANEL_REVIEWS]
-    left = (status.withdrawn | status.decision.eq("desk_reject")).groupby("year").mean()
-    left_share = left[first]
+    status["left"] = status.withdrawn | status.decision.eq("desk_reject")
+    left_share = status.left.groupby("year").mean()
+    left_ids = status.index.get_level_values("paper_id")[status.left]
+    kept, left = main[~main.paper_id.isin(left_ids)], main[main.paper_id.isin(left_ids)]
 
     def level(df, col, year):
         values = df[df.year == year][col].dropna() * 100
         return values.mean(), values.sem()
 
-    kept_level, left_level = level(main, "hit_rate_strict", first), level(wd, "hit_rate_strict", first)
-    counted = (
-        (1 - left_share) * kept_level[0] + left_share * left_level[0],
-        np.hypot((1 - left_share) * kept_level[1], left_share * left_level[1]),
-    )
+    left_level = level(left, "hit_rate_strict", first)
     pd.DataFrame(
         [
-            dict(name="left_share", value=100 * left_share),
-            dict(name="last_left_share", value=100 * left[last]),
-            dict(name="left_papers", value=wd.hit_rate_strict.notna().sum()),
+            dict(name="left_share", value=100 * left_share[first]),
+            dict(name="last_left_share", value=100 * left_share[last]),
+            dict(name="left_papers", value=left[left.year == first].hit_rate_strict.notna().sum()),
             dict(name="left_level", value=left_level[0]),
             dict(name="left_level_se", value=left_level[1]),
-            dict(name="counted_level", value=counted[0]),
-            dict(name="counted_level_se", value=counted[1]),
         ]
     ).to_csv(Path(reports) / f"withdrawn_{model}.csv", index=False)
     variants = [
-        ("Overlap, withdrawn papers excluded", main, "hit_rate_strict"),
+        ("Overlap", main, "hit_rate_strict"),
+        (settings.WITHDRAWN_CHECK, kept, "hit_rate_strict"),
         ("Specific claims only", specific, "hit_spec"),
         ("Same part of paper (lenient)", main, "hit_rate_lenient"),
         ("3-review subsets, grouped again", sub3, "hit_rate_strict"),
         ("Questions field removed", noq, "hit_rate_strict"),
     ]
     checks = [(name, level(df, col, first), level(df, col, last), first, last) for name, df, col in variants]
-    checks.insert(1, (settings.WITHDRAWN_CHECK, counted, level(main, "hit_rate_strict", last), first, last))
     base_year, last_year = settings.CONTRAST_YEARS
     checks += [(name, level(df, col, base_year), level(df, col, last_year), base_year, last_year) for name, df, col in variants]
     rows = []
@@ -174,7 +169,7 @@ def forms(
         f"conf == 'ICLR' and year >= {settings.ICLR_FROM} and n_claims > 0"
     )
     clusters = hub.clusters(model, panel_ids=main.panel_id)
-    claims = hub.panel_claims(model, clusters)
+    claims = hub.panel_claims(model, clusters, ["category"])
     panels = pd.DataFrame(
         [
             dict(year=p.year, **form_panel(clusters[p.panel_id], claims, p.n_reviews))
@@ -242,8 +237,8 @@ def meld_flag_at(meld, quantile):
 
 
 def detector_placebo(model=settings.DEFAULT_MODEL, share=0.45, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    iclr_pairs = pd.read_parquet(
-        settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+    iclr_pairs = scored_pairs(
+        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
     )
     iclr_pairs = iclr_pairs[iclr_pairs.conf == "ICLR"]
     scores = hub.meld_flags()
@@ -273,12 +268,16 @@ def short_long_logs(values, design):
 
 
 def review_chars(ids):
-    return pd.Series({review_id: len(text) for review_id, text in hub.texts(ids).items()})
+    return hub.text_chars(ids)
 
 
 def pair_design(model):
     design = in_window(
-        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+        scored_pairs(
+            pd.read_parquet(
+                settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+            )
+        )
     )
     chars = review_chars(set(design.a) | set(design.b))
     design["log_short"], design["log_long"] = short_long_logs(chars, design)
@@ -359,7 +358,11 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
 def journal_gaps(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR, first_year=2024):
     flag = hub.meld_flags().flag.astype(int)
     pairs = in_window(
-        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+        scored_pairs(
+            pd.read_parquet(
+                settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+            )
+        )
     )
     journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= first_year)]
     rows = []
@@ -425,7 +428,11 @@ def pair_types(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=set
     meld = hub.meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
     pairs = in_window(
-        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+        scored_pairs(
+            pd.read_parquet(
+                settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+            )
+        )
     )
     rows = []
     for conf, cell in gap_cells(pairs).items():
@@ -488,7 +495,7 @@ def pair_type_sizes(
 ):
     meld = hub.meld_flags()
     flag, written = meld.flag.astype(int), meld.written.astype(int)
-    pairs = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet"))
+    pairs = in_window(scored_pairs(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")))
     cell = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)].assign(hit=lambda d: d.hit * 100)
     types = pair_type(cell, flag, written).to_numpy()
     fits = {name: type_fit(cell, types, name) for name in PAIR_SIZE_OUTCOMES}
@@ -567,7 +574,11 @@ def detector_choices(
 ):
     meld = hub.meld_flags(["conf", "year", "score", "task"])
     pairs = in_window(
-        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+        scored_pairs(
+            pd.read_parquet(
+                settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+            )
+        )
     )
     pairs = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)]
     iclr_last = meld[(meld.conf == "ICLR") & (meld.year == settings.ICLR_LAST)].index
@@ -598,7 +609,11 @@ def journal_subsets(
     data = Path(data)
     flag = hub.meld_flags().flag.astype(int)
     pairs = in_window(
-        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+        scored_pairs(
+            pd.read_parquet(
+                settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+            )
+        )
     )
     journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= 2024)]
     journals = journals.assign(n_flagged=pair_counts(journals, flag).to_numpy())
@@ -607,7 +622,7 @@ def journal_subsets(
     ).drop_duplicates()
     chars = review_chars(set(texts.r))
     wanted = set(texts.r)
-    claims = pd.Series({r: len(c) for r, c in hub.claims(model, wanted).items()})
+    claims = pd.Series({r: len(c) for r, c in hub.claims(model, wanted, ["specific"]).items()})
     texts = texts.assign(
         chars=texts.r.map(chars) / 1000, claims=texts.r.map(claims).fillna(0), flagged=texts.r.map(flag).fillna(0) * 100
     )
@@ -666,7 +681,11 @@ def identification(
 ):
     flag = hub.meld_flags().flag.astype(int)
     pairs = in_window(
-        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+        scored_pairs(
+            pd.read_parquet(
+                settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+            )
+        )
     )
     iclr = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)]
     journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= 2024)]
@@ -680,6 +699,182 @@ def identification(
     out = pd.DataFrame([identification_row(label, cell, f) for label, cell, f in cells])
     out.round(3).to_csv(Path(reports) / f"identification_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
+
+
+ABSTRACT_DETECTORS = ("meld", "editlens", "gigacheck")
+ABSTRACT_QUANTILES = (0.999, 0.99)
+ABSTRACT_TERMS = ("change", "composition", "within_flagged", "within_other")
+
+
+def paper_outcomes(model):
+    columns = ["panel_id", "conf", "year", "n_reviews", "hit_rate_strict"]
+    ml = pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet", columns=[*columns, "paper_id"])
+    icml = pd.read_parquet(settings.ANALYSIS_DIR / f"icml_panel_outcomes_{model}.parquet", columns=columns)
+    icml = icml.assign(paper_id=icml.panel_id.str.removeprefix("icml_"))
+    papers = in_window(pd.concat([ml, icml], ignore_index=True)).dropna(subset=["hit_rate_strict"])
+    return papers.assign(overlap=papers.hit_rate_strict * 100)
+
+
+def flagged_review_share(model):
+    pairs = pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "a", "b"])
+    reviews = pd.concat(
+        [
+            pairs[["panel_id", "a"]].set_axis(["panel_id", "r"], axis=1),
+            pairs[["panel_id", "b"]].set_axis(["panel_id", "r"], axis=1),
+        ]
+    ).drop_duplicates()
+    flags = hub.editlens_flags().astype(float)
+    return reviews.r.map(flags).groupby(reviews.panel_id.to_numpy()).mean().mul(100).rename("flagged_reviews")
+
+
+def flag_means(frame):
+    flagged, other = frame.overlap[frame.flag], frame.overlap[~frame.flag]
+    se = np.sqrt(flagged.var() / len(flagged) + other.var() / len(other)) if len(flagged) > 1 else np.nan
+    return dict(
+        papers=len(frame),
+        flagged_papers=int(frame.flag.sum()),
+        flagged_share=frame.flag.mean() * 100,
+        overlap_flagged=flagged.mean(),
+        overlap_other=other.mean(),
+        est=flagged.mean() - other.mean(),
+        se=se,
+    )
+
+
+def flag_fit(frame, controls=()):
+    X = pd.get_dummies(frame.year, prefix="year", dtype=float).assign(flag=frame.flag.astype(float))
+    X = X.join(frame[list(controls)])
+    fit = sm.OLS(frame.overlap, X).fit(cov_type="HC1")
+    return dict(papers=len(frame), flagged_papers=int(frame.flag.sum()), est=fit.params["flag"], se=fit.bse["flag"])
+
+
+def abstract_terms(f0, o0, f1, o1):
+    s0, s1 = f0.mean(), f1.mean()
+    a0, a1 = (o[f].mean() if f.any() else np.nan for f, o in ((f0, o0), (f1, o1)))
+    b0, b1 = o0[~f0].mean(), o1[~f1].mean()
+    a0, a1 = (a1 if np.isnan(a0) else a0), (a0 if np.isnan(a1) else a1)
+    return np.array(
+        [
+            o1.mean() - o0.mean(),
+            (s1 - s0) * ((a0 - b0) + (a1 - b1)) / 2,
+            (a1 - a0) * (s0 + s1) / 2,
+            (b1 - b0) * (1 - (s0 + s1) / 2),
+        ]
+    )
+
+
+def abstract_decomposition(before, after, rng):
+    arrays = [(cell.flag.to_numpy(), cell.overlap.to_numpy()) for cell in (before, after)]
+    terms = abstract_terms(*arrays[0], *arrays[1])
+    draws = []
+    for _ in range(settings.REFERENCE_BOOTSTRAPS):
+        picks = [rng.integers(len(f), size=len(f)) for f, _ in arrays]
+        draws.append(abstract_terms(*(x[i] for (f, o), i in zip(arrays, picks, strict=True) for x in (f, o))))
+    errors = np.std(draws, axis=0)
+    row = dict(zip(ABSTRACT_TERMS, terms, strict=True)) | {f"{t}_se": e for t, e in zip(ABSTRACT_TERMS, errors, strict=True)}
+    return row | dict(
+        share_before=before.flag.mean() * 100, share_after=after.flag.mean() * 100, explained=100 * terms[1] / terms[0]
+    )
+
+
+def abstract_papers(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
+    outcomes = paper_outcomes(model)
+    outcomes = outcomes.join(flagged_review_share(model), on="panel_id")
+    rng = np.random.default_rng(settings.REFERENCE_BOOTSTRAP_SEED)
+    gaps, steps = [], []
+    for detector in ABSTRACT_DETECTORS:
+        scores = hub.abstract_scores(detector)
+        calibration = scores[scores.year <= settings.MELD_CALIBRATION_LAST_YEAR].score
+        papers = outcomes.merge(scores[["conf", "paper_id", "score"]], on=["conf", "paper_id"])
+        for quantile in ABSTRACT_QUANTILES:
+            cut = dict(detector=detector, percentile=quantile * 100)
+            papers = papers.assign(flag=papers.score > calibration.quantile(quantile))
+            for (conf, year), cell in papers[papers.year >= settings.MELD_CALIBRATION_LAST_YEAR + 1].groupby(["conf", "year"]):
+                gaps.append(cut | dict(group="By year", label=f"{conf} {year}") | flag_means(cell))
+            for label, (conf, first, last) in settings.GAP_CELLS.items():
+                cell = papers[(papers.conf == conf) & papers.year.between(first, last)]
+                gaps.append(cut | dict(group="Year effects", label=label) | flag_fit(cell))
+                controlled = cell.dropna(subset=["flagged_reviews"])
+                gaps.append(
+                    cut
+                    | dict(group="Year effects", label=f"{label}, + flagged-review share and review count")
+                    | flag_fit(controlled, ("flagged_reviews", "n_reviews"))
+                )
+                for year in range(first, last):
+                    before, after = (papers[(papers.conf == conf) & (papers.year == y)] for y in (year, year + 1))
+                    steps.append(cut | dict(conf=conf, year=year + 1) | abstract_decomposition(before, after, rng))
+            last = papers[(papers.conf == "ICLR") & (papers.year == settings.ICLR_LAST)].flag.mean()
+            pre = papers[(papers.conf == "ICLR") & papers.year.between(2020, settings.MELD_CALIBRATION_LAST_YEAR)]
+            pre = pre.assign(flag=pre.score >= pre.groupby("year").score.transform("quantile", 1 - last))
+            label = f"Top {last * 100:.0f}% scores, ICLR 2020-{settings.MELD_CALIBRATION_LAST_YEAR}"
+            gaps.append(cut | dict(group="Placebo before ChatGPT", label=label) | flag_fit(pre))
+    gaps, steps = pd.DataFrame(gaps), pd.DataFrame(steps).drop_duplicates(["detector", "percentile", "conf", "year"])
+    gaps.to_csv(Path(reports) / f"abstract_gaps_{model}.csv", index=False)
+    steps.to_csv(Path(reports) / f"abstract_decomposition_{model}.csv", index=False)
+    print(gaps.round(2).to_string(index=False))
+    print(steps.round(2).to_string(index=False))
+
+
+APPENDIX_PATTERN = re.compile(
+    r"\bappendi(?:x|ces)\b|\bsupplementa(?:ry|l)\b|\bapp\.\s?[A-H]\b"
+    r"|\b(?:table|figure|fig\.|section|sec\.|equation|eq\.|theorem|lemma|algorithm)\s?\(?[A-H]\.?\d",
+    re.IGNORECASE,
+)
+
+
+def appendix_panel(panel, claims, n_reviews):
+    df = assign(panel, claims)
+    df["appendix"] = (df.quote.fillna("") + " " + df.claim.fillna("")).str.contains(APPENDIX_PATTERN)
+    groups = review_groups(df.review, df.cluster, n_reviews)
+    shared = set().union(*(a & b for a, b in combinations(groups, 2)))
+    kept = df[~df.appendix]
+    counts = df.groupby("review_id").appendix.agg(["size", "sum"])
+    return (
+        dict(
+            hit=mean_overlap(groups),
+            hit_without=mean_overlap(review_groups(kept.review, kept.cluster, n_reviews)),
+            appendix_claims=df.appendix.mean(),
+            appendix_shared=len(shared & set(df.cluster[df.appendix])) / len(shared) if shared else np.nan,
+        ),
+        counts,
+    )
+
+
+def claim_share(counts):
+    share = counts["sum"].sum() / counts["size"].sum()
+    se = np.sqrt(((counts["sum"] - share * counts["size"]) ** 2).sum()) / counts["size"].sum()
+    return dict(reviews=len(counts), claims=int(counts["size"].sum()), share=share * 100, se=se * 100)
+
+
+def appendix_claims(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
+    main = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"panel_outcomes_{model}.parquet").query("n_claims > 0"))
+    clusters = hub.clusters(model, panel_ids=main.panel_id)
+    claims = hub.panel_claims(model, clusters, ["quote", "claim"])
+    rows, counts = [], []
+    for p in tqdm(main.itertuples(), total=len(main)):
+        row, review_counts = appendix_panel(clusters[p.panel_id], claims, p.n_reviews)
+        rows.append(dict(conf=p.conf, year=p.year, **row))
+        counts.append(review_counts)
+    panels = pd.DataFrame(rows)
+    panels["removed_change"] = panels.hit_without - panels.hit
+    cols = ["hit", "hit_without", "removed_change", "appendix_claims", "appendix_shared"]
+    by_year = panels.groupby(["conf", "year"])[cols]
+    out = pd.concat([by_year.mean(), by_year.sem().add_suffix("_se")], axis=1) * 100
+    out.insert(0, "papers", panels.groupby(["conf", "year"]).size())
+    out = out.reset_index()
+    out.round(3).to_csv(Path(reports) / f"appendix_panels_{model}.csv", index=False)
+    print(out.round(2).to_string(index=False))
+    counts = pd.concat(counts)
+    counts = counts[~counts.index.duplicated()]
+    flags = hub.meld_flags(["conf", "year", "flag"]).join(hub.editlens_flags())
+    counts = counts.join(flags, how="inner")
+    shares = []
+    for detector, column in (("meld", "flag"), ("editlens", "editlens_flag")):
+        for (conf, year, flag), cell in counts.dropna(subset=[column]).groupby(["conf", "year", column]):
+            shares.append(dict(detector=detector, conf=conf, year=year, flagged=flag) | claim_share(cell))
+    shares = pd.DataFrame(shares)
+    shares.round(3).to_csv(Path(reports) / f"appendix_claims_{model}.csv", index=False)
+    print(shares.round(2).to_string(index=False))
 
 
 def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "coverage.tex"):
@@ -725,7 +920,7 @@ def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular*}"]) + "\n")
 
 
-PASS1_SAMPLES = {"ml": ["main", "icml", "withdrawn"], "journal": ["journal"]}
+PASS1_SAMPLES = {"ml": ["main", "icml"], "journal": ["journal"]}
 PASS1_VARIANTS = {"ml": ["noq", "nocq"], "journal": []}
 
 
@@ -826,7 +1021,11 @@ def decomposition(
 ):
     meld = hub.meld_flags()
     pairs = in_window(
-        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+        scored_pairs(
+            pd.read_parquet(
+                settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+            )
+        )
     )
     out = decomposition_rows(pairs, meld.flag.astype(int), meld.written.astype(int))
     out.to_csv(Path(reports) / f"decomposition_{model}.csv", index=False)
@@ -863,7 +1062,11 @@ def second_detector(
 ):
     flags = {"meld": hub.meld_flags().flag.astype(int), "editlens": hub.editlens_flags().astype(int)}
     pairs = in_window(
-        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
+        scored_pairs(
+            pd.read_parquet(
+                settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"]
+            )
+        )
     )
     journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= first_year)]
     cells = gap_cells(pairs) | {f"Journals {first_year}–{journals.year.max() % 100}": journals}
@@ -1604,7 +1807,6 @@ def grouper_swap(
     grouper_swap_table(out, tex)
 
 
-QUOTE_CHUNK = 20000
 FIELD_SPLIT = re.compile(r"(\[(?:" + "|".join(ai.SECTION_TAGS) + r")\])")
 PRAISE_TAGS = {"[SUMMARY]", "[STRENGTHS]"}
 MIN_SENTENCE_WORDS = 6
@@ -1641,13 +1843,7 @@ def quote_row(text, claims):
 
 
 def quotes(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
-    claims = hub.claims(model)
-    ids = list(claims)
-    rows = []
-    for start in range(0, len(ids), QUOTE_CHUNK):
-        chunk = ids[start : start + QUOTE_CHUNK]
-        texts = hub.texts(chunk)
-        rows += [dict(review_id=rid, **quote_row(texts[rid], claims[rid])) for rid in chunk]
+    rows = [dict(review_id=rid, **quote_row(text, claims)) for rid, text, claims in hub.texts_with_claims(model, ["quote"])]
     df = pd.DataFrame(rows).join(hub.meld_flags(["conf", "year", "flag"]), on="review_id")
     counts = ["claims", "found", "duplicated", "sentences", "uncovered"]
     out = df.groupby(["conf", "year", "flag"], dropna=False)[counts].sum().reset_index()
@@ -1712,6 +1908,8 @@ if __name__ == "__main__":
             "grouper_swap": grouper_swap,
             "pipelines": pipelines,
             "identification": identification,
+            "abstract_papers": abstract_papers,
+            "appendix_claims": appendix_claims,
             "pair_types": pair_types,
             "pair_type_sizes": pair_type_sizes,
             "pair_type_sizes_table": pair_type_sizes_table_from_report,

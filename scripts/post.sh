@@ -46,6 +46,8 @@ if [ -z "$OUT_DIR" ]; then
   step src/validate.py grouper_swap --model "$MODEL"
   step src/validate.py pipelines --model "$MODEL"
   step src/validate.py identification --model "$MODEL"
+  step src/validate.py abstract_papers --model "$MODEL"
+  step src/validate.py appendix_claims --model "$MODEL"
   for check in journal_subsets coverage decomposition rewrite_test detector_choices second_detector; do
     step src/validate.py "$check" --model "$MODEL"
   done
@@ -63,6 +65,8 @@ else
   step src/validate.py council_pair_types --model "$MODEL"
   step src/validate.py grouper_swap --model "$MODEL" --tex "$OUT_DIR/tables/grouper_swap.tex"
   step src/validate.py identification --model "$MODEL"
+  step src/validate.py abstract_papers --model "$MODEL"
+  step src/validate.py appendix_claims --model "$MODEL"
   step src/validate.py pipelines --model "$MODEL" --contrasts_tex "$OUT_DIR/tables/pipeline_contrasts.tex"
   for check in journal_subsets coverage decomposition rewrite_test detector_choices second_detector; do
     step src/validate.py "$check" --model "$MODEL" --tex "$OUT_DIR/tables/$check.tex"

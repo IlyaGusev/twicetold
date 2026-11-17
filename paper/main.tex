@@ -38,7 +38,7 @@ Peer review relies on several readers finding different problems. We measure cri
 \begin{figure}[t]
 \centering
 \includegraphics{figs/fig1_trends.pdf}
-\caption{Measured critique overlap rose at ICLR in 2027, at ICML in 2026 and at NeurIPS in 2025. Journal overlap rose most at F1000 and PLOS. We define overlap as shared problems divided by the smaller critique set, averaged within papers, then over papers. Dashed segment: from 2026 on, ICLR samples hold reviews before the discussion phase. The 2026 point counts withdrawn papers through a weighted sample.}
+\caption{Measured critique overlap rose at ICLR in 2027, at ICML in 2026 and at NeurIPS in 2025. Journal overlap rose most at F1000 and PLOS. We define overlap as shared problems divided by the smaller critique set, averaged within papers, then over papers. Dashed segment: from 2026 on, ICLR samples hold reviews before the discussion phase. The 2026 and 2027 points include papers withdrawn later.}
 \label{fig:overlap}
 \end{figure}
 
@@ -69,7 +69,7 @@ Our findings are:
 \label{sec:data}
 
 \subsection{Data}
-Table~\ref{tab:data} lists the samples. ICLR and NeurIPS come from OpenReview \citep{arcade2025dataset,xu2025researcharcade,heineman2026iclr}. ICML includes accepted papers from 2025--2026. ICLR 2027 reviews come from the OpenReview API on the day they became public. Conference papers need at least three reviews. Journal papers need at least two first-round reports: SciPost, F1000Research and sister platforms (F1000), PLOS, BMC Medicine \citep{jerma2026bmc}, and Copernicus/EGU, covering physics, medicine, biology and geoscience. We call conference texts \textbf{reviews} and journal texts \textbf{reports}. A \textbf{panel} is the set of reviews of one paper.
+Table~\ref{tab:data} lists the samples. ICLR and NeurIPS come from OpenReview \citep{arcade2025dataset,xu2025researcharcade,heineman2026iclr}. ICML includes accepted papers from 2025--2026. ICLR 2027 reviews come from the OpenReview API eight days after they became public. Conference papers need at least three reviews. Journal papers need at least two first-round reports: SciPost, F1000Research and sister platforms (F1000), PLOS, BMC Medicine \citep{jerma2026bmc}, and Copernicus/EGU, covering physics, medicine, biology and geoscience. We call conference texts \textbf{reviews} and journal texts \textbf{reports}. A \textbf{panel} is the set of reviews of one paper.
 
 \begin{table}[t]
 \centering\footnotesize
@@ -187,12 +187,12 @@ The authors created the idea and the outlines of the experiments, and acted as s
 \label{app:data}
 
 \paragraph{Sampling and dates.}
-OpenReview and journal collection took place on 27--29 October 2026, with more journal papers on 6 November 2026. ICLR 2027 reviews come from 7 November 2026, the day they became public, before author responses and decisions. ICLR 2026 reviews come from a snapshot of 21 November 2025 \citep{heineman2026iclr}, ten days after the reviews became public. After that date, the organizers reset all reviews to their state at the start of the discussion phase \citep{iclr2026incident}, so the public record holds no final version of these reviews. The journal year 2026 covers January--October. BMC Medicine ends in 2025. We sampled all ICLR (2020--2026) and NeurIPS (2021--2025) papers with at least three reviews, 10,000 random ICLR 2027 papers, all ICML accepted papers in 2025 and 2026, and up to 2,000 papers per journal source-year with at least two first-round reports. Withdrawn and desk-rejected papers do not enter the main sample. Two exceptions apply: the 2026 level of RQ1 includes a weighted sample of withdrawn 2026 papers (RQ\ref{app:rise}), and the 2027 sample holds papers that authors withdraw after our collection day. Table~\ref{tab:byyear} gives each conference source-year and each journal source in two periods.
+OpenReview and journal collection took place on 27--29 October 2026, with more journal papers on 6 November 2026. ICLR 2027 reviews come from 15 November 2026, eight days after they became public and before decisions. ICLR 2026 reviews come from a snapshot of 21 November 2025 \citep{heineman2026iclr}, ten days after the reviews became public. After that date, the organizers reset all reviews to their state at the start of the discussion phase \citep{iclr2026incident}, so the public record holds no final version of these reviews. The journal year 2026 covers January--October. BMC Medicine ends in 2025. We sampled all ICLR (2020--2027) and NeurIPS (2021--2025) papers with at least three reviews, all ICML accepted papers in 2025 and 2026, and up to 2,000 papers per journal source-year with at least two first-round reports. Withdrawn and desk-rejected papers do not enter the main sample before 2026. The ICLR samples of 2026 and 2027 keep them, so that both years hold all papers with three reviews (RQ\ref{app:rise}). Table~\ref{tab:byyear} gives each conference source-year and each journal source in two periods.
 
 \begin{table}[!htp]
 \centering\footnotesize
 \input{tables/by_year}
-\caption{Each conference year and each journal source in two periods. Overlap is the mean over papers with its SE. The last two columns are shares of reviews.}
+\caption{Each conference year and each journal source in two periods. Overlap is the mean over papers with its SE.}
 \label{tab:byyear}
 \end{table}
 
@@ -301,12 +301,12 @@ Any ratio of shared problems to set size depends on set size, and the raw shared
 We run MELD \citep{li2026meld} from Hugging Face (\texttt{anon-review-meld-2026/meld}, revision \texttt{ddfc9c7}). Our review texts join the fields of a review form with tags such as [STRENGTHS], and we delete these tags before scoring, because the reviewer did not write them. MELD scores each token of the text, in windows of 2,048 tokens, up to its own length limit. A text's score is the mean of its top 25\% of token scores, as in MELD's own scorer. The operation label is the operation with the highest pooled score.
 
 \paragraph{Threshold.}
-The 99.9th percentile of \MeldCalibrationReviews{} pre-2023 scores gives \MeldThreshold. No source's pre-2023 flag rate exceeds \MeldPreSourceMax\%. The flagged-pair gap does not depend on this threshold: at the 99th and the 99.5th percentile, the ICLR 2024--2027 gap is \ThresholdLowGap{} and \ThresholdMidGap{} points, against \FlagGap{} at the 99.9th percentile. Table~\ref{tab:detectors} gives all thresholds for both labels.
+The 99.9th percentile of \MeldCalibrationReviews{} pre-2023 scores gives \MeldThreshold. No source's pre-2023 flag rate exceeds \MeldPreSourceMax\%. The flagged-pair gap holds at lower thresholds: at the 99th and the 99.5th percentile, the ICLR 2024--2027 gap is \ThresholdLowGap{} and \ThresholdMidGap{} points, against \FlagGap{} at the 99.9th percentile. Table~\ref{tab:detectors} gives all thresholds for both labels.
 
 \begin{table}[!htp]
 \centering\small
 \input{tables/detector_choices}
-\caption{The within-paper gap does not depend on the MELD threshold. A threshold is a percentile of pre-2023 scores. The highest pre-2023 rate is the maximum over sources. The gap compares two reviews with the label with two unflagged reviews of one paper, in ICLR 2024--2027 pairs.}
+\caption{The within-paper gap stays positive at each MELD threshold. A threshold is a percentile of pre-2023 scores. The highest pre-2023 rate is the maximum over sources. The gap compares two reviews with the label with two unflagged reviews of one paper, in ICLR 2024--2027 pairs.}
 \label{tab:detectors}
 \end{table}
 
@@ -388,7 +388,7 @@ The detector misses that we tested are unlikely to explain the rise within unfla
 
 
 \question{app:rise}{Does the ICLR rise depend on our analysis choices?}
-No. The rise from 2026 to 2027 is between \RobustSnapMin{} and \RobustSnapMax{} points under each choice, and the step from 2025 to 2026 is between \RobustMin{} and \RobustMax{} points. The 2027 sample holds papers that authors will withdraw later, because we collected it on the day of the reviews. The main 2026 sample has no withdrawn or desk-rejected papers, and these are \WithdrawnShare\% of the 2026 papers with three reviews. The second row of Table~\ref{tab:robust} counts them: a sample of \WithdrawnPapers{} withdrawn 2026 papers has an overlap of \WithdrawnLevel\%, and we weight this sample by that share. This weight treats the desk-rejected papers like the withdrawn ones. The 2027 sample also leaves out the \WithdrawnEarlyShare\% of papers that authors withdrew before our collection day. The 2026 level is then \IclrSnapBase\%, and the rise to 2027 is \IclrSnapChange{} points [\IclrSnapChangeLow, \IclrSnapChangeHigh]. Table~\ref{tab:robust} repeats the comparison with specific claims only, lenient grouping by paper element, three-review panels grouped from scratch, the questions field removed, and withdrawn papers included.
+No. The rise from 2026 to 2027 is between \RobustSnapMin{} and \RobustSnapMax{} points under each choice, and the step from 2025 to 2026 is between \RobustMin{} and \RobustMax{} points. The 2026 and 2027 samples keep the papers that left the venue after the reviews: authors withdrew or the venue desk-rejected \WithdrawnShare\% of the 2026 papers with three reviews, and \WithdrawnEarlyShare\% of the 2027 papers by our collection day. The \WithdrawnPapers{} such papers of 2026 have an overlap of \WithdrawnLevel\%. With all papers, the 2026 level is \IclrSnapBase\%, and the rise to 2027 is \IclrSnapChange{} points [\IclrSnapChangeLow, \IclrSnapChangeHigh]. Without the withdrawn and desk-rejected papers of both years, the rise is \IclrKeptChange{} points (second row of Table~\ref{tab:robust}). Table~\ref{tab:robust} repeats the comparison with specific claims only, lenient grouping by paper element, three-review panels grouped from scratch, and the questions field removed.
 
 \begin{table}[!htp]
 \centering\small
