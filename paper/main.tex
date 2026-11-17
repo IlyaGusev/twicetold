@@ -187,12 +187,12 @@ The authors created the idea and the outlines of the experiments, and acted as s
 \label{app:data}
 
 \paragraph{Sampling and dates.}
-OpenReview and journal collection took place on 27--29 October 2026, with more journal papers on 6 November 2026. ICLR 2027 reviews come from 15 November 2026, eight days after they became public and before decisions. ICLR 2026 reviews come from a snapshot of 21 November 2025 \citep{heineman2026iclr}, ten days after the reviews became public. After that date, the organizers reset all reviews to their state at the start of the discussion phase \citep{iclr2026incident}, so the public record holds no final version of these reviews. The journal year 2026 covers January--October. BMC Medicine ends in 2025. We sampled all ICLR (2020--2027) and NeurIPS (2021--2025) papers with at least three reviews, all ICML accepted papers in 2025 and 2026, and up to 2,000 papers per journal source-year with at least two first-round reports. Withdrawn and desk-rejected papers do not enter the main sample before 2026. The ICLR samples of 2026 and 2027 keep them, so that both years hold all papers with three reviews (RQ\ref{app:rise}). MELD scores cover \MeldCoverBase\% of the sampled ICLR 2026 reviews and \MeldCoverLast\% of the sampled ICLR 2027 reviews, the reviews of a random sample of papers. All results that use MELD flags take the review pairs with scores on both reviews. Table~\ref{tab:byyear} gives each conference source-year and each journal source in two periods.
+OpenReview and journal collection took place on 27--29 October 2026, with more journal papers on 6 November 2026. ICLR 2027 reviews come from 15 November 2026, eight days after they became public and before decisions. ICLR 2026 reviews come from a snapshot of 21 November 2025 \citep{heineman2026iclr}, ten days after the reviews became public. After that date, the organizers reset all reviews to their state at the start of the discussion phase \citep{iclr2026incident}, so the public record holds no final version of these reviews. The journal year 2026 covers January--October. BMC Medicine ends in 2025. We sampled all ICLR (2020--2027) and NeurIPS (2021--2025) papers with at least three reviews, all ICML accepted papers in 2025 and 2026, and up to 2,000 papers per journal source-year with at least two first-round reports. Withdrawn and desk-rejected papers do not enter the main sample before 2026. The ICLR samples of 2026 and 2027 keep them, so that both years hold all papers with three reviews (RQ\ref{app:rise}). Table~\ref{tab:byyear} gives each conference source-year and each journal source in two periods.
 
 \begin{table}[!htp]
 \centering\footnotesize
 \input{tables/by_year}
-\caption{Each conference year and each journal source in two periods. Overlap is the mean over papers with its SE. The last two columns are shares of the reviews with MELD scores.}
+\caption{Each conference year and each journal source in two periods. Overlap is the mean over papers with its SE.}
 \label{tab:byyear}
 \end{table}
 
@@ -301,12 +301,12 @@ Any ratio of shared problems to set size depends on set size, and the raw shared
 We run MELD \citep{li2026meld} from Hugging Face (\texttt{anon-review-meld-2026/meld}, revision \texttt{ddfc9c7}). Our review texts join the fields of a review form with tags such as [STRENGTHS], and we delete these tags before scoring, because the reviewer did not write them. MELD scores each token of the text, in windows of 2,048 tokens, up to its own length limit. A text's score is the mean of its top 25\% of token scores, as in MELD's own scorer. The operation label is the operation with the highest pooled score.
 
 \paragraph{Threshold.}
-The 99.9th percentile of \MeldCalibrationReviews{} pre-2023 scores gives \MeldThreshold. No source's pre-2023 flag rate exceeds \MeldPreSourceMax\%. The flagged-pair gap does not depend on this threshold: at the 99th and the 99.5th percentile, the ICLR 2024--2027 gap is \ThresholdLowGap{} and \ThresholdMidGap{} points, against \FlagGap{} at the 99.9th percentile. Table~\ref{tab:detectors} gives all thresholds for both labels.
+The 99.9th percentile of \MeldCalibrationReviews{} pre-2023 scores gives \MeldThreshold. No source's pre-2023 flag rate exceeds \MeldPreSourceMax\%. The flagged-pair gap holds at lower thresholds: at the 99th and the 99.5th percentile, the ICLR 2024--2027 gap is \ThresholdLowGap{} and \ThresholdMidGap{} points, against \FlagGap{} at the 99.9th percentile. Table~\ref{tab:detectors} gives all thresholds for both labels.
 
 \begin{table}[!htp]
 \centering\small
 \input{tables/detector_choices}
-\caption{The within-paper gap does not depend on the MELD threshold. A threshold is a percentile of pre-2023 scores. The highest pre-2023 rate is the maximum over sources. The gap compares two reviews with the label with two unflagged reviews of one paper, in ICLR 2024--2027 pairs.}
+\caption{The within-paper gap stays positive at each MELD threshold. A threshold is a percentile of pre-2023 scores. The highest pre-2023 rate is the maximum over sources. The gap compares two reviews with the label with two unflagged reviews of one paper, in ICLR 2024--2027 pairs.}
 \label{tab:detectors}
 \end{table}
 
@@ -334,7 +334,7 @@ Table~\ref{tab:compare} compares the flags of the two detectors on the sampled r
 \begin{table}[!htp]
 \centering\footnotesize
 \input{tables/detectors_compare}
-\caption{EditLens flags fewer recent reviews than MELD. Share of the sampled reviews of each source and year that each detector flags, with the five journal sources pooled. Each threshold is the 99.9th percentile of that detector's scores on the same pre-2023 reviews. The counts include reviews of withdrawn and desk-rejected papers. The MELD shares of ICLR 2026 and 2027 use the reviews with MELD scores.}
+\caption{EditLens flags fewer recent reviews than MELD. Share of the sampled reviews of each source and year that each detector flags, with the five journal sources pooled. Each threshold is the 99.9th percentile of that detector's scores on the same pre-2023 reviews. The counts include reviews of withdrawn and desk-rejected papers.}
 \label{tab:compare}
 \end{table}
 

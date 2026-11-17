@@ -960,13 +960,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record("CovShared" + suffix, row.shared_per_pair, row.shared_per_pair_se, digits=2)
     rewrite = pd.read_csv(reports / f"rewrite_test_{model}.csv").set_index(["condition", "group"])
     meld_rates = pd.read_csv(settings.REPORTS_DIR / "meld_rates.csv")
-    sampled_rates = pd.read_csv(settings.REPORTS_DIR / "editlens_rates.csv")
-    for year, suffix in zip(settings.ICLR_SNAPSHOT_YEARS, ["Base", "Last"]):
-        scored, sampled = (
-            rates[(rates.set == "sample") & (rates.conf == "ICLR") & (rates.year == year)].n.sum()
-            for rates in (meld_rates, sampled_rates)
-        )
-        values["MeldCover" + suffix] = f"{100 * scored / sampled:.0f}"
     for condition, base, meld_set in REWRITE_MACROS:
         for group, suffix in [("All", ""), ("ICLR", "Iclr"), ("Journals", "Journal")]:
             if (condition, group) not in rewrite.index:
