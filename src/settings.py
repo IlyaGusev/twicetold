@@ -174,6 +174,7 @@ class Settings(BaseSettings):
     GIGACHECK_REPO: str = "iitolstykh/GigaCheck-Classifier-Multi"
     GIGACHECK_REVISION: str = "1b885318d0317a7c7138a52b3b53e0c747604da4"
     GIGACHECK_MAX_LENGTH: int = 1024
+    ABSTRACT_DETECTORS: list[str] = ["meld", "editlens", "gigacheck"]
 
     PRICES_USD_PER_MTOK: dict[str, tuple[float, float]] = {
         "gpt-6-luna": (0.10, 0.50),

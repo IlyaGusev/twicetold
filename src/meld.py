@@ -1,6 +1,7 @@
 import importlib.util
 import json
 from collections import defaultdict
+from functools import partial
 from pathlib import Path
 
 import fire
@@ -38,6 +39,87 @@ GENERATED_SETS = [
     ("paper_review", settings.PAPER_REVIEW_DIR / f"reviews_{settings.AI_REFERENCE_MODEL}.jsonl"),
     ("paper_review_second", settings.PAPER_REVIEW_DIR / f"reviews_{settings.REWRITE_SECOND_WRITER}.jsonl"),
 ]
+
+
+def score_file(input, out, score, flush_docs, per_set=None):
+    out = Path(out)
+    df = pd.read_parquet(input, columns=["key", "set", "text"] if per_set else ["key", "text"])
+    if per_set:
+        df = df.groupby("set").sample(per_set, random_state=0)
+    done = {row["key"] for row in read_jsonl(out)} if out.exists() else set()
+    df = df[~df.key.isin(done)]
+    df = df.assign(n=df.text.str.len()).sort_values("n")
+    print(f"{len(done)} done, {len(df)} to score -> {out}", flush=True)
+    with open(out, "a") as f:
+        for start in range(0, len(df), flush_docs):
+            chunk = df.iloc[start : start + flush_docs]
+            for key, result in zip(chunk.key, score(chunk.text.str.replace(TAGS, " ", regex=True).tolist())):
+                f.write(json.dumps(dict(key=key, **result)) + "\n")
+            f.flush()
+            print(f"{start + len(chunk)}/{len(df)}", flush=True)
+
+
+def merge_windows(parts, window_scores, n_texts):
+    results = [dict(score=None, score_mean=None, n_tokens=0, n_windows=0) for _ in range(n_texts)]
+    for (doc, ids), score in zip(parts, window_scores):
+        r = results[doc]
+        if r["score"] is None:
+            r.update(score=score, score_mean=0.0)
+        r["score_mean"] += score * len(ids)
+        r["n_tokens"] += len(ids)
+        r["n_windows"] += 1
+    for r in results:
+        r["score_mean"] = r["score_mean"] / r["n_tokens"] if r["n_tokens"] else None
+    return results
+
+
+def agreement(name, post, other):
+    agree = (post.flag == post[other]).mean()
+    chance = post.flag.mean() * post[other].mean() + (1 - post.flag.mean()) * (1 - post[other].mean())
+    return {
+        f"{other}_reviews": len(post),
+        f"{other}_both": (post.flag & post[other]).mean() * 100,
+        f"{other}_only": (~post.flag & post[other]).mean() * 100,
+        f"{name}_not_{other}": (post.flag & ~post[other]).mean() * 100,
+        f"{other}_kappa": (agree - chance) / (1 - chance),
+        f"{other}_spearman": post.score.corr(post[f"{other}_score"], method="spearman"),
+    }
+
+
+def flag_reports(name, score_columns, others, input, scored, out, reports):
+    df = pd.read_parquet(input, columns=["key", "set", "review_id", "conf", "year"]).merge(
+        pd.read_json(scored, lines=True)[["key", *score_columns]], on="key"
+    )
+    is_real = df.set.isin(REAL_SETS)
+    pre = is_real & (df.year <= settings.MELD_CALIBRATION_LAST_YEAR)
+    threshold = df[pre].score.quantile(settings.MELD_FLAG_QUANTILE)
+    df["flag"] = df.score > threshold
+    rates = df.groupby(["set", "conf", "year"]).flag.agg(n="size", flagged="mean")
+    rates["flagged"] *= 100
+    rates.round(3).to_csv(Path(reports) / f"{name}_rates.csv")
+    print(rates.round(2).to_string())
+    heldout = is_real & (df.conf == "ICLR") & (df.year == settings.MELD_CALIBRATION_LAST_YEAR + 1)
+    known = df.set.where(~is_real).mask(pre, "human").mask(heldout, "heldout")
+    labels = df.groupby(known).flag.agg(texts="size", flagged="mean").rename_axis("known")
+    labels["flagged"] *= 100
+    labels = labels.loc[[k for k in KNOWN_SETS if k in labels.index]]
+    labels.round(3).to_csv(Path(reports) / f"{name}_labels.csv")
+    print(labels.round(1).to_string())
+    real = df[is_real]
+    assert real.review_id.is_unique
+    post = real[real.year > settings.MELD_CALIBRATION_LAST_YEAR]
+    summary = {
+        "threshold": threshold,
+        "calibration_reviews": int(pre.sum()),
+        "pre_source_max": df[pre].groupby("conf").flag.mean().max() * 100,
+    }
+    for other in others:
+        marks = pd.read_parquet(settings.RAW_DIR / f"{other}_flags.parquet", columns=["review_id", "score", "flag"])
+        marks = marks.set_index("review_id").rename(columns={"score": f"{other}_score", "flag": other})
+        summary.update(agreement(name, post.join(marks, on="review_id", how="inner"), other))
+    pd.Series(summary).to_csv(Path(reports) / f"{name}_summary.csv", header=["value"], index_label="name")
+    print(pd.Series(summary).round(3).to_string())
+    real[["review_id", "conf", "year", *score_columns, "flag"]].to_parquet(out, index=False)
 
 
 def labels(known, human, heldout, reports):
@@ -142,20 +224,8 @@ def check(input=settings.RAW_DIR / "meld_input.parquet", n=64, batch_tokens=1638
 
 
 def scores(input=settings.RAW_DIR / "meld_input.parquet", out=settings.RAW_DIR / "meld_scores.jsonl", batch_tokens=16384):
-    out = Path(out)
-    df = pd.read_parquet(input, columns=["key", "text"])
-    done = {row["key"] for row in read_jsonl(out)} if out.exists() else set()
-    df = df[~df.key.isin(done)]
-    df = df.assign(text=df.text.str.replace(TAGS, " ", regex=True), n=df.text.str.len()).sort_values("n")
-    print(f"{len(done)} done, {len(df)} to score -> {out}", flush=True)
     module, scorer = load_scorer()
-    with open(out, "a") as f:
-        for start in range(0, len(df), FLUSH_DOCS):
-            chunk = df.iloc[start : start + FLUSH_DOCS]
-            for key, result in zip(chunk.key, score_docs(module, scorer, chunk.text.tolist(), batch_tokens)):
-                f.write(json.dumps(dict(key=key, **result)) + "\n")
-            f.flush()
-            print(f"{start + len(chunk)}/{len(df)}", flush=True)
+    score_file(input, out, partial(score_docs, module, scorer, batch_tokens=batch_tokens), FLUSH_DOCS)
 
 
 def flags(

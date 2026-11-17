@@ -1,14 +1,10 @@
-import json
-from pathlib import Path
+from functools import partial
 
 import fire
-import pandas as pd
 import torch
 from transformers import AutoModel
 
-from ai import TAGS
-from gpttrace import flag_reports
-from jsonl import read_jsonl
+from meld import flag_reports, score_file
 from settings import settings
 
 FLUSH_DOCS = 5000
@@ -51,22 +47,7 @@ def scores(
     batch_size=32,
     per_set=None,
 ):
-    out = Path(out)
-    df = pd.read_parquet(input, columns=["key", "set", "text"])
-    if per_set:
-        df = df.groupby("set").sample(per_set, random_state=0)
-    done = {row["key"] for row in read_jsonl(out)} if out.exists() else set()
-    df = df[~df.key.isin(done)]
-    df = df.assign(text=df.text.str.replace(TAGS, " ", regex=True), n=df.text.str.len()).sort_values("n")
-    print(f"{len(done)} done, {len(df)} to score -> {out}", flush=True)
-    model = load_scorer()
-    with open(out, "a") as f:
-        for start in range(0, len(df), FLUSH_DOCS):
-            chunk = df.iloc[start : start + FLUSH_DOCS]
-            for key, result in zip(chunk.key, score_docs(model, chunk.text.tolist(), batch_size)):
-                f.write(json.dumps(dict(key=key, **result)) + "\n")
-            f.flush()
-            print(f"{start + len(chunk)}/{len(df)}", flush=True)
+    score_file(input, out, partial(score_docs, load_scorer(), batch_size=batch_size), FLUSH_DOCS, per_set)
 
 
 def flags(

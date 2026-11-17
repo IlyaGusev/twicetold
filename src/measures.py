@@ -180,7 +180,7 @@ def estimates(model):
             fit = pair_gap(frame, labels[label], outcome, controls)
             rows.append(dict(kind="gap", claim=claim, measure=name, **summarize(*fit, MEASURES[name][2], 1)))
         venue_reviews = reviews[in_venue(reviews, venue) & reviews.year.between(*years)]
-        venue_reviews = venue_reviews[venue_reviews.review_id.isin(scored_review_ids())]
+        venue_reviews = venue_reviews[venue_reviews.review_id.astype(object).isin(scored_review_ids())]
         fit = review_gap(venue_reviews, labels[label])
         rows.append(dict(kind="gap", claim=claim, measure="novelty", **summarize(*fit, 2, -1)))
     return pd.DataFrame(rows)

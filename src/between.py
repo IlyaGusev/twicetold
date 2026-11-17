@@ -58,13 +58,12 @@ def normalize_rows(X):
 def embed_reviews(data, threads, reembed):
     path = data / "review_emb.npy"
     review_ids = hub.sample("main", ["review_id"]).review_id.tolist()
+    start = len(np.load(path, mmap_mode="r")) if path.exists() and not reembed else 0
+    if start == len(review_ids):
+        return
     vectors = np.empty((len(review_ids), settings.REVIEW_EMBED_DIMENSIONS), dtype=np.float32)
-    start = 0
-    if path.exists() and not reembed:
-        done = np.load(path, mmap_mode="r")
-        start = len(done)
-        vectors[:start] = done
-        del done
+    if start:
+        vectors[:start] = np.load(path, mmap_mode="r")
     client = extract.openrouter_client()
     while start < len(review_ids):
         chunk = review_ids[start : start + REVIEW_EMBED_SLICE]

@@ -7,8 +7,6 @@ import pyarrow.dataset as ds
 import hub
 from settings import settings
 
-DETECTORS = ["meld", "editlens", "gigacheck"]
-
 
 def build_input(out=settings.RAW_DIR / "abstract_input.parquet"):
     papers = hub.frame("papers", ["conf", "year", "paper_id", "abstract"], ds.field("abstract").is_valid())
@@ -26,7 +24,7 @@ def flags(
 ):
     df = pd.read_parquet(input, columns=["key", "conf", "year", "paper_id"])
     summary = {}
-    for name in DETECTORS:
+    for name in settings.ABSTRACT_DETECTORS:
         scored = pd.read_json(settings.RAW_DIR / f"{name}_abstract_scores.jsonl", lines=True)[["key", "score", "n_tokens"]]
         score, tokens, flag = (f"abstract_{name}_{kind}" for kind in ("score", "tokens", "flag"))
         df = df.merge(scored.rename(columns={"score": score, "n_tokens": tokens}), on="key")
@@ -34,7 +32,7 @@ def flags(
         threshold = calibration.quantile(settings.MELD_FLAG_QUANTILE)
         df[flag] = df[score] > threshold
         summary |= {f"{name}_threshold": threshold, f"{name}_calibration_abstracts": len(calibration)}
-    rates = df.groupby(["conf", "year"])[[f"abstract_{name}_flag" for name in DETECTORS]].mean().mul(100)
+    rates = df.groupby(["conf", "year"])[[f"abstract_{name}_flag" for name in settings.ABSTRACT_DETECTORS]].mean().mul(100)
     rates.insert(0, "n", df.groupby(["conf", "year"]).size())
     rates.round(3).to_csv(Path(reports) / "abstract_rates.csv")
     print(rates.round(2).to_string())

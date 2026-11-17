@@ -14,7 +14,7 @@ from matplotlib.transforms import Bbox
 
 import extract
 import hub
-from outcomes import excluded_review_ids, in_window, main_sample_review_ids, scored_pairs
+from outcomes import analysis_pairs, excluded_review_ids, in_window, main_sample_review_ids
 from prompts import render
 from settings import settings
 
@@ -187,9 +187,7 @@ PAIR_TYPE_STYLES = {
 
 def pair_type_means(model):
     flags = kept_meld_flags()
-    pairs = scored_pairs(
-        pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=["panel_id", "conf", "year", "a", "b", "hit"])
-    )
+    pairs = analysis_pairs(model)
     cells = []
     for label, (conf, first, last) in settings.GAP_CELLS.items():
         cells.append(pairs[(pairs.conf == conf) & pairs.year.between(first, last)].assign(conf=label))
@@ -733,7 +731,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     record("IclrFlaggedLast", iclr_last.ai_flagged)
     record("IclrWrittenLast", iclr_last.ai_written)
     flags = kept_meld_flags().flag
-    pairs = scored_pairs(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")).copy()
+    pairs = analysis_pairs(model, None).copy()
     pairs["nflag"] = pairs.a.map(flags).astype(float) + pairs.b.map(flags).astype(float)
     main_conf, main_first, main_last = next(iter(settings.GAP_CELLS.values()))
     in_main = (pairs.conf == main_conf) & pairs.year.between(main_first, main_last)
@@ -1011,9 +1009,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(prefix + "WrittenOfFlagged", 100 * row.written / (100 - row.unflagged), digits=0)
     editlens = pd.read_csv(settings.REPORTS_DIR / "editlens_summary.csv").set_index("name").value
     values["EditlensThreshold"] = f"{editlens.threshold:.2f}"
-    values["EditlensAgreementReviews"] = f"{int(editlens.agreement_reviews):,}"
-    values["EditlensKappa"] = f"{editlens.kappa:.2f}"
-    for name, macro in [("both", "EditlensBoth"), ("meld_only", "EditlensMeldOnly"), ("editlens_only", "EditlensOnly")]:
+    values["EditlensAgreementReviews"] = f"{int(editlens.meld_reviews):,}"
+    values["EditlensKappa"] = f"{editlens.meld_kappa:.2f}"
+    for name, macro in [("meld_both", "EditlensBoth"), ("meld_only", "EditlensMeldOnly"), ("editlens_not_meld", "EditlensOnly")]:
         record(macro, editlens[name])
     editlens_labels = pd.read_csv(settings.REPORTS_DIR / "editlens_labels.csv").set_index("known").flagged
     record("EditlensHeldoutFlagged", editlens_labels["heldout"], digits=2)

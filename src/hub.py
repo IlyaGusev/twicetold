@@ -17,7 +17,7 @@ NAMES = {
 }
 
 JOURNAL_PANEL_KINDS = ["journal", "journal_placebo"]
-STREAM = dict(batch_size=20000, batch_readahead=1, fragment_readahead=1)
+STREAM = dict(batch_size=settings.ROW_GROUP_ROWS, batch_readahead=1, fragment_readahead=1)
 
 
 def check_model(model):
@@ -96,14 +96,19 @@ def texts(review_ids):
     }
 
 
+def batches(columns, condition):
+    for config in ["reviews", "variants"]:
+        yield from ds.dataset(settings.FINAL_DIR / config, format="parquet").to_batches(
+            columns=columns, filter=condition, **STREAM
+        )
+
+
 def text_chars(review_ids):
     wanted = ds.field("review_id").isin(pa.array(list(review_ids), pa.string()))
-    parts = []
-    for config in ["reviews", "variants"]:
-        dataset = ds.dataset(settings.FINAL_DIR / config, format="parquet")
-        for batch in dataset.to_batches(columns=["review_id", "text"], filter=wanted, **STREAM):
-            parts.append(pd.Series(pc.utf8_length(batch.column("text")).to_numpy(), index=batch.column("review_id").to_pandas()))
-    return pd.concat(parts)
+    return pd.concat(
+        pd.Series(pc.utf8_length(batch.column("text")).to_numpy(), index=batch.column("review_id").to_pandas())
+        for batch in batches(["review_id", "text"], wanted)
+    )
 
 
 def sampled_reviews(journal, without_claims=False):
@@ -113,11 +118,6 @@ def sampled_reviews(journal, without_claims=False):
     if not journal:
         tables.append(arrow("variants", ["review_id", "text"], pending))
     return [row for table in tables for row in table.to_pylist()]
-
-
-def reviews_with_claims():
-    tables = [arrow(config, ["review_id"], ds.field("claims").is_valid()) for config in ["reviews", "variants"]]
-    return {review_id for table in tables for review_id in table.column("review_id").to_pylist()}
 
 
 def projected_claims(lists, fields):
@@ -133,41 +133,31 @@ def claims(model, review_ids=None, fields=None):
     if review_ids is not None:
         condition = condition & ds.field("review_id").isin(pa.array(list(review_ids), pa.string()))
     out = {}
-    for config in ["reviews", "variants"]:
-        dataset = ds.dataset(settings.FINAL_DIR / config, format="parquet")
-        for batch in dataset.to_batches(columns=["review_id", "claims"], filter=condition, **STREAM):
-            lists = batch.column("claims")
-            out.update(
-                zip(
-                    batch.column("review_id").to_pylist(),
-                    lists.to_pylist() if fields is None else projected_claims(lists, fields),
-                )
-            )
+    for batch in batches(["review_id", "claims"], condition):
+        lists = batch.column("claims")
+        out.update(
+            zip(batch.column("review_id").to_pylist(), lists.to_pylist() if fields is None else projected_claims(lists, fields))
+        )
     return out
 
 
 def texts_with_claims(model, fields):
     check_model(model)
-    for config in ["reviews", "variants"]:
-        dataset = ds.dataset(settings.FINAL_DIR / config, format="parquet")
-        columns = ["review_id", "text", "claims"]
-        for batch in dataset.to_batches(columns=columns, filter=ds.field("claims").is_valid(), **STREAM):
-            claims_of_batch = projected_claims(batch.column("claims"), fields)
-            yield from zip(batch.column("review_id").to_pylist(), batch.column("text").to_pylist(), claims_of_batch)
+    for batch in batches(["review_id", "text", "claims"], ds.field("claims").is_valid()):
+        claims_of_batch = projected_claims(batch.column("claims"), fields)
+        yield from zip(batch.column("review_id").to_pylist(), batch.column("text").to_pylist(), claims_of_batch)
 
 
 def claim_frames(model, fields):
     check_model(model)
-    for config in ["reviews", "variants"]:
-        dataset = ds.dataset(settings.FINAL_DIR / config, format="parquet")
-        for batch in dataset.to_batches(columns=["review_id", "claims"], filter=ds.field("claims").is_valid(), **STREAM):
-            lists = batch.column("claims")
-            values = lists.flatten()
-            sizes = lists.value_lengths().to_numpy()
-            frame = pd.DataFrame({name: values.field(name).to_pandas() for name in fields})
-            frame.insert(0, "review_id", np.repeat(batch.column("review_id").to_pandas().to_numpy(), sizes))
-            frame.insert(1, "k", np.concatenate([np.arange(size) for size in sizes]) if len(sizes) else [])
-            yield frame
+    for batch in batches(["review_id", "claims"], ds.field("claims").is_valid()):
+        lists = batch.column("claims")
+        values = lists.flatten()
+        sizes = lists.value_lengths().to_numpy()
+        frame = pd.DataFrame({name: values.field(name).to_pandas() for name in fields})
+        frame.insert(0, "review_id", np.repeat(batch.column("review_id").to_pandas().to_numpy(), sizes))
+        frame.insert(1, "k", np.concatenate([np.arange(size) for size in sizes]) if len(sizes) else [])
+        yield frame
 
 
 def extraction_counts(model):

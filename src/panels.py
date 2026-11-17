@@ -57,7 +57,7 @@ def cap_reviews_per_paper(rng, reviews):
 
 def texts_by_id(path, review_ids):
     parts = []
-    for batch in pq.ParquetFile(path).iter_batches(batch_size=20000, columns=["review_id", "text"]):
+    for batch in pq.ParquetFile(path).iter_batches(batch_size=settings.ROW_GROUP_ROWS, columns=["review_id", "text"]):
         frame = batch.to_pandas()
         parts.append(frame[frame.review_id.isin(review_ids)])
     return pd.concat(parts).set_index("review_id").text

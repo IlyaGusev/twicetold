@@ -26,6 +26,7 @@ DROP_REASONS = {"panel": DROP_REASON, "sub3": DROP_REASON, "placebo": PLACEBO_DR
 SOURCE_TAGS = ["_icml", "_other"]
 FIRST_YEAR = {"ICLR": settings.ICLR_FROM}
 DEFAULT_FIRST_YEAR = 2019
+PAIR_COLUMNS = ["panel_id", "conf", "year", "a", "b", "hit"]
 
 
 def tag_of(panel_id):
@@ -66,7 +67,7 @@ def scored_review_ids():
 
 def scored_pairs(pairs):
     scored = scored_review_ids()
-    return pairs[pairs.a.isin(scored) & pairs.b.isin(scored)]
+    return pairs[pairs.a.astype(object).isin(scored) & pairs.b.astype(object).isin(scored)]
 
 
 def ml_papers():
@@ -214,6 +215,10 @@ def pairs(model=settings.DEFAULT_MODEL, out=str(settings.ANALYSIS_DIR)):
 
 def in_window(df):
     return df[df.year >= df.conf.map(FIRST_YEAR).fillna(DEFAULT_FIRST_YEAR)]
+
+
+def analysis_pairs(model, columns=PAIR_COLUMNS):
+    return in_window(scored_pairs(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet", columns=columns)))
 
 
 if __name__ == "__main__":
