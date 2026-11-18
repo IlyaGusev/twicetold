@@ -784,7 +784,8 @@ PASS1_VARIANTS = {"ml": ["noq", "nocq"], "journal": []}
 
 
 ALL_PAIR_TYPES = ("HH", *PAIR_TYPES)
-DECOMPOSITION_TERMS = ("change", "composition", "within_unflagged", "within_flagged")
+DECOMPOSITION_TERMS = ("change", "background", "llm", "composition", "flagged_excess")
+TABLE_TERMS = ("change", "background", "composition", "flagged_excess")
 
 
 def type_totals(weights, hits):
@@ -795,14 +796,16 @@ def type_totals(weights, hits):
 def shift_share(before, after):
     (share_a, mean_a), (share_b, mean_b) = before, after
     mean_a, mean_b = np.where(np.isnan(mean_a), mean_b, mean_a), np.where(np.isnan(mean_b), mean_a, mean_b)
-    within = np.nan_to_num((mean_b - mean_a) * (share_a + share_b) / 2)
+    change = np.nan_to_num(share_b * mean_b).sum() - np.nan_to_num(share_a * mean_a).sum()
     composition = np.nan_to_num((share_b - share_a) * (mean_a + mean_b) / 2).sum()
-    return np.array([composition + within.sum(), composition, within[0], within[1:].sum()])
+    background = mean_b[0] - mean_a[0]
+    llm = change - background
+    return np.array([change, background, llm, composition, llm - composition])
 
 
 PAIR_TYPE_HEADS = ["None", "One", "Two"]
 CLEAN_HEAD = r"None, no\\flag in\\paper"
-DECOMPOSITION_HEADS = ["Total", r"Shift of\\types", r"Within\\unflagged", r"Within\\flagged"]
+DECOMPOSITION_HEADS = ["Total", r"Unflagged\\pairs", r"Shift of\\types", r"Flagged,\\above\\unflagged"]
 
 
 def decomposition_table(out, tex):
@@ -822,7 +825,7 @@ def decomposition_table(out, tex):
             cells += [f"{getattr(r, f'share_{t}'):.1f}" for t in ALL_PAIR_TYPES]
             cells += [f"{getattr(r, f'overlap_{t}'):.1f}" for t in ALL_PAIR_TYPES]
             cells.append(f"{r.overlap_clean:.1f}")
-            cells += ["--" if pd.isna(r.change) else f"{getattr(r, name):+.2f}" for name in DECOMPOSITION_TERMS]
+            cells += ["--" if pd.isna(r.change) else f"{getattr(r, name):+.2f}" for name in TABLE_TERMS]
             lines.append(" & ".join(cells) + r" \\")
         lines.append(r"\midrule")
     Path(tex).write_text("\n".join(lines[:-1] + [r"\bottomrule", r"\end{tabular}"]) + "\n")

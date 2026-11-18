@@ -858,10 +858,13 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     steps = pd.read_csv(reports / f"decomposition_{model}.csv").set_index(["conf", "year"])
     step, step_base = steps.loc[("ICLR", settings.CONTRAST_YEARS[1])], steps.loc[("ICLR", settings.CONTRAST_YEARS[0])]
     values["DecIclrMix"] = f"{step.composition:.1f}"
-    values["DecIclrUnflagged"] = f"{step.within_unflagged:.1f}"
     values["DecIclrMixEarly"] = f"{step_base.composition:.1f}"
     step_snap = steps.loc[("ICLR", settings.ICLR_SNAPSHOT_YEARS[1])]
     values["DecSnapMix"] = f"{step_snap.composition:.1f}"
+    values["DecSnapChange"] = f"{step_snap.change:.1f}"
+    values["DecSnapBackground"] = f"{step_snap.background:.1f}"
+    values["DecSnapExcess"] = f"{step_snap.flagged_excess:.1f}"
+    record("DecSnapLlm", step_snap.llm, step_snap.llm_se)
     values["DecSnapNoneLast"] = f"{step_snap.overlap_HH:.1f}"
     values["DecIclrNoneBase"] = f"{step_base.overlap_HH:.1f}"
     values["DecIclrNoneLast"] = f"{step.overlap_HH:.1f}"
