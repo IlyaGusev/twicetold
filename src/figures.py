@@ -77,16 +77,16 @@ JOURNALS = {"SciPost": "SciPost", "F1000": "F1000", "PLOS": "PLOS", "BMC-Med": "
 ORDER = settings.ML_VENUES + list(JOURNALS)
 JOURNAL_PREFIX = {"F1000": "FResearch", "PLOS": "Plos", "SciPost": "Scipost", "BMC-Med": "Bmc", "Copernicus": "Copernicus"}
 SHORT = {
-    "+ length and claim count": "+ length, claim count",
-    "99th-percentile threshold": "99th-pct. threshold",
-    "99.5th-percentile threshold": "99.5th-pct. threshold",
+    "+ length and claim count": "Controls: length, claims",
+    "99th-percentile threshold": "MELD 99th-pct. threshold",
+    "99.5th-percentile threshold": "MELD 99.5th-pct. threshold",
     "Top-45% scores, ICLR 2020": "ICLR 2020",
     "Top-45% scores, ICLR 2021-2022": "ICLR 2021–22",
     "Top-45% scores, ICLR 2023": "ICLR 2023",
 }
 GAP_PREFIX = dict(zip(settings.GAP_CELLS, ["IclrEarly", "IclrLate", "Neurips", "Icml"], strict=True))
 PERIOD_SUFFIX = {"ICLR 2024–25": "Early", "ICLR 2026–27": "Late"}
-CHECK_GROUPS = {"Placebo before ChatGPT": "Before ChatGPT, top 45% of scores"}
+CHECK_GROUPS = {"Placebo before ChatGPT": "Before ChatGPT"}
 CATEGORY_NAMES = {
     "clarity/presentation": "Clarity, presentation",
     "experiments-scope": "Scope of experiments",
@@ -189,7 +189,7 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     means = pair_type_means(model)
     contrasts = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"pair_types_{model}.csv")
     fig, (top, bottom) = plt.subplots(
-        2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.35, 3.4), gridspec_kw=dict(height_ratios=[1.2, 1], hspace=0.38)
+        2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.35, 3.4), gridspec_kw=dict(height_ratios=[1.2, 0.8], hspace=0.6)
     )
     cells = list(settings.GAP_CELLS)
     for k, (pair_type, (label, face, edge, marker)) in enumerate(PAIR_TYPE_STYLES.items()):
@@ -206,17 +206,20 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     bottom.set_xlim(-0.5, len(cells) - 0.5)
     bottom.set_xticks(range(len(cells)), [label.replace(" ", "\n") for label in cells])
     bottom.tick_params(axis="x", length=0)
-    top.tick_params(axis="x", length=0)
+    top.tick_params(axis="x", length=0, labelbottom=True)
     top.set_ylim(0, 30)
     top.set_yticks([0, 10, 20, 30])
     top.set_ylabel("Overlap (%)")
     top.set_title("a  Mean overlap by pair type", fontweight="bold")
-    bottom.set_ylim(-1.5, 16)
-    bottom.set_yticks([0, 5, 10, 15])
+    bottom.set_ylim(-1, 7)
+    bottom.set_yticks([0, 2, 4, 6])
     bottom.set_ylabel("Difference (points)")
     bottom.set_title("b  Difference from both unflagged", fontweight="bold")
     fig.align_ylabels([top, bottom])
+    handles, labels = top.get_legend_handles_labels()
     top.legend(
+        [handle[0] for handle in handles],
+        labels,
         loc="lower center",
         bbox_to_anchor=(0.5, 1.13),
         ncol=3,
@@ -239,11 +242,9 @@ def ai_checks(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         y -= 1
         top = y
         before = group.startswith("Placebo")
-        color = COLORS["grey"] if before else COLORS["ink"]
         for row in rows.itertuples():
-            ax.errorbar(
-                row.est, y, xerr=Z95 * row.se, fmt="o", ms=3.5, color=color, mfc="white" if before else color, elinewidth=1.0
-            )
+            style = dict(color=COLORS["grey"], mfc="white") if before else dict(color=COLORS[row.label.split()[0]])
+            ax.errorbar(row.est, y, xerr=Z95 * row.se, fmt="o", ms=3.5, elinewidth=1.0, **style)
             name = "Main estimate" if row.label == group else row.label.removeprefix(f"{group}, ")
             label = re.sub(r"(\d)-(\d)", "\\1–\\2", SHORT.get(name, name))
             ax.text(-0.97, y, label, transform=sides, ha="left", va="center")
@@ -358,30 +359,22 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     )
     fig.subplots_adjust(left=0.19, right=0.98, top=0.93, bottom=0.14)
     y = np.arange(len(shift))
+    color = COLORS["ICLR"]
     levels.hlines(y, shift.pre, shift.post, color=COLORS["light"], lw=1.4, zorder=1)
-    levels.plot(shift.post, y, "o", ms=3, color=COLORS["ink"], zorder=2)
-    levels.plot(shift.pre, y, "o", ms=3, mfc="white", mew=0.8, color=COLORS["grey"], zorder=3)
-    handles = [
-        plt.Line2D([], [], ls="", marker="o", ms=3, mfc="white", mew=0.8, color=COLORS["grey"]),
-        plt.Line2D([], [], ls="", marker="o", ms=3, color=COLORS["ink"]),
-    ]
-    levels.legend(
-        handles,
-        [f"{settings.ICLR_FROM}–22", str(CATEGORY_YEAR)],
-        loc="lower left",
-        bbox_to_anchor=(0, 1.0),
-        ncol=2,
-        handletextpad=0.2,
-        columnspacing=1.0,
-        borderaxespad=0.0,
-    )
+    levels.plot(shift.post, y, "o", ms=3.5, color=color, zorder=2)
+    levels.plot(shift.pre, y, "o", ms=3.5, mfc="white", mew=0.8, color=COLORS["grey"], zorder=3)
+    top = shift.iloc[-1]
+    end_label(levels, top.pre, y[-1], f"{settings.ICLR_FROM}–22", COLORS["grey"], dx=0, dy=5, ha="center", va="bottom")
+    end_label(levels, top.post, y[-1], str(CATEGORY_YEAR), color, dx=0, dy=5, ha="center", va="bottom")
+    levels.set_title("a  Share of ICLR claims", fontweight="bold")
     levels.set_xlim(-1.5, 25)
     levels.set_xticks([0, 10, 20])
     levels.spines["bottom"].set_bounds(0, 20)
     levels.set_xlabel("Share (%)")
     changes.axvline(0, color=COLORS["grey"], lw=0.6, zorder=0)
     changes.hlines(y, 0, shift.change, color=COLORS["light"], lw=1.4, zorder=1)
-    changes.errorbar(shift.change, y, xerr=Z95 * shift.se, fmt="o", ms=3, color=COLORS["ink"], elinewidth=1.0, zorder=2)
+    changes.errorbar(shift.change, y, xerr=Z95 * shift.se, fmt="o", ms=3.5, color=color, elinewidth=1.0, zorder=2)
+    changes.set_title(f"b  Change from {settings.ICLR_FROM}–22 to {CATEGORY_YEAR}", fontweight="bold")
     changes.set_xlim(-12.5, 6.5)
     changes.set_xticks([-10, 0, 5])
     changes.spines["bottom"].set_bounds(-10, 5)
@@ -391,7 +384,7 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     levels.set_yticks(y, [CATEGORY_NAMES.get(c, c) for c in shift.index])
     levels.tick_params(axis="y", length=0, pad=2)
     levels.spines["left"].set_visible(False)
-    levels.set_ylim(-0.7, len(shift) - 0.3)
+    levels.set_ylim(-0.7, len(shift) + 0.8)
     save(fig, figs, "fig3_categories.pdf", PAGE_WIDTH)
 
 
@@ -411,15 +404,18 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     identifying = gaps.set_index("source").varying
     sources = gaps.iloc[:-1].dropna(subset="se").sort_values("est", ascending=False)
     pooled = gaps.iloc[-1]
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.35, 1.75))
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.35, 1.5))
     fig.subplots_adjust(left=0.31, right=0.97, top=0.9, bottom=0.2)
     ax.axvspan(iclr.est - Z95 * iclr.se, iclr.est + Z95 * iclr.se, color="#D9E8F3", lw=0, zorder=0)
     ax.axvline(iclr.est, color=COLORS["ICLR"], lw=0.8, zorder=0)
-    ax.axvline(0, color=COLORS["grey"], lw=0.6, ls=(0, (2, 2)), zorder=0)
+    ax.axvline(0, color=COLORS["light"], lw=0.6, zorder=0)
     rows = pd.concat([sources, pooled.to_frame().T])
     y = np.arange(len(rows) - 1, -1, -1)
+    colors = []
     for yi, row in zip(y, rows.itertuples()):
-        ax.errorbar(row.est, yi, xerr=Z95 * row.se, fmt="o", ms=3.5, color=COLORS["ink"], elinewidth=1.0, zorder=3)
+        _, color, marker, _ = JOURNAL_STYLES.get(row.source, ("", COLORS["ink"], "o", 0))
+        ax.errorbar(row.est, yi, xerr=Z95 * row.se, fmt=marker, ms=3.5, color=color, elinewidth=1.0, zorder=3)
+        colors.append(color)
     ax.axhline(0.55, color=COLORS["light"], lw=0.5)
     ax.annotate(
         "ICLR",
@@ -434,6 +430,8 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     )
     labels = [f"{JOURNALS[r.source]} ({identifying[r.source]:,})" for r in sources.itertuples()]
     ax.set_yticks(y, [*labels, f"All journals ({identifying['All journals']:,})"])
+    for label, color in zip(ax.get_yticklabels(), colors):
+        label.set_color(text_color(color))
     ax.get_yticklabels()[-1].set_fontweight("bold")
     ax.tick_params(axis="y", length=0, pad=2)
     ax.spines["left"].set_visible(False)
@@ -466,14 +464,39 @@ def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         rows = embed[embed.conf == conf].set_index("year")
         color = COLORS[conf]
         shade_chatgpt_period(ax)
-        ax.axhline(0, color=COLORS["grey"], lw=0.6, zorder=0)
-        ax.errorbar(rows.index, rows.calibrated_intra, yerr=Z95 * rows.calibrated_intra_se, fmt="o-", ms=3, color=color)
-        ax.plot(rows.index, rows.calibrated_inter_area, "o--", ms=3, mfc="white", color=color)
-        end_label(ax, rows.index[-1], rows.calibrated_intra.iloc[-1], "same paper", color, dx=0, dy=-12, ha="right", va="top")
+        ax.annotate(
+            "After ChatGPT",
+            (CHATGPT_BAND[0], 1),
+            xycoords=ax.get_xaxis_transform(),
+            xytext=(3, -2),
+            textcoords="offset points",
+            ha="left",
+            va="top",
+            fontsize=8,
+            color=COLORS["grey"],
+            style="italic",
+        )
+        ax.axhline(0, color=COLORS["light"], lw=0.6, zorder=0)
+        same, ci = rows.calibrated_intra, Z95 * rows.calibrated_intra_se
+        ax.fill_between(rows.index, same - ci, same + ci, color=color, alpha=0.2, lw=0, zorder=1)
+        ax.plot(
+            rows.index, rows.calibrated_inter_area, "-o", lw=1.1, ms=3.5, color=COLORS["grey"], mec="white", mew=0.6, zorder=2
+        )
+        ax.plot(rows.index, same, "-o", lw=1.4, ms=4, color=color, mec="white", mew=0.6, zorder=3)
+        end_label(ax, rows.index[-1], same.iloc[-1], "same paper", color, dx=0, dy=-12, ha="right", va="top")
         end_label(
-            ax, rows.index[-1], rows.calibrated_inter_area.iloc[-1], "different papers, one area", color, 0, 7, "right", "bottom"
+            ax,
+            rows.index[-1],
+            rows.calibrated_inter_area.iloc[-1],
+            "different papers, one area",
+            COLORS["grey"],
+            0,
+            7,
+            "right",
+            "bottom",
         )
         ax.set_title(f"{letter}  {conf}", fontweight="bold")
+        ax.set_xlabel("Conference year")
         ax.set_xlim(rows.index[0] - 0.4, rows.index[-1] + 0.4)
         ax.set_xticks(list(rows.index), [f"'{year % 100}" for year in rows.index])
     axes[0].set_ylim(-0.18, 0.75)
