@@ -31,7 +31,8 @@ TRENDS = [
     ("PLOS, 2019--23 to 2026", "PLOS", PRE_PERIOD, 2026),
 ]
 GAPS = [
-    ("ICLR, two flagged", "ICLR", settings.ICLR_GAP_YEARS, "flag"),
+    ("ICLR 2024--25, two flagged", "ICLR", settings.GAP_CELLS["ICLR 2024–25"][1:], "flag"),
+    ("ICLR 2026--27, two flagged", "ICLR", settings.GAP_CELLS["ICLR 2026–27"][1:], "flag"),
     ("NeurIPS, two flagged", "NeurIPS", (2024, 2025), "flag"),
     ("ICML, two flagged", "ICML", (2025, 2026), "flag"),
     ("Journals, two flagged", JOURNALS, (2024, 2026), "flag"),

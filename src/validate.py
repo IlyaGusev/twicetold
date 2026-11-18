@@ -280,7 +280,7 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
     claim_counts = pd.read_parquet(data / f"claims_table_{model}.parquet", columns=["review_id"]).groupby("review_id").size()
     design["claims_short"], design["claims_long"] = short_long_logs(claim_counts, design)
     cells = gap_cells(design)
-    main, iclr = next(iter(cells.items()))
+    periods = iclr_cells(design)
     rows = []
 
     def add(group, label, subset_pairs, pair_flags, controls=()):
@@ -302,15 +302,17 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
             )
         )
 
-    pipe = "Pipeline"
-    add(pipe, main, iclr, flag)
-    add(pipe, "+ length and claim count", iclr.dropna(), flag, ("log_short", "log_long", "claims_short", "claims_long"))
-    add(pipe, "99th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.99))
-    add(pipe, "99.5th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.995))
-    for label in list(cells)[2:]:
-        add(pipe, label, cells[label], flag)
-    for year, year_pairs in iclr.groupby("year"):
-        add("ICLR by year", f"ICLR {year}", year_pairs, flag)
+    for period, iclr in periods.items():
+        add(period, period, iclr, flag)
+        controls = ("log_short", "log_long", "claims_short", "claims_long")
+        add(period, f"{period}, + length and claim count", iclr.dropna(), flag, controls)
+        add(period, f"{period}, 99th-percentile threshold", iclr, meld_flag_at(meld, 0.99))
+        add(period, f"{period}, 99.5th-percentile threshold", iclr, meld_flag_at(meld, 0.995))
+        for year, year_pairs in iclr.groupby("year"):
+            add(period, f"ICLR {year}", year_pairs, flag)
+    for label, cell in cells.items():
+        if label not in periods:
+            add("Other venues", label, cell, flag)
     placebo = pd.read_csv(reports / f"detector_placebo_{model}.csv")
     for r in placebo.itertuples():
         rows.append(
@@ -392,6 +394,10 @@ def gap_cells(pairs):
     }
 
 
+def iclr_cells(pairs):
+    return {label: cell for label, cell in gap_cells(pairs).items() if settings.GAP_CELLS[label][0] == "ICLR"}
+
+
 def pair_types(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     flag = hub.meld_flags().flag.astype(int)
     pairs = analysis_pairs(model)
@@ -430,10 +436,10 @@ def pair_type_sizes_table(out, tex):
         r"Pair type & Pairs & \shortstack[r]{Overlap\\(points)} & \shortstack[r]{Shared\\problems} & "
         r"\shortstack[r]{Problems,\\smaller review} & \shortstack[r]{Problems,\\either review} & "
         r"\shortstack[r]{Shared,\\sizes fixed} \\",
-        r"\midrule",
     ]
     for r in out.itertuples():
         if r.pair_type == "HH":
+            lines += [r"\midrule", rf"\multicolumn{{7}}{{@{{}}l}}{{\textbf{{{r.cell.replace('–', '--')}}}}} \\"]
             cells = [f"{r.hit:.1f}", f"{r.shared:.2f}", f"{r.smaller:.2f}", f"{r.union:.2f}", f"{r.shared:.2f}"]
         else:
             cells = [f"{getattr(r, name):+.{1 if name == 'hit' else 2}f}" for name in [*PAIR_SIZE_OUTCOMES, "shared_adjusted"]]
@@ -455,19 +461,20 @@ def pair_type_sizes(
 ):
     flag = hub.meld_flags().flag.astype(int)
     pairs = analysis_pairs(model, None)
-    cell = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)].assign(hit=lambda d: d.hit * 100)
-    types = pair_type(cell, flag).to_numpy()
-    fits = {name: type_fit(cell, types, name) for name in PAIR_SIZE_OUTCOMES}
-    fits["shared_adjusted"] = type_fit(cell, types, "shared", ("smaller", "larger"))
     rows = []
-    for t in ("HH", *PAIR_TYPES):
-        row = dict(pair_type=t, pairs=int((types == t).sum()))
-        for name, fit in fits.items():
-            if t == "HH":
-                row[name] = cell[types == "HH"][name.replace("_adjusted", "")].mean()
-            else:
-                row[name], row[name + "_se"] = fit.params[t], fit.bse[t]
-        rows.append(row)
+    for period, cell in iclr_cells(pairs).items():
+        cell = cell.assign(hit=cell.hit * 100)
+        types = pair_type(cell, flag).to_numpy()
+        fits = {name: type_fit(cell, types, name) for name in PAIR_SIZE_OUTCOMES}
+        fits["shared_adjusted"] = type_fit(cell, types, "shared", ("smaller", "larger"))
+        for t in ("HH", *PAIR_TYPES):
+            row = dict(cell=period, pair_type=t, pairs=int((types == t).sum()))
+            for name, fit in fits.items():
+                if t == "HH":
+                    row[name] = cell[types == "HH"][name.replace("_adjusted", "")].mean()
+                else:
+                    row[name], row[name + "_se"] = fit.params[t], fit.bse[t]
+            rows.append(row)
     out = pd.DataFrame(rows)
     out.to_csv(Path(reports) / f"pair_type_sizes_{model}.csv", index=False)
     print(out.round(3).to_string(index=False))
@@ -553,10 +560,9 @@ def identification(
 ):
     flag = hub.meld_flags().flag.astype(int)
     pairs = analysis_pairs(model)
-    iclr = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)]
     journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= 2024)]
     cells = [
-        ("ICLR 2024–27", iclr, flag),
+        *((label, cell, flag) for label, cell in iclr_cells(pairs).items()),
         ("NeurIPS 2024–25", pairs[(pairs.conf == "NeurIPS") & (pairs.year >= 2024)], flag),
         ("ICML 2025–26", pairs[pairs.conf == "ICML"], flag),
         *[(f"{source} {cell.year.min()}–{cell.year.max() % 100}", cell, flag) for source, cell in journals.groupby("conf")],

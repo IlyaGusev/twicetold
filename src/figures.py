@@ -77,18 +77,15 @@ ORDER = settings.ML_VENUES + list(JOURNALS)
 JOURNAL_PREFIX = {"F1000": "FResearch", "PLOS": "Plos", "SciPost": "Scipost", "BMC-Med": "Bmc", "Copernicus": "Copernicus"}
 SHORT = {
     "+ length and claim count": "+ length, claim count",
-    "99th-percentile threshold, ICLR": "99th-pct. threshold",
-    "99.5th-percentile threshold, ICLR": "99.5th-pct. threshold",
+    "99th-percentile threshold": "99th-pct. threshold",
+    "99.5th-percentile threshold": "99.5th-pct. threshold",
     "Top-45% scores, ICLR 2020": "ICLR 2020",
     "Top-45% scores, ICLR 2021-2022": "ICLR 2021–22",
     "Top-45% scores, ICLR 2023": "ICLR 2023",
 }
-GAP_PREFIX = dict(zip(settings.GAP_CELLS, ["Iclr", "IclrLate", "Neurips", "Icml"], strict=True))
-CHECK_GROUPS = {
-    "Pipeline": "Main estimate and variants",
-    "ICLR by year": "ICLR by year",
-    "Placebo before ChatGPT": "Before ChatGPT, top 45% of scores",
-}
+GAP_PREFIX = dict(zip(settings.GAP_CELLS, ["IclrEarly", "IclrLate", "Neurips", "Icml"], strict=True))
+PERIOD_SUFFIX = {"ICLR 2024–25": "Early", "ICLR 2026–27": "Late"}
+CHECK_GROUPS = {"Placebo before ChatGPT": "Before ChatGPT, top 45% of scores"}
 CATEGORY_NAMES = {
     "clarity/presentation": "Clarity, presentation",
     "experiments-scope": "Scope of experiments",
@@ -232,36 +229,36 @@ def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 def ai_checks(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     evidence = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv")
-    fig = plt.figure(figsize=(PAGE_WIDTH - 0.15, 3.7))
-    ax = fig.add_axes([0.33, 0.12, 0.45, 0.86])
+    fig = plt.figure(figsize=(COLUMN_WIDTH - 0.1, 3.2))
+    ax = fig.add_axes([0.5, 0.11, 0.48, 0.88])
     sides = ax.get_yaxis_transform()
     y = 0
     for group, rows in evidence.groupby("group", sort=False):
-        ax.text(-0.7, y, CHECK_GROUPS[group], transform=sides, ha="left", va="center", fontweight="bold")
+        ax.text(-1.03, y, CHECK_GROUPS.get(group, group), transform=sides, ha="left", va="center", fontweight="bold")
         y -= 1
+        top = y
         before = group.startswith("Placebo")
         color = COLORS["grey"] if before else COLORS["ink"]
         for row in rows.itertuples():
-            low, high = row.est - Z95 * row.se, row.est + Z95 * row.se
             ax.errorbar(
                 row.est, y, xerr=Z95 * row.se, fmt="o", ms=3.5, color=color, mfc="white" if before else color, elinewidth=1.0
             )
-            label = re.sub(r"(\d)-(\d)", "\\1–\\2", SHORT.get(row.label, row.label))
-            ax.text(-0.66, y, label, transform=sides, ha="left", va="center")
-            values = f"{row.est:+.1f}  [{low:+.1f}, {high:+.1f}]".replace("-", "−")
-            ax.text(1.04, y, values, transform=sides, ha="left", va="center", color=text_color(color))
+            name = "Main estimate" if row.label == group else row.label.removeprefix(f"{group}, ")
+            label = re.sub(r"(\d)-(\d)", "\\1–\\2", SHORT.get(name, name))
+            ax.text(-0.97, y, label, transform=sides, ha="left", va="center")
             y -= 1
-        y -= 0.5
-    ax.text(1.04, 1, "Points  [95% CI]", transform=sides, ha="left", va="center", fontweight="bold")
+        if group in PERIOD_SUFFIX:
+            ax.vlines(rows.est.iloc[0], y + 0.6, top + 0.4, color=COLORS["grey"], lw=0.6, ls=":", zorder=0)
+        y -= 0.4
     ax.axvline(0, color=COLORS["light"], lw=0.6, zorder=0)
-    ax.axvline(evidence.est.iloc[0], color=COLORS["grey"], lw=0.6, ls=":", zorder=0)
     ax.set_yticks([])
     ax.spines["left"].set_visible(False)
-    ax.set_ylim(y + 0.9, 1.6)
-    ax.set_xlim(-10, 22)
-    ax.set_xticks([-5, 0, 5, 10, 15])
-    ax.set_xlabel("Difference in overlap (percentage points)")
-    save(fig, figs, "figA_checks.pdf", PAGE_WIDTH)
+    ax.set_ylim(y + 0.9, 0.6)
+    ax.set_xlim(-12, 20)
+    ax.set_xticks([-10, 0, 10, 20])
+    ax.spines["bottom"].set_bounds(-10, 20)
+    ax.set_xlabel("Difference in overlap (points)")
+    save(fig, figs, "figA_checks.pdf", COLUMN_WIDTH)
 
 
 def spread_labels(ys, gap):
@@ -408,7 +405,7 @@ def journal_change(by_year, conf):
 
 def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     gaps = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"journal_gaps_{model}.csv")
-    iclr = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv").iloc[0]
+    iclr = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv").set_index("label").loc["ICLR 2026–27"]
     identifying = gaps.set_index("source").varying
     sources = gaps.iloc[:-1].dropna(subset="se").sort_values("est", ascending=False)
     pooled = gaps.iloc[-1]
@@ -629,18 +626,21 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         row = forms.loc[year]
         record(prefix, row.hit_removed, row.hit_removed_se, row.removed_papers)
         record(prefix + "Change", row.removed_change, row.removed_change_se, row.removed_papers)
-    for label, prefix in [
-        ("ICLR 2024–27", "FlagGap"),
-        ("+ length and claim count", "ControlGap"),
-        ("ICLR 2024", "FlagGapTwentyFour"),
-        ("ICLR 2027", "FlagGapTwentySeven"),
-    ]:
+    gap_rows = [("ICLR 2024", "FlagGapTwentyFour"), ("ICLR 2027", "FlagGapTwentySeven")]
+    threshold_rows = []
+    for period, suffix in PERIOD_SUFFIX.items():
+        gap_rows += [(period, "FlagGap" + suffix), (f"{period}, + length and claim count", "ControlGap" + suffix)]
+        threshold_rows += [
+            (f"{period}, 99th-percentile threshold", "ThresholdLowGap" + suffix),
+            (f"{period}, 99.5th-percentile threshold", "ThresholdMidGap" + suffix),
+        ]
+        values["FlagGapRound" + suffix] = f"{evidence.loc[period].est:.0f}"
+    for label, prefix in gap_rows:
         row = evidence.loc[label]
         record(prefix, row.est, row.se, row.papers)
         values[prefix + "Ident"] = f"{int(row.identifying):,}"
     for label, name in [
-        ("99th-percentile threshold, ICLR", "ThresholdLowGap"),
-        ("99.5th-percentile threshold, ICLR", "ThresholdMidGap"),
+        *threshold_rows,
         ("Top-45% scores, ICLR 2020", "PlaceboFirstGap"),
         ("Top-45% scores, ICLR 2021-2022", "PlaceboMidGap"),
         ("Top-45% scores, ICLR 2023", "PlaceboLastGap"),
@@ -653,7 +653,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     pooled = gaps.loc["All journals"]
     record("JournalGap", pooled.est, pooled.se, pooled.papers)
     values["JournalGapRound"] = f"{pooled.est:.0f}"
-    values["FlagGapRound"] = f"{evidence.loc['ICLR 2024–27'].est:.0f}"
     values["JournalGapVarying"] = f"{int(pooled.varying):,}"
     meld = pd.read_csv(settings.REPORTS_DIR / "meld_summary.csv").set_index("name").value
     values["MeldThreshold"] = f"{meld.threshold:.2f}"
@@ -814,7 +813,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         values[prefix + "ClaimsBias"] = f"{row.claims_bias:.1f}"
     ident = pd.read_csv(reports / f"identification_{model}.csv").set_index("label")
     for label, prefix in [
-        ("ICLR 2024–27", "IdIclr"),
+        *((period, "IdIclr" + suffix) for period, suffix in PERIOD_SUFFIX.items()),
         ("NeurIPS 2024–25", "IdNeurips"),
         ("ICML 2025–26", "IdIcml"),
         ("All journals 2024–26", "IdJournal"),
@@ -843,15 +842,15 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     record("WithdrawnLevel", left.left_level, left.left_level_se)
     values["RobustSnapMin"] = f"{matched.change.min():.1f}"
     values["RobustSnapMax"] = f"{matched.change.max():.1f}"
-    sizes = pd.read_csv(reports / f"pair_type_sizes_{model}.csv").set_index("pair_type")
-    for pair_type, row in sizes.iterrows():
-        prefix = "Size" + pair_type.title()
+    sizes = pd.read_csv(reports / f"pair_type_sizes_{model}.csv").set_index(["cell", "pair_type"])
+    for (cell, pair_type), row in sizes.iterrows():
         for name, label in [("shared", "Shared"), ("smaller", "Smaller"), ("union", "Union"), ("shared_adjusted", "SharedAdj")]:
-            values[prefix + label] = f"{row[name]:.2f}" if pair_type == "HH" else f"{row[name]:+.2f}"
+            macro = "Size" + pair_type.title() + label + PERIOD_SUFFIX[cell]
+            values[macro] = f"{row[name]:.2f}" if pair_type == "HH" else f"{row[name]:+.2f}"
             if pair_type != "HH":
-                values[prefix + label + "SE"] = f"{row[name + '_se']:.2f}"
-                values[prefix + label + "Low"] = f"{row[name] - Z95 * row[name + '_se']:+.2f}"
-                values[prefix + label + "High"] = f"{row[name] + Z95 * row[name + '_se']:+.2f}"
+                values[macro + "SE"] = f"{row[name + '_se']:.2f}"
+                values[macro + "Low"] = f"{row[name] - Z95 * row[name + '_se']:+.2f}"
+                values[macro + "High"] = f"{row[name] + Z95 * row[name + '_se']:+.2f}"
     types = pd.read_csv(reports / f"pair_types_{model}.csv").set_index(["conf", "pair_type"])
     for (conf, pair_type), row in types.iterrows():
         record(f"Type{pair_type.title()}{GAP_PREFIX[conf]}", row.est, row.se, row.papers)
@@ -914,8 +913,10 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(base + "ClaimsRewrite", row.claims_rewrite)
         texts = meld_rates[meld_rates.set == meld_set]
         record(base + "Flagged", (texts.flagged * texts.n).sum() / texts.n.sum())
-    gap, effect = evidence.loc["ICLR 2024–27"], rewrite.loc[("outline_second", "ICLR")]
-    record("RkFlagDiff", gap.est - effect.two, np.hypot(gap.se, effect.two_se))
+    effect = rewrite.loc[("outline_second", "ICLR")]
+    for period, suffix in PERIOD_SUFFIX.items():
+        gap = evidence.loc[period]
+        record("RkFlagDiff" + suffix, gap.est - effect.two, np.hypot(gap.se, effect.two_se))
     labels = pd.read_csv(settings.REPORTS_DIR / "meld_labels.csv").set_index("known")
     for known, prefix, digits in [
         ("polish", "Polish", 1),
@@ -942,8 +943,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     gigacheck_labels = pd.read_csv(settings.REPORTS_DIR / "gigacheck_labels.csv").set_index("known").flagged
     record("GigacheckHeldoutFlagged", gigacheck_labels["heldout"], digits=2)
     second = pd.read_csv(reports / f"second_detector_{model}.csv").set_index("cell")
-    iclr = second.loc["ICLR 2024–27"]
-    record("GigacheckFlagGap", iclr.gigacheck, iclr.gigacheck_se, iclr.papers)
+    for period, suffix in PERIOD_SUFFIX.items():
+        iclr = second.loc[period]
+        record("GigacheckFlagGap" + suffix, iclr.gigacheck, iclr.gigacheck_se, iclr.papers)
     repro = pd.read_csv(reports / f"repro_{model}.csv").set_index("name").value
     for name in ["pass1_empty", "pass1_error_rows", "pass2_error_rows", "calibration_in_analysis", "calibration_outside"]:
         values["Repro" + name.title().replace("_", "").replace("1", "One").replace("2", "Two")] = f"{int(repro[name]):,}"
