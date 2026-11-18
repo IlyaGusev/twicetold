@@ -169,7 +169,7 @@ From the 2019--2023 mean to 2026, journal overlap rose most at F1000 ($+\FResear
 \end{figure}
 
 \section{Conclusion}
-Our results suggest that the reviews of one paper have lost part of their independence, in content and not only in wording. Reviews that the detector flags are one part of this change and do not explain all of it, because overlap also rose between reviews that the detector does not flag. Two questions stay open: how much of that rise comes from LLM use that leaves no trace in the text, and if the 2027 level holds after the discussion phase.
+Our results suggest that the reviews of one paper have lost part of their independence, in content and not only in wording. Reviews that the detector flags are one part of this change and do not explain all of it, because overlap also rose between reviews that the detector does not flag. Two questions stay open: how much of that rise comes from LLM use that leaves no trace in the text, and whether the 2027 level holds after the discussion phase.
 
 \clearpage
 \section*{Limitations}
@@ -314,7 +314,7 @@ Any ratio of shared problems to set size depends on set size, and the raw shared
 We run MELD \citep{li2026meld} from Hugging Face (\texttt{anon-review-meld-2026/meld}, revision \texttt{ddfc9c7}). Our review texts join the fields of a review form with tags such as [STRENGTHS], and we delete these tags before scoring, because the reviewer did not write them. MELD scores each token of the text, in windows of 2,048 tokens, up to its own length limit. A text's score is the mean of its top 25\% of token scores, as in MELD's own scorer.
 
 \paragraph{Threshold.}
-The 99.9th percentile of \MeldCalibrationReviews{} pre-2023 scores gives \MeldThreshold. No source's pre-2023 flag rate exceeds \MeldPreSourceMax\%. At lower thresholds, the flagged-pair gap holds in ICLR 2026--2027 and shrinks in 2024--2025 (Figure~\ref{fig:checks}). At the 99th and the 99.5th percentile, the gap is \ThresholdLowGapLate{} and \ThresholdMidGapLate{} points in 2026--2027, against \FlagGapLate{} at the 99.9th percentile. In 2024--2025, it is \ThresholdLowGapEarly{} and \ThresholdMidGapEarly{} points, against \FlagGapEarly{}, and the 95\% interval at the 99th percentile includes zero.
+The 99.9th percentile of \MeldCalibrationReviews{} pre-2023 scores gives \MeldThreshold. \ReproCalibrationInAnalysis{} of these reviews enter the analysis. The other \ReproCalibrationOutside{} come from years before the analysis (ICLR 2017--2019, journals 2018) or from no analysis panel, such as journal reviews above the cap of five reviews per paper. No source's pre-2023 flag rate exceeds \MeldPreSourceMax\%. At lower thresholds, the flagged-pair gap holds in ICLR 2026--2027 and shrinks in 2024--2025 (Figure~\ref{fig:checks}). At the 99th and the 99.5th percentile, the gap is \ThresholdLowGapLate{} and \ThresholdMidGapLate{} points in 2026--2027, against \FlagGapLate{} at the 99.9th percentile. In 2024--2025, it is \ThresholdLowGapEarly{} and \ThresholdMidGapEarly{} points, against \FlagGapEarly{}, and the 95\% interval at the 99th percentile includes zero.
 
 
 \paragraph{Known texts.}
@@ -338,7 +338,7 @@ We also scored the same texts with GigaCheck \citep{tolstykh2026gigacheck}. We r
 \begin{table}[!htp]
 \centering\footnotesize
 \input{tables/detectors_compare}
-\caption{GigaCheck flags fewer recent reviews than MELD. Share of the sampled reviews of each source and year that each detector flags, with the five journal sources pooled. Each threshold is the 99.9th percentile of that detector's scores on the same pre-2023 reviews. The counts include reviews of withdrawn and desk-rejected papers.}
+\caption{GigaCheck flags fewer recent reviews than MELD. Share of the sampled reviews of each source and year that each detector flags, with the five journal sources pooled. Each threshold is the 99.9th percentile of that detector's scores on the same pre-2023 reviews. The counts include reviews of withdrawn and desk-rejected papers. The journal counts also include reviews above the cap of five reviews per paper, which Table~\ref{tab:byyear} leaves out: \JournalCappedReviews{} in 2024--2026.}
 \label{tab:compare}
 \end{table}
 
@@ -385,7 +385,7 @@ No. The rise from 2026 to 2027 is between \RobustSnapMin{} and \RobustSnapMax{} 
 \begin{table}[!htp]
 \centering\small
 \input{tables/robust}
-\caption{The ICLR rise holds under each analysis choice. The top rows compare 2026 with 2027, both with reviews during the discussion phase. The bottom rows compare 2025, with final reviews, with 2026. SE in parentheses. Luna and a council member give the same specificity flag to \RefSpecific\% of the claims that both extract.}
+\caption{The ICLR rise holds under each analysis choice. The top rows compare 2026 with 2027, both with reviews during the discussion phase. The bottom rows compare 2025, with final reviews, with 2026. Papers: papers with a value in that year. The last two checks use samples of papers, so their SEs are larger. SE in parentheses. Luna and a council member give the same specificity flag to \RefSpecific\% of the claims that both extract.}
 \label{tab:robust}
 \end{table}
 

@@ -67,7 +67,7 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
 
     def level(df, col, year):
         values = df[df.year == year][col].dropna() * 100
-        return values.mean(), values.sem()
+        return values.mean(), values.sem(), len(values)
 
     left_level = level(left, "hit_rate_strict", first)
     pd.DataFrame(
@@ -96,8 +96,10 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
             {
                 "check": name,
                 "base_year": base_year,
+                "base_n": base[2],
                 "base": base[0],
                 "last_year": last_year,
+                "last_n": end[2],
                 "last": end[0],
                 "change": end[0] - base[0],
                 "se": np.hypot(base[1], end[1]),
@@ -107,16 +109,16 @@ def robust(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, 
     out.round(3).to_csv(Path(reports) / f"robust_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     lines = [
-        r"\begin{tabular}{lrrrrr}",
+        r"\begin{tabular}{lrrrrrrr}",
         r"\toprule",
-        r"Check & Base year & Base & Last year & Last & Change (SE) \\",
+        r"Check & Base year & Papers & Base & Last year & Papers & Last & Change (SE) \\",
         r"\midrule",
     ]
     for k, r in enumerate(out.itertuples()):
         if k and r.last_year != out.last_year.iloc[k - 1]:
             lines.append(r"\midrule")
         lines.append(
-            f"{r.check} & {r.base_year} & {r.base:.1f} & {r.last_year} & {r.last:.1f} & {r.change:+.1f} ({r.se:.1f}) \\\\"
+            f"{r.check} & {r.base_year} & {r.base_n:,} & {r.base:.1f} & {r.last_year} & {r.last_n:,} & {r.last:.1f} & {r.change:+.1f} ({r.se:.1f}) \\\\"
         )
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 

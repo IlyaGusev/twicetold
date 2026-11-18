@@ -30,6 +30,7 @@ REWRITE_MACROS = [
 ]
 TEXT_DARKEN = 0.35
 CHATGPT_BAND = (2022.6, settings.ICLR_LAST + 0.5)
+OVERLAP_BAND_START = 2023.5
 SAME_VENUE_PLACEBO = "shuffled4"
 CATEGORY_YEAR = 2026
 plt.rcParams.update(
@@ -120,8 +121,8 @@ JOURNAL_STYLES = {
 }
 
 
-def shade_chatgpt_period(ax):
-    ax.axvspan(*CHATGPT_BAND, color=COLORS["band"], zorder=0, lw=0)
+def shade_chatgpt_period(ax, start=CHATGPT_BAND[0]):
+    ax.axvspan(start, CHATGPT_BAND[1], color=COLORS["band"], zorder=0, lw=0)
 
 
 def text_color(color):
@@ -297,10 +298,10 @@ def overlap_panel(ax, by_year, styles, label_x, gap):
 def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     by_year = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"by_year_{model}.csv")
     fig, (top, bottom) = plt.subplots(2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.1, 3.1))
-    fig.subplots_adjust(left=0.13, right=0.76, top=0.93, bottom=0.11, hspace=0.42)
+    fig.subplots_adjust(left=0.13, right=0.76, top=0.93, bottom=0.11, hspace=0.62)
     conferences, journals = CONFERENCE_STYLES, JOURNAL_STYLES
     for ax, styles, title in [(top, conferences, "a  ML conferences"), (bottom, journals, "b  Journals")]:
-        shade_chatgpt_period(ax)
+        shade_chatgpt_period(ax, OVERLAP_BAND_START)
         overlap_panel(ax, by_year, styles, settings.ICLR_LAST + 0.65, 2.6)
         ax.set_ylim(0, 27)
         ax.set_yticks([0, 5, 10, 15, 20, 25])
@@ -308,7 +309,7 @@ def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
         ax.set_title(title, fontweight="bold")
         ax.annotate(
             "After ChatGPT",
-            (CHATGPT_BAND[0], 27),
+            (OVERLAP_BAND_START, 27),
             xytext=(3, -2),
             textcoords="offset points",
             ha="left",
@@ -320,6 +321,7 @@ def overlap(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     bottom.set_xlim(2018.6, CHATGPT_BAND[1])
     bottom.set_xticks(range(2019, settings.ICLR_LAST + 1), [f"'{year % 100}" for year in range(2019, settings.ICLR_LAST + 1)])
     top.tick_params(labelbottom=True)
+    top.set_xlabel("Conference year")
     bottom.set_xlabel("Review year")
     save(fig, figs, "fig1_trends.pdf", COLUMN_WIDTH)
 
@@ -888,6 +890,10 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record("CovShared" + suffix, row.shared_per_pair, row.shared_per_pair_se, digits=2)
     rewrite = pd.read_csv(reports / f"rewrite_test_{model}.csv").set_index(["condition", "group"])
     meld_rates = pd.read_csv(settings.REPORTS_DIR / "meld_rates.csv")
+    recent = JOURNAL_PERIODS[1][0]
+    scored = meld_rates[(meld_rates.set == "journal") & (meld_rates.year >= recent)].n.sum()
+    kept = by_year[~by_year.conf.isin(settings.ML_VENUES) & (by_year.year >= recent)].reviews.sum()
+    values["JournalCappedReviews"] = f"{scored - kept:,}"
     for condition, base, meld_set in REWRITE_MACROS:
         for group, suffix in [("All", ""), ("ICLR", "Iclr"), ("Journals", "Journal")]:
             if (condition, group) not in rewrite.index:

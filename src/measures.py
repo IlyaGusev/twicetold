@@ -204,7 +204,7 @@ def latex(out):
         rf"Claim & {header} \\",
         rf" & {units} \\",
     ]
-    for kind, title in [("trend", "Change over time"), ("gap", "Within-paper gap against unlabeled pairs or reviews")]:
+    for kind, title in [("trend", "Change over time"), ("gap", "Within-paper gap against unflagged pairs or reviews")]:
         lines += [r"\midrule", rf"\multicolumn{{{len(names) + 1}}}{{@{{}}l}}{{\textbf{{{title}}}}} \\"]
         for claim, rows in out[out.kind == kind].groupby("claim", sort=False):
             by_measure = {r.measure: r for r in rows.itertuples()}
