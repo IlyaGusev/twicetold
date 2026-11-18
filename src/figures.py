@@ -66,7 +66,6 @@ COLORS = {
     "F1000": "#CC79A7",
     "PLOS": "#56B4E9",
     "flag": "#E69F00",
-    "flag_light": "#F3CF7F",
     "grey": "#8C8C8C",
     "light": "#C8C8C8",
     "ink": "#222222",
@@ -127,18 +126,6 @@ def shade_chatgpt_period(ax):
     ax.axvspan(*CHATGPT_BAND, color=COLORS["band"], zorder=0, lw=0)
 
 
-def year_ticks(ax, ticks=(2020, 2023, settings.ICLR_LAST)):
-    ax.set_xticks(list(ticks), [f"'{t % 100:02d}" for t in ticks])
-
-
-def mean_line(ax, df, col, color, ls="-", **kw):
-    per_year = df.groupby("year")[col]
-    mean = per_year.mean() * 100
-    ci = Z95 * per_year.std(ddof=1) / np.sqrt(per_year.count()) * 100
-    ax.errorbar(mean.index, mean, yerr=ci, fmt="o", ms=3, color=color, elinewidth=1.0, ls=ls, **kw)
-    return pd.DataFrame({"mean": mean, "bar_top": mean + ci})
-
-
 def text_color(color):
     return tuple(c * (1 - TEXT_DARKEN) for c in to_rgb(color))
 
@@ -177,11 +164,9 @@ def kept_meld_flags():
     return flags[~flags.index.isin(excluded_review_ids())]
 
 
-PAIR_TYPE_STYLES = {
-    "HH": ("Both unflagged", COLORS["grey"], COLORS["grey"], "o"),
-    "HL": ("One flagged", COLORS["flag_light"], COLORS["flag"], "s"),
-    "LL": ("Both flagged,\nnot both LLM-written", COLORS["flag"], COLORS["flag"], "D"),
-    "WW": ("Both LLM-written", COLORS["ink"], COLORS["ink"], "^"),
+GAP_STYLES = {
+    "two": ("Both flagged", COLORS["flag"], "D"),
+    "WW": ("Both LLM-written", COLORS["ink"], "^"),
 }
 
 
@@ -203,45 +188,23 @@ def pair_type_means(model):
 
 
 def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    means = pair_type_means(model)
-    contrasts = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"pair_types_{model}.csv")
-    fig, (top, bottom) = plt.subplots(
-        2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.35, 3.4), gridspec_kw=dict(height_ratios=[1.2, 1], hspace=0.38)
-    )
     cells = list(settings.GAP_CELLS)
-    for k, (pair_type, (label, face, edge, marker)) in enumerate(PAIR_TYPE_STYLES.items()):
-        x = np.arange(len(cells)) + (k - 1.5) * 0.17
-        style = dict(fmt=marker, ms=3.5, mfc=face, mec=edge, mew=0.6, ecolor=edge, elinewidth=0.9)
-        rows = means[means.pair_type == pair_type].set_index("conf").loc[cells]
-        top.errorbar(x, rows["mean"], yerr=rows.ci, label=label, **style)
-        if pair_type == "HH":
-            bottom.errorbar(x, np.zeros(len(x)), **style)
-            continue
-        cell = contrasts[contrasts.pair_type == pair_type].set_index("conf").loc[cells]
-        bottom.errorbar(x, cell.est, yerr=Z95 * cell.se, **style)
-    bottom.axhline(0, color=COLORS["light"], lw=0.6, zorder=0)
-    bottom.set_xlim(-0.5, len(cells) - 0.5)
-    bottom.set_xticks(range(len(cells)), [label.replace(" ", "\n") for label in cells])
-    bottom.tick_params(axis="x", length=0)
-    top.tick_params(axis="x", length=0)
-    top.set_ylim(0, 40)
-    top.set_yticks([0, 10, 20, 30, 40])
-    top.set_ylabel("Overlap (%)")
-    top.set_title("a  Mean overlap by pair type", fontweight="bold")
-    bottom.set_ylim(-2, 23)
-    bottom.set_yticks([0, 5, 10, 15, 20])
-    bottom.set_ylabel("Difference (points)")
-    bottom.set_title("b  Difference from both unflagged", fontweight="bold")
-    fig.align_ylabels([top, bottom])
-    top.legend(
-        loc="lower center",
-        bbox_to_anchor=(0.5, 1.13),
-        ncol=2,
-        columnspacing=0.7,
-        handletextpad=0.3,
-        handlelength=1.2,
-        borderaxespad=0.2,
-    )
+    evidence = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv").set_index("label")
+    types = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"pair_types_{model}.csv")
+    gaps = {"two": evidence.loc[cells], "WW": types[types.pair_type == "WW"].set_index("conf").loc[cells]}
+    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.35, 1.9))
+    for k, (pair_type, (label, color, marker)) in enumerate(GAP_STYLES.items()):
+        x = np.arange(len(cells)) + (k - 0.5) * 0.2
+        rows = gaps[pair_type]
+        ax.errorbar(x, rows.est, yerr=Z95 * rows.se, fmt=marker, ms=3.5, color=color, elinewidth=0.9, label=label)
+    ax.axhline(0, color=COLORS["light"], lw=0.6, zorder=0)
+    ax.set_xlim(-0.5, len(cells) - 0.5)
+    ax.set_xticks(range(len(cells)), [label.replace(" ", "\n") for label in cells])
+    ax.tick_params(axis="x", length=0)
+    ax.set_ylim(-1, 23)
+    ax.set_yticks([0, 5, 10, 15, 20])
+    ax.set_ylabel("Difference (points)")
+    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, handletextpad=0.3, handlelength=1.2, borderaxespad=0.2)
     save(fig, figs, "fig2_ai.pdf", COLUMN_WIDTH)
 
 
@@ -461,48 +424,6 @@ def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     save(fig, figs, "fig4_fields.pdf", COLUMN_WIDTH)
 
 
-def cross(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    placebo = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet"))
-    other = in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"other_panel_outcomes_{model}.parquet"))
-    venue = placebo[placebo.placebo_kind == SAME_VENUE_PLACEBO]
-    area = placebo[(placebo.conf == "ICLR") & (placebo.placebo_kind == "same_area3")]
-    fig = plt.figure(figsize=(PAGE_WIDTH - 0.1, 3.3))
-    grid = fig.add_gridspec(2, 10, left=0.07, right=0.985, top=0.92, bottom=0.08, hspace=0.95, wspace=0.5)
-    iclr_ax, neurips_ax = fig.add_subplot(grid[0, :5]), fig.add_subplot(grid[0, 7:])
-    journal_axes = [fig.add_subplot(grid[1, 2 * k : 2 * k + 2]) for k in range(len(JOURNALS))]
-    last = settings.ICLR_LAST
-
-    same_venue = mean_line(iclr_ax, venue[venue.conf == "ICLR"], "hit_rate_strict", COLORS["ICLR"])
-    same_area = mean_line(iclr_ax, area, "hit_rate_strict", COLORS["ICLR"], ls="--", mfc="white")
-    end_label(iclr_ax, last, same_area.loc[last, "mean"], "one research area\n(three papers)", COLORS["ICLR"], dx=6, dy=9)
-    end_label(iclr_ax, last, same_venue.loc[last, "mean"], "one venue-year\n(four papers)", COLORS["ICLR"], dx=6, dy=-9)
-    iclr_ax.set_title("a  ICLR", fontweight="bold")
-    mean_line(neurips_ax, venue[venue.conf == "NeurIPS"], "hit_rate_strict", COLORS["NeurIPS"])
-    neurips_ax.set_title("b  NeurIPS, one venue-year", fontweight="bold")
-    for ax, (conf, title) in zip(journal_axes, JOURNALS.items(), strict=True):
-        mean_line(ax, other[(other.conf == conf) & other.placebo], "hit_rate_strict", COLORS["ink"])
-        ax.set_title(title, loc="center")
-    top_of_row = journal_axes[0].get_position().y1
-    fig.text(0.07, top_of_row + 0.055, "c  Journals, one source-year", fontweight="bold", ha="left", va="bottom")
-
-    for ax in [iclr_ax, neurips_ax, *journal_axes]:
-        shade_chatgpt_period(ax)
-        ax.set_ylim(-0.3, 4)
-        ax.set_yticks([0, 2, 4])
-    iclr_ax.set_xlim(2019.6, last + 0.4)
-    iclr_ax.set_xticks(range(2020, last + 1), [f"'{year % 100}" for year in range(2020, last + 1)])
-    neurips_ax.set_xlim(2020.6, 2025.4)
-    neurips_ax.set_xticks(range(2021, 2026), [f"'{year % 100}" for year in range(2021, 2026)])
-    for ax in journal_axes:
-        ax.set_xlim(2018.4, 2026.6)
-        year_ticks(ax, (2019, 2022, 2026))
-    for ax in journal_axes[1:]:
-        ax.tick_params(labelleft=False)
-    for ax in [iclr_ax, journal_axes[0]]:
-        ax.set_ylabel("Overlap (%)")
-    save(fig, figs, "figA_cross.pdf", PAGE_WIDTH)
-
-
 def calibrate_embedding(cells):
     cells = cells.copy()
     baseline = cells[cells.year.between(settings.ICLR_FROM, 2022)].groupby("conf").inter_area.mean()
@@ -541,7 +462,7 @@ def embedding(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
 
 
 def all_figures(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
-    for draw in [overlap, ai, ai_checks, categories, fields, cross, embedding]:
+    for draw in [overlap, ai, ai_checks, categories, fields, embedding]:
         draw(figs, model)
 
 
@@ -1057,7 +978,6 @@ if __name__ == "__main__":
             "categories": categories,
             "fields": fields,
             "embedding": embedding,
-            "cross": cross,
             "table": table,
             "numbers": numbers,
             "prompts": prompts,

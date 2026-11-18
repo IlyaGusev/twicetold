@@ -19,7 +19,7 @@ from between import normalize_rows, openai_embed
 from jsonl import load_jsonl, read_jsonl
 from metrics import assign, mean_overlap, review_groups
 from metrics import overlap as pair_overlap
-from outcomes import analysis_pairs, excluded_review_ids, in_window
+from outcomes import analysis_pairs, in_window
 from settings import settings
 
 REMOVED_FIELD_TAGS = ("_nocq", "_noq")
@@ -491,81 +491,6 @@ def pair_type_sizes(
     pair_type_sizes_table(out, tex)
 
 
-DETECTOR_QUANTILES = (0.99, 0.995, 0.999)
-
-
-def detector_row(label, quantile, flags, pairs, iclr_last, flagged=None):
-    pre = flags[flags.year <= settings.MELD_CALIBRATION_LAST_YEAR]
-    flag = flags[~flags.index.duplicated()].flag.astype(int)
-    counts = pair_counts(pairs, flag)
-    if flagged is None:
-        gap = direct_gap(pairs, flag)
-    else:
-        types = pair_type(pairs, flagged[~flagged.index.duplicated()].flag.astype(int), flag)
-        written_gap = paper_gap(pairs, types, "WW", "HH")
-        gap = dict(two=written_gap["est"], two_se=written_gap["se"], papers=written_gap["papers"])
-    last = flag.reindex(iclr_last)
-    return dict(
-        label=label,
-        percentile=quantile * 100,
-        pre_max=pre.groupby("conf").flag.mean().max() * 100,
-        iclr_last=last.mean() * 100,
-        two=gap["two"],
-        two_se=gap["two_se"],
-        papers=int(gap["papers"]),
-        two_pairs=int((counts == 2).sum()),
-    )
-
-
-def detector_table(out, tex):
-    lines = [
-        r"\begin{tabular}{@{}lrrrrrr@{}}",
-        r"\toprule",
-        r"Label & \shortstack[r]{Threshold\\percentile} & \shortstack[r]{Highest pre-2023\\rate (\%)} & "
-        rf"\shortstack[r]{{ICLR {settings.ICLR_LAST}\\rate (\%)}} & \shortstack[r]{{Gap\\(points)}} & "
-        r"\shortstack[r]{Pairs of two\\labeled reviews} & Papers \\",
-        r"\midrule",
-    ]
-    for k, r in enumerate(out.itertuples()):
-        if k and r.percentile == DETECTOR_QUANTILES[0] * 100:
-            lines.append(r"\midrule")
-        label = r.label.replace("Flagged", "LLM-flagged")
-        lines.append(
-            f"{label} & {r.percentile:g} & {r.pre_max:.2f} & {r.iclr_last:.1f} & {r.two:+.1f} & {r.two_pairs:,} & {r.papers:,} \\\\"
-        )
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
-
-
-def detector_table_from_report(
-    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "detector_choices.tex"
-):
-    detector_table(pd.read_csv(Path(reports) / f"detector_choices_{model}.csv"), tex)
-
-
-def detector_choices(
-    model=settings.DEFAULT_MODEL,
-    data=settings.WORK_DIR,
-    reports=settings.ANALYSIS_REPORTS_DIR,
-    tex=settings.TABLES_DIR / "detector_choices.tex",
-):
-    meld = hub.meld_flags(["conf", "year", "score", "task"])
-    pairs = analysis_pairs(model)
-    pairs = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)]
-    iclr_last = meld[(meld.conf == "ICLR") & (meld.year == settings.ICLR_LAST)].index
-    iclr_last = iclr_last[~iclr_last.isin(excluded_review_ids())]
-    calibration = meld[meld.year <= settings.MELD_CALIBRATION_LAST_YEAR].score
-    rows = []
-    for quantile in DETECTOR_QUANTILES:
-        flagged = meld.assign(flag=meld.score > calibration.quantile(quantile))
-        written = flagged.assign(flag=flagged.flag & (flagged.task == settings.MELD_WRITTEN_TASK))
-        rows.append(detector_row("Flagged", quantile, flagged, pairs, iclr_last))
-        rows.append(detector_row("LLM-written", quantile, written, pairs, iclr_last, flagged))
-    out = pd.DataFrame(rows).sort_values(["label", "percentile"], key=lambda s: s.eq("LLM-written") if s.name == "label" else s)
-    out.to_csv(Path(reports) / f"detector_choices_{model}.csv", index=False)
-    print(out.round(2).to_string(index=False))
-    detector_table(out, tex)
-
-
 JOURNAL_SUBSETS = ["Identifying", "3--5 reports, other", "Two reports"]
 JOURNAL_ORDER = ["F1000", "PLOS", "Copernicus", "BMC-Med", "SciPost"]
 
@@ -858,8 +783,8 @@ def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR
     out = out.reset_index()
     out.round(3).to_csv(Path(reports) / f"coverage_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    shown = ["per_review", "problems", "lost", "new_by_third", "shared_per_pair"]
-    heads = [r"Per\\review", "Distinct", r"Lost to\\repetition", r"New in a\\third review", r"Shared\\per pair"]
+    shown = ["per_review", "problems", "new_by_third", "shared_per_pair"]
+    heads = [r"Per\\review", "Distinct", r"New in a\\third review", r"Shared\\per pair"]
     lines = [
         r"\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}l" + "c" * len(heads) + "@{}}",
         r"\toprule",
@@ -1270,7 +1195,7 @@ def write_cell_table(out, tex, columns):
     header = [" & & & & " + " & ".join(top for top, _, _ in titles) + r" \\"] if any(sep for _, sep, _ in titles) else []
     header.append("Panels & Source & Detector stratum & $n$ & " + " & ".join(bottom or top for top, _, bottom in titles) + r" \\")
     lines = [r"\begin{tabular}{@{}lll" + "r" * (len(columns) + 1) + "@{}}", r"\toprule", *header, r"\midrule"]
-    for r in out[out.split == "all"].itertuples():
+    for r in out[(out.split == "all") & out.conf.isin(["all", *settings.ML_VENUES])].itertuples():
         cell = (r.years if r.stratum == "all" else r.stratum).replace("all", "All")
         values = []
         for name, _, digits, with_se in columns:
@@ -1855,8 +1780,6 @@ if __name__ == "__main__":
             "pair_types": pair_types,
             "pair_type_sizes": pair_type_sizes,
             "pair_type_sizes_table": pair_type_sizes_table_from_report,
-            "detector_choices": detector_choices,
-            "detector_table": detector_table_from_report,
             "journal_subsets": journal_subsets,
             "coverage": coverage,
             "decomposition": decomposition,
