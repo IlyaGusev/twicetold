@@ -141,10 +141,12 @@ FORM_COLUMNS = ["hit", "hit_removed", "hit_without", "form_share"]
 
 def forms_table(out, tex):
     lines = [
-        r"\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4.3cm}rrrrr@{}}",
+        r"\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{5.6cm}rrrrr@{}}",
         r"\toprule",
-        r"Year & Text fields & Papers & \shortstack[r]{Overlap\\(\%)} & \shortstack[r]{Overlap, field\\deleted (\%)} & "
-        r"\shortstack[r]{Overlap, categories\\dropped (\%)} & \shortstack[r]{Shared problems\\in categories (\%)} \\",
+        r" & & & \multicolumn{3}{c}{Overlap (\%)} & \\",
+        r"\cmidrule(lr){4-6}",
+        r"Year & Text fields & Papers & \shortstack[r]{Whole\\reviews} & \shortstack[r]{Field\\deleted} & "
+        r"\shortstack[r]{Categories\\dropped} & \shortstack[r]{Shared problems\\in categories (\%)} \\",
         r"\midrule",
     ]
     for r in out.itertuples():
@@ -431,6 +433,10 @@ def type_fit(cell, types, outcome, controls=()):
     return sm.OLS(X.y, X[[*PAIR_TYPES, *controls]]).fit(cov_type="cluster", cov_kwds={"groups": pd.factorize(cell.panel_id)[0]})
 
 
+def minus_signs(text):
+    return re.sub(r"(?<![\w-])-(?=\d)", "$-$", text)
+
+
 def pair_type_sizes_table(out, tex):
     lines = [
         r"\begin{tabular}{@{}lrrrrrr@{}}",
@@ -446,7 +452,7 @@ def pair_type_sizes_table(out, tex):
         else:
             cells = [f"{getattr(r, name):+.{1 if name == 'hit' else 2}f}" for name in [*PAIR_SIZE_OUTCOMES, "shared_adjusted"]]
         lines.append(f"{PAIR_TYPE_NAMES[r.pair_type]} & {r.pairs:,} & " + " & ".join(cells) + r" \\")
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    Path(tex).write_text(minus_signs("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n"))
 
 
 def pair_type_sizes_table_from_report(
@@ -836,7 +842,7 @@ def decomposition_table(out, tex):
             cells += ["--" if pd.isna(r.change) else f"{getattr(r, name):+.2f}" for name in TABLE_TERMS]
             lines.append(" & ".join(cells) + r" \\")
         lines.append(r"\midrule")
-    Path(tex).write_text("\n".join(lines[:-1] + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    Path(tex).write_text(minus_signs("\n".join(lines[:-1] + [r"\bottomrule", r"\end{tabular}"]) + "\n"))
 
 
 def decomposition_table_from_report(
@@ -915,7 +921,7 @@ def second_detector_table(out, tex):
             est, se = getattr(r, name), getattr(r, f"{name}_se")
             cells += [f"{est:+.1f} [{est - Z95 * se:+.1f}, {est + Z95 * se:+.1f}]", f"{getattr(r, f'{name}_pairs'):,}"]
         lines.append(" & ".join(cells) + r" \\")
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    Path(tex).write_text(minus_signs("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n"))
 
 
 def second_detector(
@@ -1102,7 +1108,7 @@ def rewrite_test(
             f"{r.two_diff:+.1f} [{r.two_diff_low:+.1f}, {r.two_diff_high:+.1f}] & {r.two:+.1f} ({r.two_se:.1f}) & "
             f"{r.alone_diff:+.1f} [{r.alone_diff_low:+.1f}, {r.alone_diff_high:+.1f}] \\\\"
         )
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    Path(tex).write_text(minus_signs("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n"))
 
 
 def claim_group_ids(clusters):
@@ -1187,7 +1193,7 @@ def write_cell_table(out, tex, columns):
         cell = (r.years if r.stratum == "all" else r.stratum).replace("all", "All")
         values = []
         for name, _, digits, with_se in columns:
-            text = f"{getattr(r, name):.{digits}f}"
+            text = f"{getattr(r, name):,.{digits}f}"
             values.append(text + f" ({getattr(r, name + '_se'):.{digits}f})" if with_se else text)
         lines.append(f"{names[r.kind]} & {r.conf.replace('all', 'All')} & {cell} & {r.panels} & " + " & ".join(values) + r" \\")
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
@@ -1666,7 +1672,7 @@ def grouper_swap_table(out, tex):
             value, se = getattr(r, name), getattr(r, name + "_se")
             cells.append(f"{value:+.1f} [{value - Z95 * se:.1f}, {value + Z95 * se:.1f}]")
         lines.append(f"{SWAP_LABELS[r.grouper]} & " + " & ".join(cells) + r" \\")
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular*}"]) + "\n")
+    Path(tex).write_text(minus_signs("\n".join(lines + [r"\bottomrule", r"\end{tabular*}"]) + "\n"))
 
 
 def grouper_swap(

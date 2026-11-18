@@ -10,7 +10,7 @@ from tqdm import tqdm
 import hub
 from outcomes import in_window, scored_pairs, scored_review_ids
 from settings import settings
-from validate import pair_counts
+from validate import minus_signs, pair_counts
 
 Z95 = 1.96
 MAX_CELL_SIZE = 25
@@ -216,7 +216,7 @@ def measures(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR
     out = estimates(model)
     out.to_csv(Path(reports) / f"measures_{model}.csv", index=False)
     print(out.drop(columns="digits").round(3).to_string(index=False))
-    Path(tex).write_text(latex(out))
+    Path(tex).write_text(minus_signs(latex(out)))
 
 
 if __name__ == "__main__":

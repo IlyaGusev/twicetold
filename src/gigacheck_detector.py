@@ -60,20 +60,30 @@ REVIEW_ROWS = [
 ]
 
 
-def compare_table(reports, tex, known_tex):
+KNOWN_GROUP_STARTS = {"polish", "rewrite_panel", "intel_ai"}
+
+
+def compare_table(
+    reports=settings.REPORTS_DIR,
+    tex=settings.TABLES_DIR / "detectors_compare.tex",
+    known_tex=settings.TABLES_DIR / "known_texts.tex",
+):
     known = pd.read_csv(Path(reports) / "meld_labels.csv").set_index("known")
     known = known.assign(
         meld=100 - known.unflagged, gigacheck=pd.read_csv(Path(reports) / "gigacheck_labels.csv").set_index("known").flagged
     )
     head = r"Texts & $n$ & \shortstack[r]{MELD\\flagged (\%)} & \shortstack[r]{GigaCheck\\flagged (\%)} \\"
     lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", head, r"\midrule"]
-    lines += [f"{KNOWN_SETS[k]} & {int(r.texts):,} & {r.meld:.1f} & {r.gigacheck:.1f} \\\\" for k, r in known.iterrows()]
+    for k, r in known.iterrows():
+        lines += [r"\midrule"] * (k in KNOWN_GROUP_STARTS)
+        lines.append(f"{KNOWN_SETS[k]} & {int(r.texts):,} & {r.meld:.1f} & {r.gigacheck:.1f} \\\\")
     Path(known_tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
     lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", r"Reviews & $n$ & MELD (\%) & GigaCheck (\%) \\", r"\midrule"]
     rates = pd.read_csv(Path(reports) / "meld_rates.csv").merge(
         pd.read_csv(Path(reports) / "gigacheck_rates.csv"), on=["set", "conf", "year"], suffixes=("_meld", "_gigacheck")
     )
-    for label, name, conf, years in REVIEW_ROWS:
+    for k, (label, name, conf, years) in enumerate(REVIEW_ROWS):
+        lines += [r"\midrule"] * (k > 0)
         cell = rates[(rates.set == name) & (rates.conf == conf if conf else True)]
         for year in years:
             part = cell[cell.year == year]
@@ -98,4 +108,4 @@ def flags(
 
 
 if __name__ == "__main__":
-    fire.Fire({"scores": scores, "flags": flags})
+    fire.Fire({"scores": scores, "flags": flags, "compare_table": compare_table})

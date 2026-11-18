@@ -173,7 +173,7 @@ Our results suggest that the reviews of one paper have lost part of their indepe
 
 \clearpage
 \section*{Limitations}
-\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference uses LLMs, not humans, and does not rule out shared model errors. The human check covers pass 1 only. Extraction and grouping errors can affect measured levels and changes over time. The overlap level depends on the grouper: council members give \RefPipeLevelMemberMin{} to \RefPipeLevelMemberMax\% against Luna's \RefPipeLuna\%. Every level in this paper is Luna's, and the contrasts hold in all four pipelines. Luna misses more links in papers with no flagged review. LLM groupers agree that this error changes comparisons between papers but not within-paper gaps. No human annotator checked the grouping.
+\textbf{LLM measurement.} An LLM extracts and groups claims. The council reference uses LLMs, not humans, and does not rule out shared model errors. The human check covers pass 1 only. Extraction and grouping errors can affect measured levels and changes over time. The overlap level depends on the grouper: council members give \RefPipeLevelMemberMin{} to \RefPipeLevelMemberMax\% against Luna's \RefPipeLuna\%. Luna misses more links in papers with no flagged review. LLM groupers agree that this error changes comparisons between papers but not within-paper gaps.
 
 \textbf{Review snapshots.} ICLR samples hold final reviews before 2026 and reviews during the discussion phase from 2026 on, so the ICLR series compares reviews of one stage only from 2026 to 2027. For the same reason, we report ICLR flagged-pair gaps for 2024--2025 and 2026--2027 apart.
 
@@ -203,7 +203,7 @@ The authors created the idea and the outlines of the experiments, and acted as s
 \label{app:data}
 
 \paragraph{Sampling and dates.}
-OpenReview and journal collection took place on 27--29 October 2026, with more journal papers on 6 November 2026. ICLR 2027 reviews come from 15 November 2026, eight days after they became public and before decisions. ICLR 2026 reviews come from a snapshot of 21 November 2025 \citep{heineman2026iclr}, ten days after the reviews became public. After that date, the organizers reset all reviews to their state at the start of the discussion phase \citep{iclr2026incident}, so the public record holds no final version of these reviews. The journal year 2026 covers January--October. BMC Medicine ends in 2025. We sampled all ICLR (2020--2027) and NeurIPS (2021--2025) papers with at least three reviews, all ICML accepted papers in 2025 and 2026, and up to 2,000 papers per journal source-year with at least two first-round reviews. Withdrawn and desk-rejected papers do not enter the main sample before 2026. The ICLR samples of 2026 and 2027 keep them, so that both years hold all papers with three reviews (RQ\ref{app:rise}). Table~\ref{tab:byyear} gives each conference source-year and each journal source in two periods.
+OpenReview and journal collection took place on 27--29 October 2026, with more journal papers on 6 November 2026. ICLR 2027 reviews come from 15 November 2026, eight days after they became public and before decisions. ICLR 2026 reviews come from a snapshot of 21 November 2025 \citep{heineman2026iclr}, ten days after the reviews became public. After that date, the organizers reset all reviews to their state at the start of the discussion phase \citep{iclr2026incident}, so the public record holds no final version of these reviews. The journal year 2026 covers January--October. BMC Medicine ends in 2025. We sampled all ICLR (2020--2027) and NeurIPS (2021--2025) papers with at least three reviews, all ICML accepted papers in 2025 and 2026, and up to 2,000 papers per journal source-year with at least two first-round reviews. Withdrawn and desk-rejected papers do not enter the main sample before 2026. The ICLR samples of 2026 and 2027 keep them, so that both years hold all papers with three reviews. Table~\ref{tab:byyear} gives each conference source-year and each journal source in two periods.
 
 \begin{table}[!htp]
 \centering\footnotesize
@@ -221,14 +221,14 @@ ICML changed its form between 2025 and 2026 and also changed its LLM policy \cit
 
 \paragraph{ICLR review forms.}
 \label{app:forms}
-The 2023 ICLR form raised overlap in that year. ICLR changed the free-text fields of its form in 2022, 2023, 2024 and 2027 (Table~\ref{tab:forms}). Only the 2023 form had a separate field on clarity, quality, novelty and reproducibility, which asks each reviewer about the same topics. In 2023, \FormSharedBase\% of the shared problems of a paper include a claim on clarity, novelty or reproducibility, against \FormSharedPrev\% in 2022.
+The 2023 ICLR form raised overlap in that year. ICLR changed the free-text fields of its form in 2022, 2023, 2024 and 2027 (Table~\ref{tab:forms}). Only the 2023 form had a separate field on clarity, quality, novelty and reproducibility, which asks each reviewer about the same topics. In 2023, \FormSharedBase\% of the shared problems of a paper include a claim on clarity, novelty or reproducibility, against \FormSharedPrev\% in 2022 (last column of Table~\ref{tab:forms}).
 
-Two tests measure the effect of this field. In the first test, we delete the text of one field from each review and run both passes again. Without the clarity field, 2023 overlap changes by $\FieldRemovedChange$ points. As a control, without the questions field, 2024 overlap changes by $\QuestionsRemovedChange$ points. In the second test, we keep each review whole and drop the claims in the categories clarity, novelty and reproducibility from the existing groups. Overlap is then \FormWithoutPrev\% in 2022, \FormWithoutBase\% in 2023 and \FormWithoutNext\% in 2024, so 2023 no longer stands above the years next to it.
+Two tests measure the effect of this field. First, we delete the clarity field from each 2023 review and run both passes again. Overlap changes by $\FieldRemovedChange$ points. Deleting any field can change overlap, so as a control we delete the questions field from each 2024 review. Overlap then changes by only $\QuestionsRemovedChange$ points. Second, we keep each review whole and remove from the existing groups each claim that Luna labels as clarity, novelty or reproducibility. Overlap is then \FormWithoutPrev\% in 2022, \FormWithoutBase\% in 2023 and \FormWithoutNext\% in 2024, so 2023 no longer stands above the years next to it.
 
 \begin{table}[!htp]
 \centering\small
 \input{tables/forms}
-\caption{Only the 2023 ICLR form had a separate field on clarity, quality, novelty and reproducibility (bold). We delete the clarity field in 2023 and the questions field in 2024--2027, and run both passes again. The dropped categories are clarity, novelty and reproducibility. All values are means over papers.}
+\caption{Only the 2023 ICLR form had a separate field on clarity, quality, novelty and reproducibility (bold). Field deleted: we delete the clarity field in 2023 and the questions field in 2024--2027, and run both passes again. Categories dropped: we remove the claims on clarity, novelty and reproducibility from the existing groups. Shared problems in categories: share of the shared problems of a paper that include at least one claim on clarity, novelty or reproducibility. All values are means over papers.}
 \label{tab:forms}
 \end{table}
 
@@ -310,30 +310,31 @@ Any ratio of shared problems to set size depends on set size, and the raw shared
 \section{LLM Detector}
 \label{app:ai}
 
-\paragraph{Scoring.}
+\paragraph{MELD.}
 We run MELD \citep{li2026meld} from Hugging Face (\texttt{anon-review-meld-2026/meld}, revision \texttt{ddfc9c7}). Our review texts join the fields of a review form with tags such as [STRENGTHS], and we delete these tags before scoring, because the reviewer did not write them. MELD scores each token of the text, in windows of 2,048 tokens, up to its own length limit. A text's score is the mean of its top 25\% of token scores, as in MELD's own scorer.
 
-\paragraph{Threshold.}
-The 99.9th percentile of \MeldCalibrationReviews{} pre-2023 scores gives \MeldThreshold. \ReproCalibrationInAnalysis{} of these reviews enter the analysis. The other \ReproCalibrationOutside{} come from years before the analysis (ICLR 2017--2019, journals 2018) or from no analysis panel, such as journal reviews above the cap of five reviews per paper. No source's pre-2023 flag rate exceeds \MeldPreSourceMax\%. At lower thresholds, the flagged-pair gap holds in ICLR 2026--2027 and shrinks in 2024--2025 (Figure~\ref{fig:checks}). At the 99th and the 99.5th percentile, the gap is \ThresholdLowGapLate{} and \ThresholdMidGapLate{} points in 2026--2027, against \FlagGapLate{} at the 99.9th percentile. In 2024--2025, it is \ThresholdLowGapEarly{} and \ThresholdMidGapEarly{} points, against \FlagGapEarly{}, and the 95\% interval at the 99th percentile includes zero.
+\paragraph{GigaCheck.}
+As a second detector, we run the binary GigaCheck classifier \citep{tolstykh2026gigacheck} on Mistral-7B, trained on the LLMTrace corpus \citep{tolstykh2026llmtrace}, from Hugging Face (\texttt{iitolstykh/GigaCheck-Classifier-Multi}, revision \texttt{1b88531}) with the input code of the model. A text's score is the logit of the AI label minus the logit of the human label on its first 1,024 tokens.
 
+\paragraph{Threshold.}
+For each detector, the threshold is the 99.9th percentile of its scores on the same \MeldCalibrationReviews{} pre-2023 reviews: \MeldThreshold{} for MELD and \GigacheckThreshold{} for GigaCheck. \ReproCalibrationInAnalysis{} of these reviews enter the analysis. The other \ReproCalibrationOutside{} come from years before the analysis (ICLR 2017--2019, journals 2018) or from no analysis panel, such as journal reviews above the cap of five reviews per paper. No source's pre-2023 MELD flag rate exceeds \MeldPreSourceMax\%. GigaCheck flags \GigacheckHeldoutFlagged\% of the ICLR 2023 reviews.
 
 \paragraph{Known texts.}
-Table~\ref{tab:labels} tests texts of known origin. MELD flags \MeldIntelAiRecall\% of \MeldIntelAiReviews{} LLM reviews of ICLR 2021--2024 papers \citep{yu2026reviewed}. Luna polished \PolishTexts{} human reviews from 2018--2021 and kept every point, and MELD flags \PolishFlagged\% of them. MELD flags all reviews written from the paper alone and almost all outline rewrites. These tests do not establish label precision on naturally submitted reviews.
+Table~\ref{tab:labels} tests texts of known origin. MELD flags \MeldIntelAiRecall\% of \MeldIntelAiReviews{} LLM reviews of ICLR 2021--2024 papers \citep{yu2026reviewed}. Luna polished \PolishTexts{} human reviews from 2018--2021 and kept every point, and MELD flags \PolishFlagged\% of them. MELD flags all reviews written from the paper alone and almost all outline rewrites. GigaCheck flags fewer of the polished and LLM-written texts. These tests do not establish label precision on naturally submitted reviews.
 
 \begin{table}[!htp]
 \centering\footnotesize
-\setlength{\tabcolsep}{2pt}
 \input{tables/known_texts}
 \caption{MELD flags almost no pre-2023 human reviews and all reviews that an LLM wrote from the paper. Shares of each set of texts of known origin. The ICLR 2023 reviews were due before ChatGPT's release. Luna polished human reviews and wrote reviews from outlines of human reviews. The panel rows are the texts of the rewrite control (RQ\ref{app:rewrite}). The last three rows are reviews that an LLM wrote from the paper alone, and the five LLMs are those of \citet{yu2026reviewed}.}
 \label{tab:labels}
 \end{table}
 
 
-\paragraph{Rates.}
-Table~\ref{tab:byyear} gives flag rates by source-year. In 2027, MELD flags \IclrFlaggedLast\% of ICLR reviews. The ICML 2026 trial gives an outside reference \citep{kim2026icmltrial}. On a stratified sample of main-track reviews, the Pangram API labels as human-written 52.2\% of the reviews of papers under the policy that prohibited LLM use and 37.0\% under the policy that allowed limited use. MELD flags \IcmlFlaggedLast\% of our ICML 2026 reviews, which come from accepted papers only. Both rates are detector outputs, not known labels. ICML 2025 banned LLM use, and MELD flags \IcmlFlaggedBase\% of its reviews. Reviewers break such bans: under the ICML 2026 ban, 22.5\% of surveyed reviewers reported LLM use.
+\paragraph{Flag rates.}
+GigaCheck flags fewer reviews than MELD in each source-year (Table~\ref{tab:compare}). In 2027, MELD flags \IclrFlaggedLast\% of ICLR reviews. From 2025 to 2027, the GigaCheck rate at ICLR changes little, and the MELD rate keeps rising. On \GigacheckAgreementReviews{} reviews from 2023 on, both detectors flag \GigacheckBoth\%, only MELD flags \GigacheckMeldOnly\% and only GigaCheck flags \GigacheckOnly\% (Cohen's $\kappa = \GigacheckKappa$).
 
-\paragraph{Second detector.}
-We also scored the same texts with GigaCheck \citep{tolstykh2026gigacheck}. We run its binary classifier on Mistral-7B, trained on the LLMTrace corpus \citep{tolstykh2026llmtrace}, from Hugging Face (\texttt{iitolstykh/GigaCheck-Classifier-Multi}, revision \texttt{1b88531}) with the input code of the model. A text's score is the logit of the AI label minus the logit of the human label on its first 1,024 tokens. The threshold follows the MELD rule: the 99.9th percentile of the same \MeldCalibrationReviews{} pre-2023 scores gives \GigacheckThreshold. GigaCheck flags \GigacheckHeldoutFlagged\% of the ICLR 2023 reviews. GigaCheck flags fewer reviews than MELD in each source-year (Table~\ref{tab:compare}) and fewer of the polished and LLM-written texts (Table~\ref{tab:labels}). From 2025 to 2027, the GigaCheck rate at ICLR changes little, and the MELD rate keeps rising. On \GigacheckAgreementReviews{} reviews from 2023 on, both detectors flag \GigacheckBoth\%, only MELD flags \GigacheckMeldOnly\% and only GigaCheck flags \GigacheckOnly\% (Cohen's $\kappa = \GigacheckKappa$). With GigaCheck flags, the flagged-pair gap of Equation~\ref{eq:gap} is positive in all five sets of reviews (Table~\ref{tab:second}). The 95\% interval excludes zero in the four conference sets and includes zero in the journals. At ICLR, the gap is \GigacheckFlagGapEarly{} points in 2024--2025 and \GigacheckFlagGapLate{} in 2026--2027, against \FlagGapEarly{} and \FlagGapLate{} with MELD flags. All other results in this paper use MELD flags.
+\paragraph{ICML reference.}
+The ICML 2026 trial gives an outside reference \citep{kim2026icmltrial}. On a stratified sample of main-track reviews, the Pangram API labels as human-written 52.2\% of the reviews of papers under the policy that prohibited LLM use and 37.0\% under the policy that allowed limited use. MELD flags \IcmlFlaggedLast\% of our ICML 2026 reviews, which come from accepted papers only. Both rates are detector outputs, not known labels. ICML 2025 banned LLM use, and MELD flags \IcmlFlaggedBase\% of its reviews. Reviewers break such bans: under the ICML 2026 ban, 22.5\% of surveyed reviewers reported LLM use.
 
 \begin{table}[!htp]
 \centering\footnotesize
@@ -341,6 +342,9 @@ We also scored the same texts with GigaCheck \citep{tolstykh2026gigacheck}. We r
 \caption{GigaCheck flags fewer recent reviews than MELD. Share of the sampled reviews of each source and year that each detector flags, with the five journal sources pooled. Each threshold is the 99.9th percentile of that detector's scores on the same pre-2023 reviews. The counts include reviews of withdrawn and desk-rejected papers. The journal counts also include reviews above the cap of five reviews per paper, which Table~\ref{tab:byyear} leaves out: \JournalCappedReviews{} in 2024--2026.}
 \label{tab:compare}
 \end{table}
+
+\paragraph{Flagged-pair gap.}
+The flagged-pair gap of Equation~\ref{eq:gap} keeps its sign with GigaCheck flags and at lower MELD thresholds. With GigaCheck flags, the gap is positive in all five sets of reviews (Table~\ref{tab:second}). The 95\% interval excludes zero in the four conference sets and includes zero in the journals. At ICLR, the gap is \GigacheckFlagGapEarly{} points in 2024--2025 and \GigacheckFlagGapLate{} in 2026--2027, against \FlagGapEarly{} and \FlagGapLate{} with MELD flags. At lower MELD thresholds, the gap holds in ICLR 2026--2027 and shrinks in 2024--2025 (Figure~\ref{fig:checks}). At the 99th and the 99.5th percentile, the gap is \ThresholdLowGapLate{} and \ThresholdMidGapLate{} points in 2026--2027, against \FlagGapLate{} at the 99.9th percentile. In 2024--2025, it is \ThresholdLowGapEarly{} and \ThresholdMidGapEarly{} points, against \FlagGapEarly{}, and the 95\% interval at the 99th percentile includes zero. All other results in this paper use MELD flags at the 99.9th percentile.
 
 \begin{table}[!htp]
 \centering\footnotesize
