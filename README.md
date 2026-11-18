@@ -156,7 +156,7 @@ complete groups. Do not use this check to infer reference overlap levels or tren
    | File | Check |
    |---|---|
    | `rq1_evidence_gpt-6-luna-high.csv` | `est`, `se`: direct within-paper gap (two flagged minus unflagged, mean over papers) and its SE over papers; `identifying`: papers with both pair types |
-   | `pair_types_gpt-6-luna-high.csv` | One-flagged, other two-flagged and two-LLM-written gaps against unflagged pairs; `est_fe`, `se_fe`: the fixed-effects check |
+   | `pair_types_gpt-6-luna-high.csv` | One-flagged and two-flagged gaps against unflagged pairs; `est_fe`, `se_fe`: the fixed-effects check |
    | `identification_gpt-6-luna-high.csv` | `two`, `two_se`: fixed-effects estimate and paper-clustered SE; `endpoint*`: the direct gap again |
    | `robust_gpt-6-luna-high.csv`, `withdrawn_gpt-6-luna-high.csv` | ICLR rise from 2026 to 2027 under each analysis choice; share and overlap of withdrawn 2026 papers |
    | `pair_type_sizes_gpt-6-luna-high.csv` | Shared-problem counts, set sizes, and size-adjusted contrasts |
@@ -167,7 +167,6 @@ complete groups. Do not use this check to infer reference overlap levels or tren
    | Sample | Papers with both pair types | Gap (points) | SE |
    |---|---:|---:|---:|
    | ICLR 2024–27, flagged | 5,775 | 3.2 | 0.3 |
-   | ICLR 2024–27, LLM-written | 1,649 | 6.9 | 0.6 |
    | NeurIPS 2024–25, flagged | 1,005 | 4.7 | 0.7 |
    | ICML 2025–26, flagged | 2,433 | 4.0 | 0.5 |
 

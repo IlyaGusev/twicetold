@@ -66,6 +66,7 @@ COLORS = {
     "F1000": "#CC79A7",
     "PLOS": "#56B4E9",
     "flag": "#E69F00",
+    "flag_light": "#F3CF7F",
     "grey": "#8C8C8C",
     "light": "#C8C8C8",
     "ink": "#222222",
@@ -160,30 +161,72 @@ def save(fig, figs, name, width):
 
 
 def kept_meld_flags():
-    flags = hub.meld_flags(["conf", "year", "flag", "written"])
+    flags = hub.meld_flags(["conf", "year", "flag"])
     return flags[~flags.index.isin(excluded_review_ids())]
 
 
+PAIR_TYPE_STYLES = {
+    "HH": ("Both unflagged", COLORS["grey"], COLORS["grey"], "o"),
+    "HL": ("One flagged", COLORS["flag_light"], COLORS["flag"], "s"),
+    "LL": ("Both flagged", COLORS["flag"], COLORS["flag"], "D"),
+}
+
+
+def pair_type_means(model):
+    flags = kept_meld_flags()
+    pairs = analysis_pairs(model)
+    cells = []
+    for label, (conf, first, last) in settings.GAP_CELLS.items():
+        cells.append(pairs[(pairs.conf == conf) & pairs.year.between(first, last)].assign(conf=label))
+    pairs = pd.concat(cells)
+    n_flagged = pairs.a.map(flags.flag).astype(int) + pairs.b.map(flags.flag).astype(int)
+    pairs["pair_type"] = n_flagged.map({0: "HH", 1: "HL", 2: "LL"})
+    per_paper = pairs.groupby(["conf", "pair_type", "panel_id"]).hit.mean() * 100
+    means = per_paper.groupby(["conf", "pair_type"]).agg(["mean", "std", "count"]).reset_index()
+    means["ci"] = Z95 * means["std"] / np.sqrt(means["count"])
+    return means
+
+
 def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
+    means = pair_type_means(model)
+    contrasts = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"pair_types_{model}.csv")
+    fig, (top, bottom) = plt.subplots(
+        2, 1, sharex=True, figsize=(COLUMN_WIDTH - 0.35, 3.4), gridspec_kw=dict(height_ratios=[1.2, 1], hspace=0.38)
+    )
     cells = list(settings.GAP_CELLS)
-    evidence = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv").set_index("label")
-    types = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"pair_types_{model}.csv")
-    series = [
-        (evidence.loc[cells], "Both flagged", COLORS["flag"], "D"),
-        (types[types.pair_type == "WW"].set_index("conf").loc[cells], "Both LLM-written", COLORS["ink"], "^"),
-    ]
-    fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.35, 1.9))
-    for k, (rows, label, color, marker) in enumerate(series):
-        x = np.arange(len(cells)) + (k - 0.5) * 0.2
-        ax.errorbar(x, rows.est, yerr=Z95 * rows.se, fmt=marker, ms=3.5, color=color, elinewidth=0.9, label=label)
-    ax.axhline(0, color=COLORS["light"], lw=0.6, zorder=0)
-    ax.set_xlim(-0.5, len(cells) - 0.5)
-    ax.set_xticks(range(len(cells)), [label.replace(" ", "\n") for label in cells])
-    ax.tick_params(axis="x", length=0)
-    ax.set_ylim(-1, 23)
-    ax.set_yticks([0, 5, 10, 15, 20])
-    ax.set_ylabel("Difference (points)")
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, handletextpad=0.3, handlelength=1.2, borderaxespad=0.2)
+    for k, (pair_type, (label, face, edge, marker)) in enumerate(PAIR_TYPE_STYLES.items()):
+        x = np.arange(len(cells)) + (k - 1) * 0.2
+        style = dict(fmt=marker, ms=3.5, mfc=face, mec=edge, mew=0.6, ecolor=edge, elinewidth=0.9)
+        rows = means[means.pair_type == pair_type].set_index("conf").loc[cells]
+        top.errorbar(x, rows["mean"], yerr=rows.ci, label=label, **style)
+        if pair_type == "HH":
+            bottom.errorbar(x, np.zeros(len(x)), **style)
+            continue
+        cell = contrasts[contrasts.pair_type == pair_type].set_index("conf").loc[cells]
+        bottom.errorbar(x, cell.est, yerr=Z95 * cell.se, **style)
+    bottom.axhline(0, color=COLORS["light"], lw=0.6, zorder=0)
+    bottom.set_xlim(-0.5, len(cells) - 0.5)
+    bottom.set_xticks(range(len(cells)), [label.replace(" ", "\n") for label in cells])
+    bottom.tick_params(axis="x", length=0)
+    top.tick_params(axis="x", length=0)
+    top.set_ylim(0, 30)
+    top.set_yticks([0, 10, 20, 30])
+    top.set_ylabel("Overlap (%)")
+    top.set_title("a  Mean overlap by pair type", fontweight="bold")
+    bottom.set_ylim(-1.5, 16)
+    bottom.set_yticks([0, 5, 10, 15])
+    bottom.set_ylabel("Difference (points)")
+    bottom.set_title("b  Difference from both unflagged", fontweight="bold")
+    fig.align_ylabels([top, bottom])
+    top.legend(
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.13),
+        ncol=3,
+        columnspacing=0.5,
+        handletextpad=0.2,
+        handlelength=1.0,
+        borderaxespad=0.2,
+    )
     save(fig, figs, "fig2_ai.pdf", COLUMN_WIDTH)
 
 
@@ -471,8 +514,8 @@ def by_year(model=settings.DEFAULT_MODEL):
     )
 
     flags = kept_meld_flags()
-    flag_rates = flags.groupby(["conf", "year"])[["flag", "written"]].mean().mul(100)
-    rows = rows.join(flag_rates.rename(columns={"flag": "ai_flagged", "written": "ai_written"}))
+    flag_rates = flags.groupby(["conf", "year"]).flag.mean().mul(100)
+    rows = rows.join(flag_rates.rename("ai_flagged"))
 
     rows = in_window(rows.reset_index())
     rows["conf"] = pd.Categorical(rows.conf, ORDER)
@@ -503,7 +546,6 @@ def journal_periods(rows):
                     match=(cell.match * by_papers).sum(),
                     match_se=np.sqrt(((cell.match_se * by_papers) ** 2).sum()),
                     ai_flagged=(cell.ai_flagged * by_reviews).sum(),
-                    ai_written=(cell.ai_written * by_reviews).sum(),
                 )
             )
     return pd.DataFrame(out).assign(conf=lambda d: pd.Categorical(d.conf, ORDER))
@@ -511,9 +553,9 @@ def journal_periods(rows):
 
 def latex(rows):
     lines = [
-        r"\begin{tabular}{llrrrrrr}",
+        r"\begin{tabular}{llrrrrr}",
         r"\toprule",
-        r"Source & Year & Papers & Reviews & \shortstack[r]{Claims\\per review} & \shortstack[r]{Overlap\\(\%)} & \shortstack[r]{LLM-flagged\\(\%)} & \shortstack[r]{LLM-written\\(\%)} \\",
+        r"Source & Year & Papers & Reviews & \shortstack[r]{Claims\\per review} & \shortstack[r]{Overlap\\(\%)} & \shortstack[r]{LLM-flagged\\(\%)} \\",
         r"\midrule",
     ]
     for conf, group in rows.groupby("conf", observed=True):
@@ -526,7 +568,6 @@ def latex(rows):
                 tex_number(row.claims_per_review),
                 f"{tex_number(row.match)} $\\pm$ {tex_number(row.match_se)}",
                 tex_number(row.ai_flagged),
-                tex_number(row.ai_written),
             ]
             lines.append(" & ".join(cells) + r" \\")
         lines.append(r"\midrule")
@@ -591,7 +632,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for label, prefix in [
         ("ICLR 2024–27", "FlagGap"),
         ("+ length and claim count", "ControlGap"),
-        ("LLM-written, ICLR 2024–27", "WrittenGap"),
         ("ICLR 2024", "FlagGapTwentyFour"),
         ("ICLR 2027", "FlagGapTwentySeven"),
     ]:
@@ -613,7 +653,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     pooled = gaps.loc["All journals"]
     record("JournalGap", pooled.est, pooled.se, pooled.papers)
     values["JournalGapRound"] = f"{pooled.est:.0f}"
-    values["WrittenGapRound"] = f"{evidence.loc['LLM-written, ICLR 2024–27'].est:.0f}"
+    values["FlagGapRound"] = f"{evidence.loc['ICLR 2024–27'].est:.0f}"
     values["JournalGapBothN"] = f"{int(pooled.both_papers):,}"
     meld = pd.read_csv(settings.REPORTS_DIR / "meld_summary.csv").set_index("name").value
     values["MeldThreshold"] = f"{meld.threshold:.2f}"
@@ -624,7 +664,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     iclr_last = by_year[(by_year.conf == "ICLR") & (by_year.year == settings.ICLR_LAST)].iloc[0]
     values["IclrLastYear"] = str(settings.ICLR_LAST)
     record("IclrFlaggedLast", iclr_last.ai_flagged)
-    record("IclrWrittenLast", iclr_last.ai_written)
     flags = kept_meld_flags().flag
     pairs = analysis_pairs(model, None).copy()
     pairs["nflag"] = pairs.a.map(flags).astype(float) + pairs.b.map(flags).astype(float)
@@ -679,7 +718,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["RefReviews"] = f"{int(same.reviews + cross.reviews)}"
     values["RefClaimsLuna"] = f"{same.claims_model:.1f}"
     values["RefClaimsCouncil"] = f"{same.claims_council:.1f}"
-    values["RefCoverThreshold"] = f"{same.cover_threshold:.2f}"
     for name, prefix in [
         ("f1_model", "RefSpanFOne"),
         ("f1_council", "RefCouncilSpanFOne"),
@@ -717,10 +755,10 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for name in ["precision", "recall", "f1"]:
         for suffix in ["", "_low", "_high"]:
             values["RefPair" + name.title().replace("1", "One") + suffix.title()[1:]] = f"{pairs['pair_' + name + suffix]:.1f}"
-    for stratum in ["plain", "flagged", "written"]:
+    for stratum in ["plain", "flagged"]:
         values["RefRatio" + stratum.title()] = f"{council.loc[('same', 'all', 'all', stratum, 'all')].pair_link_ratio:.0f}"
     council_types = pd.read_csv(reports / f"council_pair_types_{model}.csv").set_index("pair_type")
-    for kind, name in [("HH", "None"), ("LL", "Two"), ("WW", "Written")]:
+    for kind, name in [("HH", "None"), ("LL", "Two")]:
         values["RefTypeRatio" + name] = f"{council_types.loc[kind].pair_link_ratio:.0f}"
     values["RefTypeLinksNone"] = f"{int(council_types.loc['HH', ['pair_tp', 'pair_fn']].sum())}"
     swap = pd.read_csv(reports / f"grouper_swap_{model}.csv").set_index("grouper")
@@ -748,7 +786,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["RefPipeLevelMemberMax"] = f"{members.level.max():.1f}"
     for name, prefix, digits in [
         ("flag_gap", "RefPipeFlag", 1),
-        ("written_gap", "RefPipeWritten", 1),
         ("iclr_slope", "RefPipeSlope", 2),
         ("iclr_step", "RefPipeStep", 1),
     ]:
@@ -808,7 +845,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
                 values[prefix + label + "Low"] = f"{row[name] - Z95 * row[name + '_se']:+.2f}"
                 values[prefix + label + "High"] = f"{row[name] + Z95 * row[name + '_se']:+.2f}"
     types = pd.read_csv(reports / f"pair_types_{model}.csv").set_index(["conf", "pair_type"])
-    values["FeWrittenGap"] = f"{types.loc[(next(iter(settings.GAP_CELLS)), 'WW')].est_fe:.1f}"
     for (conf, pair_type), row in types.iterrows():
         record(f"Type{pair_type.title()}{GAP_PREFIX[conf]}", row.est, row.se, row.papers)
     steps = pd.read_csv(reports / f"decomposition_{model}.csv").set_index(["conf", "year"])
@@ -824,7 +860,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["DecIclrCleanBase"] = f"{step_base.overlap_clean:.1f}"
     values["DecIclrCleanLast"] = f"{step.overlap_clean:.1f}"
     values["DecSnapCleanLast"] = f"{step_snap.overlap_clean:.1f}"
-    values["DecIclrTwoShareBase"] = f"{step_base.share_LL + step_base.share_WW:.1f}"
+    values["DecIclrTwoShareBase"] = f"{step_base.share_LL:.1f}"
     subsets = pd.read_csv(reports / f"journal_subsets_{model}.csv").set_index("subset")
     for subset, prefix in [("Identifying", "JsIdent"), ("Two reports", "JsTwo")]:
         row = subsets.loc[subset]
@@ -867,14 +903,8 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(base + "ClaimsRewrite", row.claims_rewrite)
         texts = meld_rates[meld_rates.set == meld_set]
         record(base + "Flagged", (texts.flagged * texts.n).sum() / texts.n.sum())
-    detector_gaps = {
-        "Flag": evidence.loc["ICLR 2024–27"],
-        "Written": evidence.loc["LLM-written, ICLR 2024–27"],
-        "Ll": types.loc[("ICLR 2024–27", "LL")],
-    }
-    effect = rewrite.loc[("outline_second", "ICLR")]
-    for name, gap in detector_gaps.items():
-        record(f"Rk{name}Diff", gap.est - effect.two, np.hypot(gap.se, effect.two_se))
+    gap, effect = evidence.loc["ICLR 2024–27"], rewrite.loc[("outline_second", "ICLR")]
+    record("RkFlagDiff", gap.est - effect.two, np.hypot(gap.se, effect.two_se))
     labels = pd.read_csv(settings.REPORTS_DIR / "meld_labels.csv").set_index("known")
     for known, prefix, digits in [
         ("polish", "Polish", 1),
@@ -888,8 +918,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         values[prefix + "Texts"] = f"{int(row.texts):,}"
         record(prefix + "Flagged", 100 - row.unflagged, digits=digits)
         record(prefix + "Unflagged", row.unflagged, digits=digits)
-        record(prefix + "Written", row.written, digits=digits)
-        record(prefix + "WrittenOfFlagged", 100 * row.written / (100 - row.unflagged), digits=0)
     editlens = pd.read_csv(settings.REPORTS_DIR / "editlens_summary.csv").set_index("name").value
     values["EditlensThreshold"] = f"{editlens.threshold:.2f}"
     values["EditlensAgreementReviews"] = f"{int(editlens.meld_reviews):,}"

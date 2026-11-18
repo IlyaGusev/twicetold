@@ -159,7 +159,7 @@ def summarize(estimate, se, papers, digits, sign):
 
 def estimates(model):
     meld = hub.meld_flags()
-    labels = {"flag": meld.flag.astype(int), "written": meld.written.astype(int)}
+    labels = {"flag": meld.flag.astype(int)}
     pairs = pair_measures(in_window(pd.read_parquet(settings.ANALYSIS_DIR / f"pairs_{model}.parquet")))
     reviews = review_table(model)
     papers = reviews.drop_duplicates("panel_id").dropna(subset=["third"])

@@ -113,12 +113,9 @@ def compare_table(reports, tex, known_tex):
     known = known.assign(
         meld=100 - known.unflagged, editlens=pd.read_csv(Path(reports) / "editlens_labels.csv").set_index("known").flagged
     )
-    head = r"Texts & $n$ & \shortstack[r]{MELD\\flagged (\%)} & \shortstack[r]{MELD\\written (\%)} & \shortstack[r]{EditLens\\flagged (\%)} \\"
-    lines = [r"\begin{tabular}{@{}lrrrr@{}}", r"\toprule", head, r"\midrule"]
-    lines += [
-        f"{KNOWN_SETS[k]} & {int(r.texts):,} & {r.meld:.1f} & {r.written:.1f} & {r.editlens:.1f} \\\\"
-        for k, r in known.iterrows()
-    ]
+    head = r"Texts & $n$ & \shortstack[r]{MELD\\flagged (\%)} & \shortstack[r]{EditLens\\flagged (\%)} \\"
+    lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", head, r"\midrule"]
+    lines += [f"{KNOWN_SETS[k]} & {int(r.texts):,} & {r.meld:.1f} & {r.editlens:.1f} \\\\" for k, r in known.iterrows()]
     Path(known_tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
     lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", r"Reviews & $n$ & MELD (\%) & EditLens (\%) \\", r"\midrule"]
     rates = pd.read_csv(Path(reports) / "meld_rates.csv").merge(

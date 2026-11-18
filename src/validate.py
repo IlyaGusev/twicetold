@@ -275,12 +275,12 @@ def pair_design(model):
 def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     data, reports = Path(data), Path(reports)
     meld = hub.meld_flags()
-    flag, written = meld.flag.astype(int), meld.written.astype(int)
+    flag = meld.flag.astype(int)
     design = pair_design(model)
     claim_counts = pd.read_parquet(data / f"claims_table_{model}.parquet", columns=["review_id"]).groupby("review_id").size()
     design["claims_short"], design["claims_long"] = short_long_logs(claim_counts, design)
     cells = gap_cells(design)
-    (main, iclr), (late_label, late) = list(cells.items())[:2]
+    main, iclr = next(iter(cells.items()))
     rows = []
 
     def add(group, label, subset_pairs, pair_flags, controls=()):
@@ -302,30 +302,15 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
             )
         )
 
-    def add_written(group, label, subset_pairs):
-        gap = paper_gap(subset_pairs, pair_type(subset_pairs, flag, written), "WW", "HH")
-        rows.append(
-            dict(
-                group=group,
-                label=label,
-                est=gap["est"],
-                se=gap["se"],
-                papers=subset_pairs.panel_id.nunique(),
-                identifying=gap["papers"],
-            )
-        )
-
     pipe = "Pipeline"
     add(pipe, main, iclr, flag)
     add(pipe, "+ length and claim count", iclr.dropna(), flag, ("log_short", "log_long", "claims_short", "claims_long"))
     add(pipe, "99th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.99))
     add(pipe, "99.5th-percentile threshold, ICLR", iclr, meld_flag_at(meld, 0.995))
-    add_written(pipe, f"LLM-written, {main}", iclr)
     for label in list(cells)[2:]:
         add(pipe, label, cells[label], flag)
     for year, year_pairs in iclr.groupby("year"):
         add("ICLR by year", f"ICLR {year}", year_pairs, flag)
-    add_written("ICLR by year", f"LLM-written, {late_label}", late)
     placebo = pd.read_csv(reports / f"detector_placebo_{model}.csv")
     for r in placebo.itertuples():
         rows.append(
@@ -392,11 +377,11 @@ def identification_row(label, pairs, flag):
     return row
 
 
-PAIR_TYPES = ("HL", "LL", "WW")
+PAIR_TYPES = ("HL", "LL")
 
 
-def pair_type(pairs, flag, written):
-    return pair_counts(pairs, flag).map({0: "HH", 1: "HL", 2: "LL"}).where(pair_counts(pairs, written) < 2, "WW")
+def pair_type(pairs, flag):
+    return pair_counts(pairs, flag).map({0: "HH", 1: "HL", 2: "LL"})
 
 
 def gap_cells(pairs):
@@ -407,12 +392,11 @@ def gap_cells(pairs):
 
 
 def pair_types(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
-    meld = hub.meld_flags()
-    flag, written = meld.flag.astype(int), meld.written.astype(int)
+    flag = hub.meld_flags().flag.astype(int)
     pairs = analysis_pairs(model)
     rows = []
     for conf, cell in gap_cells(pairs).items():
-        types = pair_type(cell, flag, written).to_numpy()
+        types = pair_type(cell, flag).to_numpy()
         X = pd.DataFrame({t: (types == t) * 1.0 for t in PAIR_TYPES} | {"hit": cell.hit.to_numpy() * 100}, index=cell.index)
         X = X - X.groupby(cell.panel_id.to_numpy()).transform("mean")
         fit = sm.OLS(X.hit, X[list(PAIR_TYPES)]).fit(cov_type="cluster", cov_kwds={"groups": pd.factorize(cell.panel_id)[0]})
@@ -427,8 +411,7 @@ PAIR_SIZE_OUTCOMES = {"hit": "Overlap", "shared": "Shared", "smaller": "Smaller 
 PAIR_TYPE_NAMES = {
     "HH": "Both unflagged",
     "HL": "One flagged",
-    "LL": "Both flagged, not both LLM-written",
-    "WW": "Both LLM-written",
+    "LL": "Both flagged",
 }
 
 
@@ -469,11 +452,10 @@ def pair_type_sizes(
     reports=settings.ANALYSIS_REPORTS_DIR,
     tex=settings.TABLES_DIR / "pair_type_sizes.tex",
 ):
-    meld = hub.meld_flags()
-    flag, written = meld.flag.astype(int), meld.written.astype(int)
+    flag = hub.meld_flags().flag.astype(int)
     pairs = analysis_pairs(model, None)
     cell = pairs[(pairs.conf == "ICLR") & pairs.year.between(*settings.ICLR_GAP_YEARS)].assign(hit=lambda d: d.hit * 100)
-    types = pair_type(cell, flag, written).to_numpy()
+    types = pair_type(cell, flag).to_numpy()
     fits = {name: type_fit(cell, types, name) for name in PAIR_SIZE_OUTCOMES}
     fits["shared_adjusted"] = type_fit(cell, types, "shared", ("smaller", "larger"))
     rows = []
@@ -817,7 +799,7 @@ def shift_share(before, after):
     return np.array([composition + within.sum(), composition, within[0], within[1:].sum()])
 
 
-PAIR_TYPE_HEADS = ["None", "One", r"Other\\two", r"Two\\written"]
+PAIR_TYPE_HEADS = ["None", "One", "Two"]
 CLEAN_HEAD = r"None, no\\flag in\\paper"
 DECOMPOSITION_HEADS = ["Total", r"Shift of\\types", r"Within\\unflagged", r"Within\\flagged"]
 
@@ -825,11 +807,11 @@ DECOMPOSITION_HEADS = ["Total", r"Shift of\\types", r"Within\\unflagged", r"With
 def decomposition_table(out, tex):
     heads = [rf"\shortstack[r]{{{head}}}" for head in [*PAIR_TYPE_HEADS, *PAIR_TYPE_HEADS, CLEAN_HEAD, *DECOMPOSITION_HEADS]]
     lines = [
-        r"\begin{tabular}{@{}llrrrrrrrrrrrrr@{}}",
+        r"\begin{tabular}{@{}llrrrrrrrrrrr@{}}",
         r"\toprule",
-        r" & & \multicolumn{4}{c}{Share of pairs (\%)} & \multicolumn{5}{c}{Overlap (\%)} & "
+        r" & & \multicolumn{3}{c}{Share of pairs (\%)} & \multicolumn{4}{c}{Overlap (\%)} & "
         r"\multicolumn{4}{c}{Change from year before (points)} \\",
-        r"\cmidrule(lr){3-6}\cmidrule(lr){7-11}\cmidrule(l){12-15}",
+        r"\cmidrule(lr){3-5}\cmidrule(lr){6-9}\cmidrule(l){10-13}",
         "Source & Year & " + " & ".join(heads) + r" \\",
         r"\midrule",
     ]
@@ -851,7 +833,7 @@ def decomposition_table_from_report(
     decomposition_table(pd.read_csv(Path(reports) / f"decomposition_{model}.csv"), tex)
 
 
-def decomposition_rows(pairs, flag, written):
+def decomposition_rows(pairs, flag):
     spans = {}
     for conf, first, last in settings.GAP_CELLS.values():
         spans[conf] = (min(first, spans.get(conf, (first, last))[0]), max(last, spans.get(conf, (first, last))[1]))
@@ -861,7 +843,7 @@ def decomposition_rows(pairs, flag, written):
         previous = None
         for year in range(first, last + 1):
             cell = pairs[(pairs.conf == conf) & (pairs.year == year)]
-            types = pair_type(cell, flag, written)
+            types = pair_type(cell, flag)
             weight = 1 / cell.groupby("panel_id").hit.transform("size")
             weights = (
                 weight.groupby([cell.panel_id, types]).sum().unstack(fill_value=0).reindex(columns=ALL_PAIR_TYPES, fill_value=0)
@@ -897,7 +879,7 @@ def decomposition(
 ):
     meld = hub.meld_flags()
     pairs = analysis_pairs(model)
-    out = decomposition_rows(pairs, meld.flag.astype(int), meld.written.astype(int))
+    out = decomposition_rows(pairs, meld.flag.astype(int))
     out.to_csv(Path(reports) / f"decomposition_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     decomposition_table(out, tex)
@@ -945,7 +927,7 @@ def second_detector(
     out.to_csv(Path(reports) / f"second_detector_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     second_detector_table(out, tex)
-    steps = decomposition_rows(pairs, flags["editlens"], flags["editlens"] * 0)
+    steps = decomposition_rows(pairs, flags["editlens"])
     steps.to_csv(Path(reports) / f"second_detector_decomposition_{model}.csv", index=False)
     print(steps.round(2).to_string(index=False))
 
@@ -1202,8 +1184,16 @@ def write_cell_table(out, tex, columns):
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
+PANEL_KEYS = ("panel_id", "kind", "conf", "year", "stratum", "split")
+
+
 def panel_meta(panel):
-    return {key: panel[key] for key in ("panel_id", "kind", "conf", "year", "stratum", "split")}
+    return {key: panel[key] for key in PANEL_KEYS}
+
+
+def gold_panels(gold):
+    panels = read_jsonl(Path(gold) / "panels_tune.jsonl")
+    return [p | {"stratum": "flagged" if p["stratum"] == "written" else p["stratum"]} for p in panels]
 
 
 def quote_spans(text, claims):
@@ -1302,10 +1292,33 @@ def extraction_table(out, tex):
     write_cell_table(out[whole], tex, EXTRACTION_COLUMNS)
 
 
+def write_extraction(reviews, model, reports, tex):
+    keys = list(PANEL_KEYS)
+    metrics = [c for c in reviews.columns if c not in keys + ["review_id"]]
+    by_panel = reviews.groupby(keys, sort=False)
+    panels = by_panel[metrics].mean().reset_index().assign(reviews=by_panel.size().to_numpy())
+    summary = []
+    for kind, by_kind in panels.groupby("kind", sort=False):
+        for label, cell in report_cells(by_kind):
+            row = dict(kind=kind, **label, panels=len(cell), reviews=int(cell.reviews.sum()))
+            for name in metrics:
+                row.update(mean_interval(cell[name], name))
+            summary.append(row)
+    out = pd.DataFrame(summary)
+    out.round(3).to_csv(Path(reports) / f"extraction_{model}.csv", index=False)
+    print(out.round(2).to_string(index=False))
+    extraction_table(out, tex)
+
+
 def extraction_table_from_report(
-    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "extraction.tex"
+    model=settings.DEFAULT_MODEL,
+    gold=settings.GOLD_DIR,
+    reports=settings.ANALYSIS_REPORTS_DIR,
+    tex=settings.TABLES_DIR / "extraction.tex",
 ):
-    extraction_table(pd.read_csv(Path(reports) / f"extraction_{model}.csv"), tex)
+    meta = pd.DataFrame([panel_meta(p) for p in gold_panels(gold)])
+    reviews = pd.read_csv(Path(reports) / f"extraction_reviews_{model}.csv")
+    write_extraction(meta.merge(reviews.drop(columns=list(PANEL_KEYS[1:])), on="panel_id"), model, reports, tex)
 
 
 def extraction(
@@ -1316,7 +1329,7 @@ def extraction(
     council=settings.GOLD_COUNCIL,
 ):
     gold = Path(gold)
-    panels = list(read_jsonl(gold / "panels_tune.jsonl"))
+    panels = gold_panels(gold)
     texts = pd.read_parquet(gold / "tune_reviews.parquet").set_index("review_id").text
     claims = {m: {} for m in council}
     for row in read_jsonl(gold / "claims_council.jsonl"):
@@ -1336,21 +1349,7 @@ def extraction(
         rows.append(dict(**panel_meta(panel), review_id=rid, **scores))
     reviews = pd.DataFrame(rows)
     reviews.to_csv(Path(reports) / f"extraction_reviews_{model}.csv", index=False)
-    keys = list(panel_meta(panels[0]))
-    metrics = [c for c in reviews.columns if c not in keys + ["review_id"]]
-    by_panel = reviews.groupby(keys, sort=False)
-    panels = by_panel[metrics].mean().reset_index().assign(reviews=by_panel.size().to_numpy())
-    summary = []
-    for kind, by_kind in panels.groupby("kind", sort=False):
-        for label, cell in report_cells(by_kind):
-            row = dict(kind=kind, **label, panels=len(cell), reviews=int(cell.reviews.sum()), cover_threshold=threshold)
-            for name in metrics:
-                row.update(mean_interval(cell[name], name))
-            summary.append(row)
-    out = pd.DataFrame(summary)
-    out.round(3).to_csv(Path(reports) / f"extraction_{model}.csv", index=False)
-    print(out.round(2).to_string(index=False))
-    extraction_table(out, tex)
+    write_extraction(reviews, model, reports, tex)
 
 
 def panel_overlap(panel, claims, clusters):
@@ -1368,7 +1367,7 @@ def pipelines(
     council=settings.GOLD_COUNCIL,
 ):
     gold = Path(gold)
-    panels = list(read_jsonl(gold / "panels_tune.jsonl"))
+    panels = gold_panels(gold)
     runs = {
         model: (extract.load_claims(gold / f"claims_{model}.jsonl"), load_jsonl(gold / f"clusters_{model}.jsonl", "panel_id"))
     }
@@ -1432,7 +1431,6 @@ def pipeline_contrasts(panels, name):
 
     row = dict(pipeline=name, panels=len(same), level=same[column].mean(), cross=panels[panels.kind == "cross"][column].mean())
     row.update(bootstrap_interval(same, lambda f: gap(f, "flagged", "plain"), "flag_gap"))
-    row.update(bootstrap_interval(same, lambda f: gap(f, "written", "plain"), "written_gap"))
     row.update(bootstrap_interval(iclr, slope, "iclr_slope"))
     row.update(bootstrap_interval(iclr, step, "iclr_step"))
     return row
@@ -1442,7 +1440,6 @@ def write_contrast_table(contrasts, tex):
     first, last = settings.ICLR_SNAPSHOT_YEARS
     columns = [
         ("flag_gap", r"Flagged $-$ unflagged", 1),
-        ("written_gap", r"Written $-$ unflagged", 1),
         ("iclr_slope", "ICLR slope", 2),
         ("iclr_step", f"ICLR {last} $-$ {first}", 1),
     ]
@@ -1487,7 +1484,7 @@ def council_agreement(
     council=settings.GOLD_COUNCIL,
 ):
     gold = Path(gold)
-    panels = list(read_jsonl(gold / "panels_tune.jsonl"))
+    panels = gold_panels(gold)
     claims = extract.load_claims(gold / f"claims_{model}.jsonl")
     raw = {(row["panel_id"], row["model"]): row for row in read_jsonl(gold / "clusters_council.jsonl")}
     ours = load_jsonl(gold / f"clusters_{model}.jsonl", "panel_id")
@@ -1560,8 +1557,8 @@ def council_agreement(
 def council_pair_types(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):
     pairs = pd.read_csv(Path(reports) / f"council_agreement_pairs_{model}.csv", low_memory=False)
     meld = hub.meld_flags()
-    flagged = pairs[(pairs.kind == "same") & pairs.stratum.isin(["flagged", "written"]) & (pairs.status != "invalid")]
-    types = pair_type(flagged, meld.flag.astype(int), meld.written.astype(int)).to_numpy()
+    flagged = pairs[(pairs.kind == "same") & (pairs.stratum == "flagged") & (pairs.status != "invalid")]
+    types = pair_type(flagged, meld.flag.astype(int)).to_numpy()
     by_type = pd.DataFrame(
         [dict(pair_type=t, **pair_detection_summary(panel_counts(cell))) for t, cell in flagged.groupby(types)]
     )
@@ -1582,7 +1579,7 @@ def majority_clusters(cids, votes):
 
 
 def grouper_pairs(model, gold, council):
-    panels = [p for p in read_jsonl(gold / "panels_tune.jsonl") if p["kind"] == "same" and p["year"] >= settings.FLAG_FROM]
+    panels = [p for p in gold_panels(gold) if p["kind"] == "same" and p["year"] >= settings.FLAG_FROM]
     claims = extract.load_claims(gold / f"claims_{model}.jsonl")
     ours = load_jsonl(gold / f"clusters_{model}.jsonl", "panel_id")
     raw = {(row["panel_id"], row["model"]): row for row in read_jsonl(gold / "clusters_council.jsonl")}
@@ -1609,7 +1606,7 @@ def grouper_pairs(model, gold, council):
     return pd.DataFrame(rows)
 
 
-def swap_row(pairs, types, flag, panels, model, name):
+def swap_row(pairs, flag, panels, model, name):
     def panel_gap(frame):
         return 100 * (frame[frame.stratum == "flagged"][name].mean() - frame[frame.stratum == "plain"][name].mean())
 
@@ -1620,30 +1617,22 @@ def swap_row(pairs, types, flag, panels, model, name):
         outcomes["diff_"] = pairs[model] - pairs[name]
     for prefix, outcome in outcomes.items():
         two = fe_gap(pairs.assign(hit=outcome), flag)
-        written = type_fit(pairs.assign(y=100 * outcome), types, "y")
         row.update({f"{prefix}two": two["two"], f"{prefix}two_se": two["two_se"]})
-        row.update({f"{prefix}written": written.params["WW"], f"{prefix}written_se": written.bse["WW"]})
     return row
 
 
 def grouper_swap_table(out, tex):
-    columns = [
-        ("two", "Two flagged"),
-        ("written", "Two written"),
-        ("diff_two", "Two flagged"),
-        ("diff_written", "Two written"),
-    ]
+    columns = ["two", "diff_two"]
     lines = [
-        r"\begin{tabular}{@{}lrrrrr@{}}",
+        r"\begin{tabular}{@{}lrrr@{}}",
         r"\toprule",
-        r" & Flagged $-$ plain & \multicolumn{2}{c}{Within-paper gap} & \multicolumn{2}{c}{Luna $-$ grouper} \\",
-        r"\cmidrule(lr){3-4}\cmidrule(l){5-6}",
-        r"Grouper & panels & " + " & ".join(title for _, title in columns) + r" \\",
+        r" & Flagged $-$ plain & Within-paper & Luna $-$ grouper, \\",
+        r"Grouper & panels & gap & within-paper gap \\",
         r"\midrule",
     ]
     for r in out.itertuples():
         cells = [f"{r.panel_gap:+.1f} [{r.panel_gap_low:+.1f}, {r.panel_gap_high:+.1f}]"]
-        for name, _ in columns:
+        for name in columns:
             value, se = getattr(r, name), getattr(r, name + "_se")
             cells.append("--" if pd.isna(value) else f"{value:+.1f} [{value - Z95 * se:+.1f}, {value + Z95 * se:+.1f}]")
         lines.append(f"{SWAP_LABELS[r.grouper]} & " + " & ".join(cells) + r" \\")
@@ -1658,12 +1647,10 @@ def grouper_swap(
     council=settings.GOLD_COUNCIL,
 ):
     pairs = grouper_pairs(model, Path(gold), council)
-    meld = hub.meld_flags()
-    flag = meld.flag.astype(int)
-    types = pair_type(pairs, flag, meld.written.astype(int)).to_numpy()
+    flag = hub.meld_flags().flag.astype(int)
     groupers = [model, *council, MAJORITY]
     panels = pairs.groupby(["panel_id", "stratum"])[groupers].mean().reset_index()
-    out = pd.DataFrame([swap_row(pairs, types, flag, panels, model, name) for name in groupers])
+    out = pd.DataFrame([swap_row(pairs, flag, panels, model, name) for name in groupers])
     out.to_csv(Path(reports) / f"grouper_swap_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     grouper_swap_table(out, tex)
