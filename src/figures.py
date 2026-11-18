@@ -164,38 +164,17 @@ def kept_meld_flags():
     return flags[~flags.index.isin(excluded_review_ids())]
 
 
-GAP_STYLES = {
-    "two": ("Both flagged", COLORS["flag"], "D"),
-    "WW": ("Both LLM-written", COLORS["ink"], "^"),
-}
-
-
-def pair_type_means(model):
-    flags = kept_meld_flags()
-    pairs = analysis_pairs(model)
-    cells = []
-    for label, (conf, first, last) in settings.GAP_CELLS.items():
-        cells.append(pairs[(pairs.conf == conf) & pairs.year.between(first, last)].assign(conf=label))
-    pairs = pd.concat(cells)
-    n_flagged = pairs.a.map(flags.flag).astype(int) + pairs.b.map(flags.flag).astype(int)
-    n_written = pairs.a.map(flags.written).astype(int) + pairs.b.map(flags.written).astype(int)
-    pairs["pair_type"] = n_flagged.map({0: "HH", 1: "HL", 2: "LL"})
-    pairs.loc[n_written == 2, "pair_type"] = "WW"
-    per_paper = pairs.groupby(["conf", "pair_type", "panel_id"]).hit.mean() * 100
-    means = per_paper.groupby(["conf", "pair_type"]).agg(["mean", "std", "count"]).reset_index()
-    means["ci"] = Z95 * means["std"] / np.sqrt(means["count"])
-    return means
-
-
 def ai(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     cells = list(settings.GAP_CELLS)
     evidence = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv").set_index("label")
     types = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"pair_types_{model}.csv")
-    gaps = {"two": evidence.loc[cells], "WW": types[types.pair_type == "WW"].set_index("conf").loc[cells]}
+    series = [
+        (evidence.loc[cells], "Both flagged", COLORS["flag"], "D"),
+        (types[types.pair_type == "WW"].set_index("conf").loc[cells], "Both LLM-written", COLORS["ink"], "^"),
+    ]
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.35, 1.9))
-    for k, (pair_type, (label, color, marker)) in enumerate(GAP_STYLES.items()):
+    for k, (rows, label, color, marker) in enumerate(series):
         x = np.arange(len(cells)) + (k - 0.5) * 0.2
-        rows = gaps[pair_type]
         ax.errorbar(x, rows.est, yerr=Z95 * rows.se, fmt=marker, ms=3.5, color=color, elinewidth=0.9, label=label)
     ax.axhline(0, color=COLORS["light"], lw=0.6, zorder=0)
     ax.set_xlim(-0.5, len(cells) - 0.5)
@@ -612,13 +591,8 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for label, prefix in [
         ("ICLR 2024–27", "FlagGap"),
         ("+ length and claim count", "ControlGap"),
-        ("NeurIPS 2024–25", "NeuripsFlagGap"),
-        ("ICML 2025–26", "IcmlFlagGap"),
         ("LLM-written, ICLR 2024–27", "WrittenGap"),
-        ("LLM-written, ICLR 2027", "WrittenGapLate"),
         ("ICLR 2024", "FlagGapTwentyFour"),
-        ("ICLR 2025", "FlagGapTwentyFive"),
-        ("ICLR 2026", "FlagGapTwentySix"),
         ("ICLR 2027", "FlagGapTwentySeven"),
     ]:
         row = evidence.loc[label]
@@ -658,9 +632,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     in_main = (pairs.conf == main_conf) & pairs.year.between(main_first, main_last)
     baseline = pairs[in_main & (pairs.nflag == 0)].groupby("panel_id").hit.mean() * 100
     record("FlagBaseline", baseline.mean(), baseline.sem(), len(baseline))
-    written = pair_type_means(model).query("pair_type == 'WW'").set_index("conf")["count"]
-    for label, prefix in GAP_PREFIX.items():
-        values[f"PairWritten{prefix}N"] = f"{int(written[label]):,}"
     placebo = pd.read_parquet(settings.ANALYSIS_DIR / f"placebo_outcomes_{model}.parquet")
     for year, prefix in [
         (2023, "CrossBase"),
@@ -771,8 +742,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         values["RefPipeDiff" + suffix.title()[1:]] = f"{same_pipes['diff_model' + suffix]:.1f}"
     values["RefPipeAbsDiffLuna"] = f"{same_pipes.absdiff_model:.1f}"
     values["RefPipeAbsDiffCouncil"] = f"{same_pipes.absdiff_council:.1f}"
-    values["RefPipeCorrLuna"] = f"{same_pipes.corr_model:.2f}"
-    values["RefPipeCorrCouncil"] = f"{same_pipes.corr_council:.2f}"
     contrasts = pd.read_csv(reports / f"pipelines_contrasts_{model}.csv").set_index("pipeline")
     luna, members = contrasts.loc[model], contrasts.drop(index=model)
     values["RefPipeLevelMemberMin"] = f"{members.level.min():.1f}"
@@ -856,8 +825,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["DecIclrCleanLast"] = f"{step.overlap_clean:.1f}"
     values["DecSnapCleanLast"] = f"{step_snap.overlap_clean:.1f}"
     values["DecIclrTwoShareBase"] = f"{step_base.share_LL + step_base.share_WW:.1f}"
-    earlier = by_year[(by_year.conf == "ICLR") & (by_year.year < settings.CONTRAST_YEARS[1])]
-    values["IclrEarlierMax"] = f"{earlier.match.max():.1f}"
     subsets = pd.read_csv(reports / f"journal_subsets_{model}.csv").set_index("subset")
     for subset, prefix in [("Identifying", "JsIdent"), ("Two reports", "JsTwo")]:
         row = subsets.loc[subset]
@@ -865,16 +832,12 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         for name in ["chars", "claims", "overlap", "flagged", "share_F1000"]:
             record(prefix + name.title().replace("_", "").replace("1000", "Thousand"), row[name])
     cover = pd.read_csv(reports / f"coverage_{model}.csv").set_index("year")
-    earlier = cover.lost[cover.index < 2026]
     values["CovPapersMin"] = f"{int(cover.papers.min()):,}"
     values["CovPapersMax"] = f"{int(cover.papers.max()):,}"
-    values["CovLostEarlierMin"] = f"{earlier.min():.1f}"
-    values["CovLostEarlierMax"] = f"{earlier.max():.1f}"
     for year, suffix in [(2024, "First"), (2025, "Base"), (2026, "Last"), (settings.ICLR_SNAPSHOT_YEARS[1], "Snap")]:
         row = cover.loc[year]
         record("CovProblems" + suffix, row.problems, row.problems_se, row.papers)
         record("CovPerReview" + suffix, row.per_review, row.per_review_se)
-        record("CovLost" + suffix, row.lost, row.lost_se)
         record("CovNew" + suffix, row.new_by_third, row.new_by_third_se, digits=2)
         record("CovShared" + suffix, row.shared_per_pair, row.shared_per_pair_se, digits=2)
     rewrite = pd.read_csv(reports / f"rewrite_test_{model}.csv").set_index(["condition", "group"])
@@ -909,10 +872,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         "Written": evidence.loc["LLM-written, ICLR 2024–27"],
         "Ll": types.loc[("ICLR 2024–27", "LL")],
     }
-    for condition, base in [("outline", "Rw"), ("outline_second", "Rk")]:
-        effect = rewrite.loc[(condition, "ICLR")]
-        for name, gap in detector_gaps.items():
-            record(f"{base}{name}Diff", gap.est - effect.two, np.hypot(gap.se, effect.two_se))
+    effect = rewrite.loc[("outline_second", "ICLR")]
+    for name, gap in detector_gaps.items():
+        record(f"Rk{name}Diff", gap.est - effect.two, np.hypot(gap.se, effect.two_se))
     labels = pd.read_csv(settings.REPORTS_DIR / "meld_labels.csv").set_index("known")
     for known, prefix, digits in [
         ("polish", "Polish", 1),

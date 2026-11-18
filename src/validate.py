@@ -774,16 +774,13 @@ def coverage(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR
             )
         )
     panels = pd.DataFrame(rows)
-    panels["lost"] = 3 * panels.per_review - panels.problems
-    panels["lost_share"] = 100 * panels.lost / (3 * panels.per_review)
-    cols = ["per_review", "problems", "lost", "lost_share", "new_by_third", "shared_per_pair"]
-    by_year = panels.groupby("year")[cols]
+    shown = ["per_review", "problems", "new_by_third", "shared_per_pair"]
+    by_year = panels.groupby("year")[shown]
     out = pd.concat([by_year.mean(), by_year.sem().add_suffix("_se")], axis=1)
     out.insert(0, "papers", panels.groupby("year").size())
     out = out.reset_index()
     out.round(3).to_csv(Path(reports) / f"coverage_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    shown = ["per_review", "problems", "new_by_third", "shared_per_pair"]
     heads = [r"Per\\review", "Distinct", r"New in a\\third review", r"Shared\\per pair"]
     lines = [
         r"\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}l" + "c" * len(heads) + "@{}}",
@@ -1399,8 +1396,6 @@ def pipelines(
             pair_diffs = [a - b for a, b in combinations(members, 2)]
             row.update(mean_interval(sum(d.abs() for d in pair_diffs) / len(pair_diffs), "absdiff_council"))
             row.update(mean_interval(sum((ours - m).abs() for m in members) / len(members), "absdiff_model"))
-            row["corr_model"] = np.mean([ours.corr(m) for m in members]) if len(cell) > 2 else np.nan
-            row["corr_council"] = np.mean([a.corr(b) for a, b in combinations(members, 2)]) if len(cell) > 2 else np.nan
             summary.append(row)
     out = pd.DataFrame(summary)
     out.round(3).to_csv(Path(reports) / f"pipelines_{model}.csv", index=False)
