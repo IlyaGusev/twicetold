@@ -32,7 +32,7 @@
 \maketitle
 
 \begin{abstract}
-Peer review relies on several readers finding different problems. We measure critique overlap in conference and journal reviews. At ICLR, measured overlap rose from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, in reviews from the same stage of the review process, with year-on-year rises at NeurIPS and ICML. We apply MELD, a detector of LLM-generated text, to all reviews. Within a paper, two reviews that MELD flags overlap \FlagGapRound{} points more than two unflagged reviews at ICLR in 2024--2027, and \JournalGapRound{} points more across five journal sources. These results provide evidence that LLM-flagged reviews of one paper are less distinct from each other than unflagged reviews, and suggest that the diversity of critiques among reviews of a single paper is falling.
+Peer review relies on several readers finding different problems. We measure critique overlap in conference and journal reviews. At ICLR, measured overlap rose from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, in reviews from the same stage of the review process, with year-on-year rises at NeurIPS, ICML and the F1000 and PLOS journals. A third ICLR review of a paper added \CovNewSnap{} new problems to the other two in 2027, against \CovNewLast{} in 2026. We apply MELD, a detector of LLM-generated text, to all reviews. Within a paper, two reviews that MELD flags overlap \FlagGapRound{} points more than two unflagged reviews at ICLR in 2024--2027, and \JournalGapRound{} points more across five journal sources. These results provide evidence that LLM-flagged reviews of one paper are less distinct from each other than unflagged reviews, and suggest that the diversity of critiques among reviews of a single paper is falling.
 \end{abstract}
 
 \begin{figure}[t]
@@ -86,7 +86,22 @@ We check pass 1 against human labels and against other LLMs. For the human check
 \label{sec:grouping}
 In \textbf{pass 2}, a separate Luna call groups the claims of one panel into problems. The call sees the claim lists, not the review texts. Two claims join one group only when they state the same problem in the same paper element.
 
-To check pass 2, each council member groups Luna's claim lists with the same prompt. Against the majority vote of the three members on each claim pair, Luna's grouping has \RefPairPrecision\% precision and \RefPairRecall\% recall across \RefPairPanels{} panels. Each council member also runs both passes on its own claims, and all four pipelines give every contrast the same sign.
+To check pass 2, each council member groups Luna's claim lists with the same prompt. Against the majority vote of the three members on each claim pair, Luna's grouping has \RefPairPrecision\% precision and \RefPairRecall\% recall across \RefPairPanels{} panels. With a council member or the majority as grouper, the within-paper flagged-pair gap of RQ2 is \RefSwapFlagMin{} to \RefSwapFlagMax{} points, against \RefSwapFlagLuna{} with Luna (Table~\ref{tab:swap}). Each council member also runs both passes on its own claims, and all four pipelines give every contrast the same sign (Table~\ref{tab:pipelines}).
+
+\begin{table}[t]
+\centering\footnotesize
+\input{tables/grouper_swap}
+\caption{Every grouper gives about the same within-paper gaps. Each grouper groups Luna's claims on \RefSwapPanels{} gold panels from 2024 on. Gap: overlap of pairs with one or two flagged reviews minus unflagged pairs of the same paper, with 95\% intervals.}
+\label{tab:swap}
+\end{table}
+
+\begin{table}[t]
+\centering\footnotesize
+\setlength{\tabcolsep}{3pt}
+\input{tables/pipeline_contrasts}
+\caption{All four pipelines give every contrast the same sign; the overlap level depends on the model. Each model extracts and groups its own claims on \RefPipePanels{} same-paper and \RefCrossPanels{} cross-paper gold panels. Flagged gap: two flagged against two unflagged reviews of one paper, as in Table~\ref{tab:swap}.}
+\label{tab:pipelines}
+\end{table}
 
 \subsection{Metric}
 \label{sec:metric}
@@ -137,7 +152,7 @@ The gap could also come from the detector and not from LLM use, if MELD gives hi
 
 \paragraph{RQ3: Do LLM-flagged journal reviews also repeat more critiques?}
 \label{sec:journals}
-From the 2019--2023 mean to 2026, journal overlap rose most at F1000 ($+\FResearchChange$ points) and PLOS ($+\PlosChange$, Figure~\ref{fig:overlap}). Within a paper, two flagged reviews overlap \JournalGap{} points more than two unflagged reviews. Only \JournalGapBothN{} of the \JournalGapN{} papers from 2024 on have both pair types, because such a paper needs four reviews. Each single source has few such papers, and its interval includes zero (Figure~\ref{fig:fields}).
+From the 2019--2023 mean to 2026, journal overlap rose most at F1000 ($+\FResearchChange$ points) and PLOS ($+\PlosChange$), and at both sources it rose in each year from 2024 (Figure~\ref{fig:overlap}). Within a paper, two flagged reviews overlap \JournalGap{} points more than two unflagged reviews. Only \JournalGapBothN{} of the \JournalGapN{} papers from 2024 on have both pair types, because such a paper needs four reviews. Each single source has few such papers, and its interval includes zero (Figure~\ref{fig:fields}).
 
 \begin{figure}[H]
 \centering
@@ -244,24 +259,9 @@ Both passes use GPT-6 Luna through OpenRouter with strict JSON-schema output and
 \label{tab:council}
 \end{table}
 
-\begin{table}[!htp]
-\centering\footnotesize
-\setlength{\tabcolsep}{4pt}
-\input{tables/grouper_swap}
-\caption{Every grouper gives about the same flagged-pair gap within papers, but Luna gives the largest difference between flagged and plain panels. Each grouper groups Luna's claims on the \RefSwapPanels{} same-paper gold panels from 2024 on. The council majority links two claims that two of three members group together and joins linked claims into groups. Flagged $-$ plain panels: difference of panel means in points, with a 95\% interval from resampling panels. Within-paper gap: a regression with paper fixed effects of two flagged against two unflagged reviews, with a 95\% interval from SEs clustered by paper. Luna $-$ grouper: the same regression on Luna's pair overlap minus the grouper's.}
-\label{tab:swap}
-\end{table}
 
 
 \paragraph{Full pipelines.} Four pipelines measure the same \RefPipePanels{} same-paper panels (Table~\ref{tab:pipelines}). The mean absolute panel difference is \RefPipeAbsDiffLuna{} points for Luna against a member and \RefPipeAbsDiffCouncil{} between members. The overlap level depends on the grouper: Luna gives \RefPipeLuna\% and the members \RefPipeLevelMemberMin{} to \RefPipeLevelMemberMax\%. Every contrast is positive in all four pipelines. The flagged gap, the ICLR slope and the 2026 to 2027 step exclude zero in \RefPipeFlagSignificant, \RefPipeSlopeSignificant{} and \RefPipeStepSignificant{} of four pipelines. These contrasts are differences of panel means, not the within-paper gaps of RQ2.
-
-\begin{table}[!htp]
-\centering\footnotesize
-\setlength{\tabcolsep}{4pt}
-\input{tables/pipeline_contrasts}
-\caption{Four full pipelines agree on the sign of every contrast, but the overlap level depends on the grouper. Each model extracts and groups its own claims on the same \RefPipePanels{} same-paper and \RefCrossPanels{} cross-paper panels. Contrasts are differences of panel means in points, with 95\% intervals from resampling panels.}
-\label{tab:pipelines}
-\end{table}
 
 
 \section{Overlap Measures}

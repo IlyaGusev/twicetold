@@ -1,5 +1,5 @@
-pipeline,panels,level,cross,flag_gap,flag_gap_low,flag_gap_high,iclr_slope,iclr_slope_low,iclr_slope_high,iclr_step,iclr_step_low,iclr_step_high
-gpt-6-luna-high,510,11.084,0.41,5.61,3.4,7.944,1.01,0.458,1.571,6.995,1.658,12.845
-sol-or,510,10.948,0.55,3.428,1.199,5.679,0.632,0.037,1.215,9.04,4.381,14.104
-deepseek-v4.1-flash,510,14.807,0.456,4.244,1.959,6.629,0.581,0.004,1.198,7.875,2.809,13.416
-kimi-k3.1-pro,510,14.655,0.979,4.523,1.922,7.135,0.921,0.271,1.6,9.589,4.302,15.635
+pipeline,panels,level,cross,flag_gap,flag_gap_low,flag_gap_high,iclr_slope,iclr_slope_low,iclr_slope_high,iclr_step,iclr_step_low,iclr_step_high,pair_gap,pair_gap_se,pair_gap_panels
+gpt-6-luna-high,510,11.084,0.41,5.61,3.4,7.944,1.01,0.458,1.571,6.995,1.658,12.845,7.429,1.972,405
+sol-or,510,10.948,0.55,3.428,1.199,5.679,0.632,0.037,1.215,9.04,4.381,14.104,6.089,1.859,405
+deepseek-v4.1-flash,510,14.807,0.456,4.244,1.959,6.629,0.581,0.004,1.198,7.875,2.809,13.416,4.17,2.243,405
+kimi-k3.1-pro,510,14.655,0.979,4.523,1.922,7.135,0.921,0.271,1.6,9.589,4.302,15.635,10.007,2.337,405

@@ -1,10 +1,12 @@
-\begin{tabular}{@{}lrrrrr@{}}
+\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lrrrr@{}}
 \toprule
-Pipeline & Overlap & Cross & Flagged $-$ unflagged & ICLR slope & ICLR 2027 $-$ 2026 \\
+ & \multicolumn{2}{c}{Overlap (\%)} & \multicolumn{2}{c}{Contrast (points)} \\
+\cmidrule(lr){2-3}\cmidrule(l){4-5}
+Pipeline & \shortstack[r]{Same\\paper} & \shortstack[r]{Cross\\paper} & \shortstack[r]{Flagged\\gap} & \shortstack[r]{ICLR 2027\\$-$ 2026} \\
 \midrule
-GPT-6 Luna & 11.1 & 0.4 & +5.6 [+3.4, +7.9] & +1.01 [+0.46, +1.57] & +7.0 [+1.7, +12.8] \\
-Sol 6.1 & 10.9 & 0.5 & +3.4 [+1.2, +5.7] & +0.63 [+0.04, +1.22] & +9.0 [+4.4, +14.1] \\
-DeepSeek V4.1 Flash & 14.8 & 0.5 & +4.2 [+2.0, +6.6] & +0.58 [+0.00, +1.20] & +7.9 [+2.8, +13.4] \\
-Kimi K3.1 Pro & 14.7 & 1.0 & +4.5 [+1.9, +7.1] & +0.92 [+0.27, +1.60] & +9.6 [+4.3, +15.6] \\
+GPT-6 Luna & 11.1 & 0.4 & +7.4 & +7.0 \\
+Sol 6.1 & 10.9 & 0.5 & +6.1 & +9.0 \\
+DeepSeek V4.1 Flash & 14.8 & 0.5 & +4.2 & +7.9 \\
+Kimi K3.1 Pro & 14.7 & 1.0 & +10.0 & +9.6 \\
 \bottomrule
-\end{tabular}
+\end{tabular*}

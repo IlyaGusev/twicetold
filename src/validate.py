@@ -1376,6 +1376,7 @@ def pipelines(
             extract.load_claims(gold / f"claims_{member}.jsonl"),
             load_jsonl(gold / f"clusters_{member}_own.jsonl", "panel_id"),
         )
+    pair_gaps = own_pair_gaps(panels, runs, hub.meld_flags().flag.astype(int))
     rows = []
     for panel in panels:
         overlaps = {name: panel_overlap(panel, claims, clusters) for name, (claims, clusters) in runs.items()}
@@ -1399,10 +1400,31 @@ def pipelines(
     out = pd.DataFrame(summary)
     out.round(3).to_csv(Path(reports) / f"pipelines_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
-    contrasts = pd.DataFrame([pipeline_contrasts(panels, name) for name in runs])
+    contrasts = pd.DataFrame([pipeline_contrasts(panels, name) | pair_gaps[name] for name in runs])
     contrasts.round(3).to_csv(Path(reports) / f"pipelines_contrasts_{model}.csv", index=False)
     print(contrasts.round(2).to_string(index=False))
     write_contrast_table(contrasts, contrasts_tex)
+
+
+def own_pair_gaps(panels, runs, flag):
+    rows = []
+    for panel in panels:
+        pid, ids = panel["panel_id"], panel["review_ids"]
+        if panel["kind"] != "same" or panel["year"] < settings.FLAG_FROM:
+            continue
+        if not all(
+            "clusters" in clusters.get(pid, {}) and all(rid in claims for rid in ids) for claims, clusters in runs.values()
+        ):
+            continue
+        sets = {name: grouped(ids, claims, clusters[pid]["clusters"]) for name, (claims, clusters) in runs.items()}
+        for i, j in combinations(range(len(ids)), 2):
+            rows.append(dict(panel_id=pid, a=ids[i], b=ids[j], **{name: pair_overlap(s[i], s[j]) for name, s in sets.items()}))
+    pairs = pd.DataFrame(rows)
+    gaps = {name: fe_gap(pairs.assign(hit=pairs[name]), flag) for name in runs}
+    return {
+        name: dict(pair_gap=gap["two"], pair_gap_se=gap["two_se"], pair_gap_panels=pairs.panel_id.nunique())
+        for name, gap in gaps.items()
+    }
 
 
 def bootstrap_interval(frame, statistic, name):
@@ -1438,21 +1460,20 @@ def pipeline_contrasts(panels, name):
 
 def write_contrast_table(contrasts, tex):
     first, last = settings.ICLR_SNAPSHOT_YEARS
-    columns = [
-        ("flag_gap", r"Flagged $-$ unflagged", 1),
-        ("iclr_slope", "ICLR slope", 2),
-        ("iclr_step", f"ICLR {last} $-$ {first}", 1),
+    lines = [
+        r"\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lrrrr@{}}",
+        r"\toprule",
+        r" & \multicolumn{2}{c}{Overlap (\%)} & \multicolumn{2}{c}{Contrast (points)} \\",
+        r"\cmidrule(lr){2-3}\cmidrule(l){4-5}",
+        r"Pipeline & \shortstack[r]{Same\\paper} & \shortstack[r]{Cross\\paper} & \shortstack[r]{Flagged\\gap}"
+        rf" & \shortstack[r]{{ICLR {last}\\$-$ {first}}} \\",
+        r"\midrule",
     ]
-    header = "Pipeline & Overlap & Cross & " + " & ".join(title for _, title, _ in columns) + r" \\"
-    lines = [r"\begin{tabular}{@{}l" + "r" * (len(columns) + 2) + "@{}}", r"\toprule", header, r"\midrule"]
     for r in contrasts.itertuples():
-        cells = [
-            f"{getattr(r, n):+.{d}f} [{getattr(r, n + '_low'):+.{d}f}, {getattr(r, n + '_high'):+.{d}f}]" for n, _, d in columns
-        ]
         lines.append(
-            f"{settings.MODEL_LABELS.get(r.pipeline, r.pipeline)} & {r.level:.1f} & {r.cross:.1f} & " + " & ".join(cells) + r" \\"
+            f"{settings.MODEL_LABELS[r.pipeline]} & {r.level:.1f} & {r.cross:.1f} & {r.pair_gap:+.1f} & {r.iclr_step:+.1f} \\\\"
         )
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular*}"]) + "\n")
 
 
 def unique_claim_group_ids(clusters):
@@ -1616,27 +1637,27 @@ def swap_row(pairs, flag, panels, model, name):
     if name != model:
         outcomes["diff_"] = pairs[model] - pairs[name]
     for prefix, outcome in outcomes.items():
-        two = fe_gap(pairs.assign(hit=outcome), flag)
-        row.update({f"{prefix}two": two["two"], f"{prefix}two_se": two["two_se"]})
+        gaps = fe_gap(pairs.assign(hit=outcome), flag)
+        row.update({f"{prefix}{k}": v for k, v in gaps.items()})
     return row
 
 
 def grouper_swap_table(out, tex):
-    columns = ["two", "diff_two"]
     lines = [
-        r"\begin{tabular}{@{}lrrr@{}}",
+        r"\begin{tabular*}{\columnwidth}{@{\extracolsep{\fill}}lrr@{}}",
         r"\toprule",
-        r" & Flagged $-$ plain & Within-paper & Luna $-$ grouper, \\",
-        r"Grouper & panels & gap & within-paper gap \\",
+        r" & \multicolumn{2}{c}{Within-paper gap (points)} \\",
+        r"\cmidrule(l){2-3}",
+        r"Grouper & One flagged & Two flagged \\",
         r"\midrule",
     ]
     for r in out.itertuples():
-        cells = [f"{r.panel_gap:+.1f} [{r.panel_gap_low:+.1f}, {r.panel_gap_high:+.1f}]"]
-        for name in columns:
+        cells = []
+        for name in ["one", "two"]:
             value, se = getattr(r, name), getattr(r, name + "_se")
-            cells.append("--" if pd.isna(value) else f"{value:+.1f} [{value - Z95 * se:+.1f}, {value + Z95 * se:+.1f}]")
+            cells.append(f"{value:+.1f} [{value - Z95 * se:.1f}, {value + Z95 * se:.1f}]")
         lines.append(f"{SWAP_LABELS[r.grouper]} & " + " & ".join(cells) + r" \\")
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular*}"]) + "\n")
 
 
 def grouper_swap(
