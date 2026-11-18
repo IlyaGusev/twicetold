@@ -152,12 +152,12 @@ The gap could also come from the detector and not from LLM use, if MELD gives hi
 
 \paragraph{RQ3: Do LLM-flagged journal reviews also repeat more critiques?}
 \label{sec:journals}
-From the 2019--2023 mean to 2026, journal overlap rose most at F1000 ($+\FResearchChange$ points) and PLOS ($+\PlosChange$), and at both sources it rose in each year from 2024 (Figure~\ref{fig:overlap}). Within a paper, two flagged reviews overlap \JournalGap{} points more than two unflagged reviews. Only \JournalGapBothN{} of the \JournalGapN{} papers from 2024 on have both pair types, because such a paper needs four reviews. Each single source has few such papers, and its interval includes zero (Figure~\ref{fig:fields}).
+From the 2019--2023 mean to 2026, journal overlap rose most at F1000 ($+\FResearchChange$ points) and PLOS ($+\PlosChange$), and at both sources it rose in each year from 2024 (Figure~\ref{fig:overlap}). Within a paper, two flagged reviews overlap \JournalGap{} points more than two unflagged reviews. Few journal papers have four reviews, so few have both pair types. For the journals, we therefore estimate the gap with a regression with paper fixed effects, which also uses papers with three reviews and mixed flags (RQ\ref{app:checks}). This fit draws on \JournalGapVarying{} of the \JournalGapN{} papers from 2024 on. The gap is positive at F1000, PLOS and Copernicus, and the intervals of BMC Medicine and SciPost include zero (Figure~\ref{fig:fields}).
 
 \begin{figure}[H]
 \centering
 \includegraphics{figs/fig4_fields.pdf}
-\caption{The pooled journal flagged-pair gap is positive, and the interval of each single source includes zero. Mean over papers of two-flagged minus unflagged overlap, from 2024 on, with 95\% intervals. Parentheses: papers with both pair types. SciPost has one such paper and is not shown. Blue: ICLR 2024--2027 estimate.}
+\caption{The journal flagged-pair gap is positive pooled and at F1000, PLOS and Copernicus. Two-flagged minus unflagged overlap from a regression with paper fixed effects, from 2024 on, with 95\% intervals. Parentheses: papers with more than one pair type. Blue: ICLR 2024--2027 estimate from Equation~\ref{eq:gap}.}
 \label{fig:fields}
 \end{figure}
 
@@ -172,7 +172,7 @@ Our results suggest that the reviews of one paper have lost part of their indepe
 
 \textbf{Detector labels.} MELD trained on peer reviews from sources it does not name. If these include our pre-2023 reviews, the threshold is too low and later flag rates too high. EditLens flags fewer recent reviews than MELD, so flag rates depend on the detector. MELD flags \PolishFlagged\% of our polished reviews, so a flag does not separate polishing from generation. Other tools and prompts can polish differently, and detectors label part of LLM-polished reviews as AI-generated \citep{saha2026policies}. A flag does not tell which model wrote a review. Critique content differs between model versions and families \citep{guo2026drift}, so the flagged-pair gap can change with the mix of models that reviewers use. The rewrite control uses two models, two prompts and pre-2023 reviews. Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates. Their labels must not support action against an individual reviewer.
 
-\textbf{Selection and scope.} NeurIPS and most journals publish accepted-paper reviews only, and our ICML sample has accepted papers only. The journal gap rests on \JournalGapBothN{} papers with four or more reviews. All texts are in English, and most come from ML.
+\textbf{Selection and scope.} NeurIPS and most journals publish accepted-paper reviews only, and our ICML sample has accepted papers only. The journal gap rests on \JournalGapVarying{} papers with three or more reviews and mixed flags, and its regression assumes that each pair type shifts overlap by the same amount in every paper. All texts are in English, and most come from ML.
 
 \needspace{7\baselineskip}
 \section*{Use of LLM Assistants}
@@ -361,7 +361,7 @@ We compare within papers, because a plain difference between all two-flagged pai
 \end{equation}
 where $P$ is the set of papers with both pair types. Such a paper has at least two flagged and two unflagged reviews. Each paper has equal weight, and the 95\% interval uses the SE of the paper differences. The gap of pairs with one flagged review (Figure~\ref{fig:ai}b) replaces the two-flagged pairs with these pairs.
 
-A regression with paper fixed effects gives larger estimates at ICLR and a close estimate for the journals. We regress pair overlap on indicators for one and for two flagged reviews, with SEs clustered by paper. This fit also uses the three-review papers with mixed flags. At ICLR in 2024--2027, this fit gives \IdIclrFe{} points for the flagged-pair gap. For the pooled journals, it gives \IdJournalFe{} points from \IdJournalVarying{} papers with mixed flags. With log length and log claim-count controls, this fit gives \ControlGap{} points for the ICLR 2024--2027 flagged-pair gap.
+A regression with paper fixed effects gives larger estimates at ICLR and a close estimate for the journals. We regress pair overlap on indicators for one and for two flagged reviews, with SEs clustered by paper. This fit also uses the three-review papers with mixed flags, so the main text uses it for the journals, where few papers have four reviews. At ICLR in 2024--2027, this fit gives \IdIclrFe{} points for the flagged-pair gap. For the pooled journals, this fit gives \JournalGap{} points from \JournalGapVarying{} papers with mixed flags, and Equation~\ref{eq:gap} gives \IdJournalDirect{} points from \IdJournalDirectN{} papers. With log length and log claim-count controls, this fit gives \ControlGap{} points for the ICLR 2024--2027 flagged-pair gap.
 
 \begin{figure}[!htp]
 \centering

@@ -334,14 +334,15 @@ def journal_gaps(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
     journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= first_year)]
     rows = []
     for source, source_pairs in [*journals.groupby("conf"), ("All journals", journals)]:
-        gap = direct_gap(source_pairs, flag)
+        gap = fe_gap(source_pairs, flag)
+        types = pair_counts(source_pairs, flag).groupby(source_pairs.panel_id.to_numpy()).nunique()
         rows.append(
             dict(
                 source=source,
                 est=gap["two"],
                 se=gap["two_se"],
                 papers=source_pairs.panel_id.nunique(),
-                both_papers=gap["papers"],
+                varying=int((types >= 2).sum()),
             )
         )
     out = pd.DataFrame(rows)

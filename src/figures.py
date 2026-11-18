@@ -409,7 +409,7 @@ def journal_change(by_year, conf):
 def fields(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     gaps = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"journal_gaps_{model}.csv")
     iclr = pd.read_csv(settings.ANALYSIS_REPORTS_DIR / f"rq1_evidence_{model}.csv").iloc[0]
-    identifying = gaps.set_index("source").both_papers
+    identifying = gaps.set_index("source").varying
     sources = gaps.iloc[:-1].dropna(subset="se").sort_values("est", ascending=False)
     pooled = gaps.iloc[-1]
     fig, ax = plt.subplots(figsize=(COLUMN_WIDTH - 0.35, 1.75))
@@ -654,7 +654,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     record("JournalGap", pooled.est, pooled.se, pooled.papers)
     values["JournalGapRound"] = f"{pooled.est:.0f}"
     values["FlagGapRound"] = f"{evidence.loc['ICLR 2024–27'].est:.0f}"
-    values["JournalGapBothN"] = f"{int(pooled.both_papers):,}"
+    values["JournalGapVarying"] = f"{int(pooled.varying):,}"
     meld = pd.read_csv(settings.REPORTS_DIR / "meld_summary.csv").set_index("name").value
     values["MeldThreshold"] = f"{meld.threshold:.2f}"
     for name in ["calibration_reviews", "intel_ai_reviews", "rewrite_reviews"]:
