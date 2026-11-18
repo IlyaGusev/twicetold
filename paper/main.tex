@@ -59,7 +59,7 @@ Our findings are:
 \section{Related Work}
 \label{sec:related}
 
-\paragraph{LLM use in peer review.} ICLR and NeurIPS reviews grew longer after ChatGPT, while LLM-assisted ICLR reviews mention originality and clarity less \citep{wu2026impact}. LLM-generated reviews at one management journal cover a narrower range of topics \citep{gartenberg2026more}. We compare shared problems, not single-review topics.
+\paragraph{LLM use in peer review.} ICLR and NeurIPS reviews grew longer after ChatGPT, while LLM-assisted ICLR reviews mention originality and clarity less \citep{wu2026impact}. LLM-generated reviews at one management journal cover a narrower range of topics \citep{gartenberg2026more}. At ICML 2026, a randomized trial assigned papers and reviewers to a policy that prohibited LLM use or to one that allowed limited use. The second policy made reviews 5--7\% longer and left scores and decisions almost unchanged \citep{kim2026icmltrial}. The trial did not measure overlap between reviews. We compare shared problems, not single-review topics.
 
 \paragraph{Homogenization.} LLM assistance makes the texts and ideas of different users more alike \citep{padmakumar2024writing,anderson2024homogenization,doshi2024generative}. Model outputs are narrower than training data \citep{wu2025monoculture}. \citet{sourati2026homogenizing} review this evidence. We extend the question from creative tasks to expert critiques, where independent readings are the goal.
 
@@ -195,7 +195,7 @@ OpenReview and journal collection took place on 27--29 October 2026, with more j
 SciPost reviews come from its API. We obtain F1000Research, Wellcome Open Research, Open Research Europe and PLOS reviews from Europe PMC, BMC Medicine reviews from \citet{jerma2026bmc}, and Copernicus/EGU reviews from journal discussion pages. We retain first-round referee reviews, exclude author replies and editor notes, and cap papers at five reviews.
 
 \paragraph{Source differences.}
-ICML changed its form between 2025 and 2026 and also changed its LLM policy \citep{icml2025reviewers,icml2026llm,icml2026reviewers}. Public records do not reveal the policy attached to each review. Open journals can also expose later reviewers to earlier reviews. These differences limit comparisons of levels across venues.
+ICML changed its form between 2025 and 2026 and also changed its LLM policy \citep{icml2025reviewers,icml2026llm,icml2026reviewers}. ICML 2026 assigned each reviewer one of two policies \citep{kim2026icmltrial}, but public records do not reveal the policy attached to each review. Open journals can also expose later reviewers to earlier reviews. These differences limit comparisons of levels across venues.
 
 \paragraph{ICLR review forms.}
 \label{app:forms}
@@ -323,7 +323,7 @@ Table~\ref{tab:labels} tests texts of known origin. MELD flags \MeldIntelAiRecal
 
 
 \paragraph{Rates.}
-Table~\ref{tab:byyear} gives flag rates by source-year. In 2027, MELD flags \IclrFlaggedLast\% of ICLR reviews.
+Table~\ref{tab:byyear} gives flag rates by source-year. In 2027, MELD flags \IclrFlaggedLast\% of ICLR reviews. The ICML 2026 trial gives an outside reference \citep{kim2026icmltrial}. On a sample of all main-track reviews, the Pangram API labels as human-written 52.2\% of the reviews of papers under the policy that prohibited LLM use and 37.0\% under the policy that allowed limited use. MELD flags \IcmlFlaggedLast\% of our ICML 2026 reviews, which come from accepted papers only. Both rates are detector outputs, not known labels. ICML 2025 banned LLM use, and MELD flags \IcmlFlaggedBase\% of its reviews. Reviewers break such bans: under the ICML 2026 ban, 22.5\% of surveyed reviewers reported LLM use.
 
 \paragraph{Second detector.}
 We also scored the same texts with EditLens \citep{thai2025editlens}. We run Pangram's Llama-3.2-3B model from Hugging Face (\texttt{pangram/editlens\_Llama-3.2-3B}, revision \texttt{b4a297b}) with the text cleaning of its inference script. A text's score is the EditLens score of its first 1,024 tokens. The threshold follows the MELD rule: the 99.9th percentile of the same \MeldCalibrationReviews{} pre-2023 scores gives \EditlensThreshold. EditLens flags \EditlensHeldoutFlagged\% of the ICLR 2023 reviews.

@@ -664,6 +664,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     iclr_last = by_year[(by_year.conf == "ICLR") & (by_year.year == settings.ICLR_LAST)].iloc[0]
     values["IclrLastYear"] = str(settings.ICLR_LAST)
     record("IclrFlaggedLast", iclr_last.ai_flagged)
+    icml = by_year[by_year.conf == "ICML"].set_index("year")
+    record("IcmlFlaggedBase", icml.loc[2025].ai_flagged)
+    record("IcmlFlaggedLast", icml.loc[2026].ai_flagged)
     flags = kept_meld_flags().flag
     pairs = analysis_pairs(model, None).copy()
     pairs["nflag"] = pairs.a.map(flags).astype(float) + pairs.b.map(flags).astype(float)
