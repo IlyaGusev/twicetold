@@ -1,10 +1,12 @@
 from functools import partial
+from pathlib import Path
 
 import fire
+import pandas as pd
 import torch
 from transformers import AutoModel
 
-from meld import flag_reports, score_file
+from meld import KNOWN_SETS, flag_reports, score_file
 from settings import settings
 
 FLUSH_DOCS = 5000
@@ -50,13 +52,49 @@ def scores(
     score_file(input, out, partial(score_docs, load_scorer(), batch_size=batch_size), FLUSH_DOCS, per_set)
 
 
+REVIEW_ROWS = [
+    ("ICLR", "sample", "ICLR", range(2024, 2028)),
+    ("NeurIPS", "sample", "NeurIPS", range(2023, 2026)),
+    ("ICML", "icml", "ICML", range(2025, 2027)),
+    ("Journals", "journal", None, range(2023, 2027)),
+]
+
+
+def compare_table(reports, tex, known_tex):
+    known = pd.read_csv(Path(reports) / "meld_labels.csv").set_index("known")
+    known = known.assign(
+        meld=100 - known.unflagged, gigacheck=pd.read_csv(Path(reports) / "gigacheck_labels.csv").set_index("known").flagged
+    )
+    head = r"Texts & $n$ & \shortstack[r]{MELD\\flagged (\%)} & \shortstack[r]{GigaCheck\\flagged (\%)} \\"
+    lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", head, r"\midrule"]
+    lines += [f"{KNOWN_SETS[k]} & {int(r.texts):,} & {r.meld:.1f} & {r.gigacheck:.1f} \\\\" for k, r in known.iterrows()]
+    Path(known_tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+    lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", r"Reviews & $n$ & MELD (\%) & GigaCheck (\%) \\", r"\midrule"]
+    rates = pd.read_csv(Path(reports) / "meld_rates.csv").merge(
+        pd.read_csv(Path(reports) / "gigacheck_rates.csv"), on=["set", "conf", "year"], suffixes=("_meld", "_gigacheck")
+    )
+    for label, name, conf, years in REVIEW_ROWS:
+        cell = rates[(rates.set == name) & (rates.conf == conf if conf else True)]
+        for year in years:
+            part = cell[cell.year == year]
+            n = part.n_gigacheck.sum()
+            meld, gigacheck = (
+                (part[f"flagged_{d}"] * part[f"n_{d}"]).sum() / part[f"n_{d}"].sum() for d in ["meld", "gigacheck"]
+            )
+            lines.append(f"{label} {year} & {int(n):,} & {meld:.1f} & {gigacheck:.1f} \\\\")
+    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
+
+
 def flags(
     input=settings.RAW_DIR / "meld_input.parquet",
     scored=settings.RAW_DIR / "gigacheck_scores.jsonl",
     out=settings.RAW_DIR / "gigacheck_flags.parquet",
     reports=settings.REPORTS_DIR,
+    tex=settings.TABLES_DIR / "detectors_compare.tex",
+    known_tex=settings.TABLES_DIR / "known_texts.tex",
 ):
     flag_reports("gigacheck", ["score", "n_tokens"], ["meld", "editlens", "gpttrace"], input, scored, out, reports)
+    compare_table(reports, tex, known_tex)
 
 
 if __name__ == "__main__":

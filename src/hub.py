@@ -72,12 +72,9 @@ def meld_flags(columns=("conf", "year", "score", "flag", "written")):
     return frame("reviews", ["review_id", *columns], ds.field("meld_flag").is_valid()).set_index("review_id")
 
 
-def editlens_flags():
-    return (
-        frame("reviews", ["review_id", "editlens_flag"], ds.field("editlens_flag").is_valid())
-        .set_index("review_id")
-        .editlens_flag
-    )
+def detector_flags(detector):
+    column = f"{detector}_flag"
+    return frame("reviews", ["review_id", column], ds.field(column).is_valid()).set_index("review_id")[column]
 
 
 def abstract_scores(detector):

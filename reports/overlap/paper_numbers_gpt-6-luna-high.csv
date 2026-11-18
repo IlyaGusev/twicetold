@@ -205,9 +205,8 @@ PaperLunaFlagged,100.0,,
 PaperLunaUnflagged,0.0,,
 PaperKimiFlagged,100.0,,
 PaperKimiUnflagged,0.0,,
-EditlensBoth,18.39695796247062,,
-EditlensMeldOnly,18.734105883712864,,
-EditlensOnly,3.1313817285092282,,
-EditlensHeldoutFlagged,0.028,,
-EditlensFlagGap,4.17474745535651,0.29524343913651563,74339.0
-EditlensFlagGapLast,6.606277345124929,1.1090453699081908,40559.0
+GigacheckBoth,12.222816244750124,,
+GigacheckMeldOnly,24.908247601433363,,
+GigacheckOnly,2.1384811004508153,,
+GigacheckHeldoutFlagged,0.077,,
+GigacheckFlagGap,4.537999496389079,0.42980519129403083,74339.0

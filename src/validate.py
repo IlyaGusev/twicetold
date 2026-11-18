@@ -582,7 +582,7 @@ def paper_outcomes(model):
 
 def flagged_review_share(model):
     reviews = pd.read_parquet(settings.ANALYSIS_DIR / f"review_groups_{model}.parquet", columns=["panel_id", "review_id"])
-    flags = hub.editlens_flags().astype(float)
+    flags = hub.detector_flags("editlens").astype(float)
     return reviews.review_id.map(flags).groupby(reviews.panel_id.to_numpy()).mean().mul(100).rename("flagged_reviews")
 
 
@@ -728,7 +728,7 @@ def appendix_claims(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPO
         {"size": [len(m) for m in marks.values()], "sum": [sum(m) for m in marks.values()]},
         index=pd.Index(list(marks), name="review_id"),
     )
-    flags = hub.meld_flags(["conf", "year", "flag"]).join(hub.editlens_flags())
+    flags = hub.meld_flags(["conf", "year", "flag"]).join(hub.detector_flags("editlens"))
     counts = counts.join(flags, how="inner")
     shares = []
     for detector, column in (("meld", "flag"), ("editlens", "editlens_flag")):
@@ -893,14 +893,14 @@ def second_detector_table(out, tex):
     lines = [
         r"\begin{tabular}{@{}lrrrrr@{}}",
         r"\toprule",
-        r" & & \multicolumn{2}{c}{MELD} & \multicolumn{2}{c}{EditLens} \\",
+        r" & & \multicolumn{2}{c}{MELD} & \multicolumn{2}{c}{GigaCheck} \\",
         r"\cmidrule(lr){3-4}\cmidrule(l){5-6}",
         r"Reviews & Papers & Gap (points) & Pairs & Gap (points) & Pairs \\",
         r"\midrule",
     ]
     for r in out.itertuples():
         cells = [r.cell.replace("–", "--"), f"{r.papers:,}"]
-        for name in ["meld", "editlens"]:
+        for name in ["meld", "gigacheck"]:
             est, se = getattr(r, name), getattr(r, f"{name}_se")
             cells += [f"{est:+.1f} [{est - Z95 * se:+.1f}, {est + Z95 * se:+.1f}]", f"{getattr(r, f'{name}_pairs'):,}"]
         lines.append(" & ".join(cells) + r" \\")
@@ -913,7 +913,7 @@ def second_detector(
     tex=settings.TABLES_DIR / "second_detector.tex",
     first_year=2024,
 ):
-    flags = {"meld": hub.meld_flags().flag.astype(int), "editlens": hub.editlens_flags().astype(int)}
+    flags = {"meld": hub.meld_flags().flag.astype(int), "gigacheck": hub.detector_flags("gigacheck").astype(int)}
     pairs = analysis_pairs(model)
     journals = pairs[~pairs.conf.isin(settings.ML_VENUES) & (pairs.year >= first_year)]
     cells = gap_cells(pairs) | {f"Journals {first_year}–{journals.year.max() % 100}": journals}
@@ -928,9 +928,6 @@ def second_detector(
     out.to_csv(Path(reports) / f"second_detector_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     second_detector_table(out, tex)
-    steps = decomposition_rows(pairs, flags["editlens"])
-    steps.to_csv(Path(reports) / f"second_detector_decomposition_{model}.csv", index=False)
-    print(steps.round(2).to_string(index=False))
 
 
 def repro(model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR):

@@ -1,6 +1,5 @@
 import re
 from functools import partial
-from pathlib import Path
 
 import emoji
 import fire
@@ -10,7 +9,7 @@ from huggingface_hub import snapshot_download
 from peft import PeftModel
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, BitsAndBytesConfig
 
-from meld import KNOWN_SETS, flag_reports, merge_windows, score_file
+from meld import flag_reports, merge_windows, score_file
 from settings import settings
 
 FLUSH_DOCS = 2000
@@ -100,47 +99,13 @@ def scores(
     score_file(input, out, partial(score_docs, tok, model, batch_size=batch_size), FLUSH_DOCS, per_set)
 
 
-REVIEW_ROWS = [
-    ("ICLR", "sample", "ICLR", range(2024, 2028)),
-    ("NeurIPS", "sample", "NeurIPS", range(2023, 2026)),
-    ("ICML", "icml", "ICML", range(2025, 2027)),
-    ("Journals", "journal", None, range(2023, 2027)),
-]
-
-
-def compare_table(reports, tex, known_tex):
-    known = pd.read_csv(Path(reports) / "meld_labels.csv").set_index("known")
-    known = known.assign(
-        meld=100 - known.unflagged, editlens=pd.read_csv(Path(reports) / "editlens_labels.csv").set_index("known").flagged
-    )
-    head = r"Texts & $n$ & \shortstack[r]{MELD\\flagged (\%)} & \shortstack[r]{EditLens\\flagged (\%)} \\"
-    lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", head, r"\midrule"]
-    lines += [f"{KNOWN_SETS[k]} & {int(r.texts):,} & {r.meld:.1f} & {r.editlens:.1f} \\\\" for k, r in known.iterrows()]
-    Path(known_tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
-    lines = [r"\begin{tabular}{@{}lrrr@{}}", r"\toprule", r"Reviews & $n$ & MELD (\%) & EditLens (\%) \\", r"\midrule"]
-    rates = pd.read_csv(Path(reports) / "meld_rates.csv").merge(
-        pd.read_csv(Path(reports) / "editlens_rates.csv"), on=["set", "conf", "year"], suffixes=("_meld", "_editlens")
-    )
-    for label, name, conf, years in REVIEW_ROWS:
-        cell = rates[(rates.set == name) & (rates.conf == conf if conf else True)]
-        for year in years:
-            part = cell[cell.year == year]
-            n = part.n_editlens.sum()
-            meld, editlens = ((part[f"flagged_{d}"] * part[f"n_{d}"]).sum() / part[f"n_{d}"].sum() for d in ["meld", "editlens"])
-            lines.append(f"{label} {year} & {int(n):,} & {meld:.1f} & {editlens:.1f} \\\\")
-    Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
-
-
 def flags(
     input=settings.RAW_DIR / "meld_input.parquet",
     scored=settings.RAW_DIR / "editlens_scores.jsonl",
     out=settings.RAW_DIR / "editlens_flags.parquet",
     reports=settings.REPORTS_DIR,
-    tex=settings.TABLES_DIR / "detectors_compare.tex",
-    known_tex=settings.TABLES_DIR / "known_texts.tex",
 ):
     flag_reports("editlens", ["score", "n_tokens"], ["meld"], input, scored, out, reports)
-    compare_table(reports, tex, known_tex)
 
 
 if __name__ == "__main__":
