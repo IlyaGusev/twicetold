@@ -798,6 +798,11 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         values[prefix + "MemberMax"] = f"{members[name].max():.{digits}f}"
         values[prefix + "Positive"] = f"{int((contrasts[name] > 0).sum())}"
         values[prefix + "Significant"] = f"{int((contrasts[name + '_low'] > 0).sum())}"
+    pair_gap_low = contrasts.pair_gap - Z95 * contrasts.pair_gap_se
+    values["RefPipePairGapLuna"] = f"{luna.pair_gap:.1f}"
+    values["RefPipePairGapMemberMin"] = f"{members.pair_gap.min():.1f}"
+    values["RefPipePairGapMemberMax"] = f"{members.pair_gap.max():.1f}"
+    values["RefPipePairGapSignificant"] = f"{int((pair_gap_low > 0).sum())}"
     for name, prefix in [("kim", "Kim"), ("claimcheck", "Claimcheck")]:
         row = pd.read_csv(reports / f"{name}_{model}.csv").iloc[0]
         values[prefix + "Reviews"] = f"{int(row.reviews):,}"
