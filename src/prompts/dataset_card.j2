@@ -184,7 +184,7 @@ Detector: [{{ editlens_repo }}](https://huggingface.co/{{ editlens_repo }}), rev
 adapter on Llama-3.2-3B (loaded from `{{ editlens_base_repo }}` in 4 bits). The score covers the first
 {{ editlens_max_length }} tokens of a text, as in Pangram's inference script. Threshold {{ editlens_threshold }}: the same
 quantile of the same reviews as for MELD. `raw/editlens_scores.jsonl` also holds the token-weighted mean score over
-all windows of a text. The same warning applies: a flag is a detector output.
+all windows of a text. The paper does not use these scores. The same warning applies: a flag is a detector output.
 
 ## GPTTrace
 
@@ -204,9 +204,9 @@ Detector: [{{ gigacheck_repo }}](https://huggingface.co/{{ gigacheck_repo }}), r
 binary classifier on Mistral-7B from the LLMTrace project. It needs the `gigacheck` package
 (https://github.com/ai-forever/gigacheck). The score covers the first {{ gigacheck_max_length }} tokens of a text, as
 in the model's own code. Threshold {{ gigacheck_threshold }}: the same quantile of the same reviews as for MELD. The
-paper does not use these scores. Form headers do not change the scores, but line breaks do for ICML: on 400 ICML
-reviews, the share above a test threshold fell from 55% to 39% when we removed all line breaks. The same warning
-applies: a flag is a detector output.
+paper uses `gigacheck_flag` as its second detector. Form headers do not change the scores, but line breaks do for
+ICML: on 400 ICML reviews, the share above a test threshold fell from 55% to 39% when we removed all line breaks. The
+same warning applies: a flag is a detector output.
 
 ## Licence
 
