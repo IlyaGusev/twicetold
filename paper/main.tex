@@ -38,7 +38,7 @@ Peer review relies on several readers finding different problems. We measure cri
 \begin{figure}[t]
 \centering
 \includegraphics{figs/fig1_trends.pdf}
-\caption{Measured critique overlap rose at ICLR in 2027, at ICML in 2026 and at NeurIPS in 2025. Journal overlap rose most at F1000 and PLOS. We define overlap as shared problems divided by the smaller critique set, averaged within papers, then over papers. Dashed segment: from 2026 on, ICLR samples hold reviews before the discussion phase. The 2026 and 2027 points include papers withdrawn later.}
+\caption{Measured critique overlap rose at ICLR in 2027, at ICML in 2026 and at NeurIPS in 2025. Journal overlap rose most at F1000 and PLOS. We define overlap as shared problems divided by the smaller critique set, averaged within papers, then over papers. Dashed segment: from 2026 on, ICLR samples hold reviews during the discussion phase. The 2026 and 2027 points include papers withdrawn later.}
 \label{fig:overlap}
 \end{figure}
 
@@ -128,7 +128,7 @@ MELD \citep{li2026meld} scores reviews for LLM-generated or edited text. \textbf
 
 \paragraph{RQ1: Do reviewers of one paper repeat more of each other's critiques?}
 \label{sec:trends}
-ICLR overlap rose from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, by $+\IclrSnapChange$ points. These two years are directly comparable: both hold reviews before the discussion phase. NeurIPS and ICML also rose in their latest cycles (Figure~\ref{fig:overlap}).
+ICLR overlap rose from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, by $+\IclrSnapChange$ points. These two years are directly comparable: both hold reviews during the discussion phase. NeurIPS and ICML also rose in their latest cycles (Figure~\ref{fig:overlap}).
 
 Table~\ref{tab:coverage} counts claims in all three-review subsets of each ICLR paper. From 2026 to 2027, claims per review rose from \CovPerReviewLast{} to \CovPerReviewSnap, but distinct claims per three-review panel fell from \CovProblemsLast{} to \CovProblemsSnap, and the new claims that a third review added fell from \CovNewLast{} to \CovNewSnap.
 
@@ -136,7 +136,7 @@ Table~\ref{tab:coverage} counts claims in all three-review subsets of each ICLR 
 \centering\footnotesize
 \setlength{\tabcolsep}{0pt}
 \input{tables/coverage}
-\caption{ICLR three-review panels hold fewer distinct claims in 2027 than in any year from 2020, although claims per review did not fall from 2026. Distinct: claims of the three reviews, with a repeated claim counted once. $^\dagger$Reviews before the discussion phase; earlier years hold final reviews.}
+\caption{ICLR three-review panels hold fewer distinct claims in 2027 than in any year from 2020, although claims per review did not fall from 2026. Distinct: claims of the three reviews, with a repeated claim counted once. $^\dagger$Reviews during the discussion phase; earlier years hold final reviews.}
 \label{tab:coverage}
 \end{table}
 
@@ -175,7 +175,7 @@ Our results suggest that the reviews of one paper have lost part of their indepe
 \section*{Limitations}
 \textbf{LLM measurement.} An LLM extracts and groups claims. The council reference uses LLMs, not humans, and does not rule out shared model errors. The human check covers pass 1 only. Extraction and grouping errors can affect measured levels and changes over time. The overlap level depends on the grouper: council members give \RefPipeLevelMemberMin{} to \RefPipeLevelMemberMax\% against Luna's \RefPipeLuna\%. Every level in this paper is Luna's, and the contrasts hold in all four pipelines. Luna misses more links in papers with no flagged review. LLM groupers agree that this error changes comparisons between papers but not within-paper gaps. No human annotator checked the grouping.
 
-\textbf{Review snapshots.} ICLR samples hold final reviews before 2026 and reviews before the discussion phase from 2026 on, so the ICLR series compares reviews of one stage only from 2026 to 2027. For the same reason, we report ICLR flagged-pair gaps for 2024--2025 and 2026--2027 apart.
+\textbf{Review snapshots.} ICLR samples hold final reviews before 2026 and reviews during the discussion phase from 2026 on, so the ICLR series compares reviews of one stage only from 2026 to 2027. For the same reason, we report ICLR flagged-pair gaps for 2024--2025 and 2026--2027 apart.
 
 \textbf{Detector labels.} MELD trained on peer reviews from sources it does not name. If these include our pre-2023 reviews, the threshold is too low and later flag rates too high. GigaCheck flags fewer recent reviews than MELD, so flag rates depend on the detector. MELD flags \PolishFlagged\% of our polished reviews, so a flag does not separate polishing from generation. Other tools and prompts can polish differently, and detectors label part of LLM-polished reviews as AI-generated \citep{saha2026policies}. A flag does not tell which model wrote a review. Critique content differs between model versions and families \citep{guo2026drift}, so the flagged-pair gap can change with the mix of models that reviewers use. The rewrite control uses two models, two prompts and pre-2023 reviews. Within-paper comparisons remove paper-level differences, not reviewer-level ones, and do not assign a causal effect to LLM use. An unflagged review is not thereby human-written. Detectors can err across language backgrounds, fields and templates. Their labels must not support action against an individual reviewer.
 
@@ -374,7 +374,7 @@ The detector misses that we tested are unlikely to explain the rise within unfla
 \centering\footnotesize
 \setlength{\tabcolsep}{3.5pt}
 \input{tables/decomposition}
-\caption{Part of each yearly rise goes with flagged reviews, and overlap also rose within unflagged pairs. The three pair types count the LLM-flagged reviews of a pair: none, one or two. None, no flag in paper: unflagged pairs of papers with no flagged review. The total change is the sum of the three columns after it. Unflagged pairs: change of the overlap of pairs with no flagged review. Shift of types: change of the pair-type shares, at the mean overlap of the two years. Flagged, above unflagged: rise of overlap of the other two pair types above the rise of unflagged pairs, at their mean share. Papers have equal weight. The ICLR rows of 2026 and 2027 use reviews from the start of the discussion phase.}
+\caption{Part of each yearly rise goes with flagged reviews, and overlap also rose within unflagged pairs. The three pair types count the LLM-flagged reviews of a pair: none, one or two. None, no flag in paper: unflagged pairs of papers with no flagged review. The total change is the sum of the three columns after it. Unflagged pairs: change of the overlap of pairs with no flagged review. Shift of types: change of the pair-type shares, at the mean overlap of the two years. Flagged, above unflagged: rise of overlap of the other two pair types above the rise of unflagged pairs, at their mean share. Papers have equal weight. The ICLR rows of 2026 and 2027 use reviews taken during the discussion phase.}
 \label{tab:decomposition}
 \end{table}
 
@@ -385,7 +385,7 @@ No. The rise from 2026 to 2027 is between \RobustSnapMin{} and \RobustSnapMax{} 
 \begin{table}[!htp]
 \centering\small
 \input{tables/robust}
-\caption{The ICLR rise holds under each analysis choice. The top rows compare 2026 with 2027, both with reviews before the discussion phase. The bottom rows compare 2025, with final reviews, with 2026. SE in parentheses. Luna and a council member give the same specificity flag to \RefSpecific\% of the claims that both extract.}
+\caption{The ICLR rise holds under each analysis choice. The top rows compare 2026 with 2027, both with reviews during the discussion phase. The bottom rows compare 2025, with final reviews, with 2026. SE in parentheses. Luna and a council member give the same specificity flag to \RefSpecific\% of the claims that both extract.}
 \label{tab:robust}
 \end{table}
 
