@@ -535,9 +535,9 @@ def by_year(model=settings.DEFAULT_MODEL):
         [summarize(ml, ml_placebo), summarize(icml, icml[icml.placebo]), summarize(other[~other.placebo], other[other.placebo])]
     )
 
-    flags = kept_meld_flags()
-    flag_rates = flags.groupby(["conf", "year"]).flag.mean().mul(100)
-    rows = rows.join(flag_rates.rename("ai_flagged"))
+    flags = kept_meld_flags().join(hub.detector_flags("gigacheck")).astype({"flag": float, "gigacheck_flag": float})
+    flag_rates = flags.groupby(["conf", "year"])[["flag", "gigacheck_flag"]].mean().mul(100)
+    rows = rows.join(flag_rates.rename(columns={"flag": "ai_flagged", "gigacheck_flag": "gigacheck_flagged"}))
 
     rows = in_window(rows.reset_index())
     rows["conf"] = pd.Categorical(rows.conf, ORDER)
@@ -568,6 +568,7 @@ def journal_periods(rows):
                     match=(cell.match * by_papers).sum(),
                     match_se=np.sqrt(((cell.match_se * by_papers) ** 2).sum()),
                     ai_flagged=(cell.ai_flagged * by_reviews).sum(),
+                    gigacheck_flagged=(cell.gigacheck_flagged * by_reviews).sum(),
                 )
             )
     return pd.DataFrame(out).assign(conf=lambda d: pd.Categorical(d.conf, ORDER))
@@ -575,9 +576,11 @@ def journal_periods(rows):
 
 def latex(rows):
     lines = [
-        r"\begin{tabular}{llrrrrr}",
+        r"\begin{tabular}{llrrrrrr}",
         r"\toprule",
-        r"Source & Year & Papers & Reviews & \shortstack[r]{Claims\\per review} & \shortstack[r]{Overlap\\(\%)} & \shortstack[r]{LLM-flagged\\(\%)} \\",
+        r" & & & & & & \multicolumn{2}{c}{Flagged (\%)} \\",
+        r"\cmidrule(l){7-8}",
+        r"Source & Year & Papers & Reviews & \shortstack[r]{Claims\\per review} & \shortstack[r]{Overlap\\(\%)} & MELD & GigaCheck \\",
         r"\midrule",
     ]
     for conf, group in rows.groupby("conf", observed=True):
@@ -590,6 +593,7 @@ def latex(rows):
                 tex_number(row.claims_per_review),
                 f"{tex_number(row.match)} $\\pm$ {tex_number(row.match_se)}",
                 tex_number(row.ai_flagged),
+                tex_number(row.gigacheck_flagged),
             ]
             lines.append(" & ".join(cells) + r" \\")
         lines.append(r"\midrule")
@@ -651,7 +655,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         row = forms.loc[year]
         record(prefix, row.hit_removed, row.hit_removed_se, row.removed_papers)
         record(prefix + "Change", row.removed_change, row.removed_change_se, row.removed_papers)
-    gap_rows = [("ICLR 2024", "FlagGapTwentyFour"), ("ICLR 2027", "FlagGapTwentySeven")]
+    gap_rows = []
     threshold_rows = []
     for period, suffix in PERIOD_SUFFIX.items():
         gap_rows += [(period, "FlagGap" + suffix), (f"{period}, + length and claim count", "ControlGap" + suffix)]
@@ -663,7 +667,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     for label, prefix in gap_rows:
         row = evidence.loc[label]
         record(prefix, row.est, row.se, row.papers)
-        values[prefix + "Ident"] = f"{int(row.identifying):,}"
     for label, name in [
         *threshold_rows,
         ("Top-45% scores, ICLR 2020", "PlaceboFirstGap"),
@@ -685,12 +688,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         values["Meld" + name.title().replace("_", "")] = f"{int(meld[name]):,}"
     for name in ["pre_source_max", "pre_year_max", "intel_ai_recall", "rewrite_recall_min"]:
         values["Meld" + name.title().replace("_", "")] = f"{meld[name]:.1f}"
-    iclr_last = by_year[(by_year.conf == "ICLR") & (by_year.year == settings.ICLR_LAST)].iloc[0]
     values["IclrLastYear"] = str(settings.ICLR_LAST)
-    record("IclrFlaggedLast", iclr_last.ai_flagged)
     icml = by_year[by_year.conf == "ICML"].set_index("year")
     record("IcmlFlaggedBase", icml.loc[2025].ai_flagged)
-    record("IcmlFlaggedLast", icml.loc[2026].ai_flagged)
     flags = kept_meld_flags().flag
     pairs = analysis_pairs(model, None).copy()
     pairs["nflag"] = pairs.a.map(flags).astype(float) + pairs.b.map(flags).astype(float)
@@ -882,13 +882,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(f"Type{pair_type.title()}{GAP_PREFIX[conf]}", row.est, row.se, row.papers)
     steps = pd.read_csv(reports / f"decomposition_{model}.csv").set_index(["conf", "year"])
     step, step_base = steps.loc[("ICLR", settings.CONTRAST_YEARS[1])], steps.loc[("ICLR", settings.CONTRAST_YEARS[0])]
-    values["DecIclrMix"] = f"{step.composition:.1f}"
-    values["DecIclrMixEarly"] = f"{step_base.composition:.1f}"
     step_snap = steps.loc[("ICLR", settings.ICLR_SNAPSHOT_YEARS[1])]
-    values["DecSnapMix"] = f"{step_snap.composition:.1f}"
     values["DecSnapChange"] = f"{step_snap.change:.1f}"
     values["DecSnapBackground"] = f"{step_snap.background:.1f}"
-    values["DecSnapExcess"] = f"{step_snap.flagged_excess:.1f}"
     record("DecSnapLlm", step_snap.llm, step_snap.llm_se)
     values["DecSnapNoneLast"] = f"{step_snap.overlap_HH:.1f}"
     values["DecIclrNoneBase"] = f"{step_base.overlap_HH:.1f}"
@@ -896,7 +892,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     values["DecIclrCleanBase"] = f"{step_base.overlap_clean:.1f}"
     values["DecIclrCleanLast"] = f"{step.overlap_clean:.1f}"
     values["DecSnapCleanLast"] = f"{step_snap.overlap_clean:.1f}"
-    values["DecIclrTwoShareBase"] = f"{step_base.share_LL:.1f}"
     subsets = pd.read_csv(reports / f"journal_subsets_{model}.csv").set_index("subset")
     for subset, prefix in [("Identifying", "JsIdent"), ("Two reports", "JsTwo")]:
         row = subsets.loc[subset]
@@ -914,10 +909,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record("CovShared" + suffix, row.shared_per_pair, row.shared_per_pair_se, digits=2)
     rewrite = pd.read_csv(reports / f"rewrite_test_{model}.csv").set_index(["condition", "group"])
     meld_rates = pd.read_csv(settings.REPORTS_DIR / "meld_rates.csv")
-    recent = JOURNAL_PERIODS[1][0]
-    scored = meld_rates[(meld_rates.set == "journal") & (meld_rates.year >= recent)].n.sum()
-    kept = by_year[~by_year.conf.isin(settings.ML_VENUES) & (by_year.year >= recent)].reviews.sum()
-    values["JournalCappedReviews"] = f"{scored - kept:,}"
     for condition, base, meld_set in REWRITE_MACROS:
         for group, suffix in [("All", ""), ("ICLR", "Iclr"), ("Journals", "Journal")]:
             if (condition, group) not in rewrite.index:
@@ -943,10 +934,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(base + "ClaimsRewrite", row.claims_rewrite)
         texts = meld_rates[meld_rates.set == meld_set]
         record(base + "Flagged", (texts.flagged * texts.n).sum() / texts.n.sum())
-    effect = rewrite.loc[("outline_second", "ICLR")]
-    for period, suffix in PERIOD_SUFFIX.items():
-        gap = evidence.loc[period]
-        record("RkFlagDiff" + suffix, gap.est - effect.two, np.hypot(gap.se, effect.two_se))
     labels = pd.read_csv(settings.REPORTS_DIR / "meld_labels.csv").set_index("known")
     for known, prefix, digits in [
         ("polish", "Polish", 1),
@@ -975,7 +962,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     second = pd.read_csv(reports / f"second_detector_{model}.csv").set_index("cell")
     for period, suffix in PERIOD_SUFFIX.items():
         iclr = second.loc[period]
-        record("GigacheckFlagGap" + suffix, iclr.gigacheck, iclr.gigacheck_se, iclr.papers)
+        record("GigacheckFlagGap" + suffix, iclr.gigacheck, iclr.gigacheck_se, iclr.gigacheck_papers)
     repro = pd.read_csv(reports / f"repro_{model}.csv").set_index("name").value
     for name in ["pass1_empty", "pass1_error_rows", "pass2_error_rows", "calibration_in_analysis", "calibration_outside"]:
         values["Repro" + name.title().replace("_", "").replace("1", "One").replace("2", "Two")] = f"{int(repro[name]):,}"

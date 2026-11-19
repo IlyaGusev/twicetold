@@ -15,7 +15,6 @@ from tqdm import tqdm
 import ai
 import extract
 import hub
-from between import normalize_rows, openai_embed
 from jsonl import load_jsonl, read_jsonl
 from metrics import assign, mean_overlap, review_groups
 from metrics import overlap as pair_overlap
@@ -26,7 +25,6 @@ REMOVED_FIELD_TAGS = ("_nocq", "_noq")
 HALF_SPAN = 0.5
 LABEL_FIELDS = ("category", "target", "specific")
 PAIR_COUNTS = ["pair_tp", "pair_fp", "pair_fn", "pair_candidates"]
-COVER_QUANTILE = 0.95
 FORM_CATEGORIES = ("clarity/presentation", "novelty", "reproducibility/details")
 FIELD_LABELS = {
     "summary": "summary",
@@ -137,6 +135,7 @@ def form_panel(panel, claims, n_reviews):
 
 
 FORM_COLUMNS = ["hit", "hit_removed", "hit_without", "form_share"]
+FIELD_DELETED_YEARS = (2023, 2024)
 
 
 def forms_table(out, tex):
@@ -151,7 +150,8 @@ def forms_table(out, tex):
     ]
     for r in out.itertuples():
         fields = sorted(r.form.split("+"), key=list(FIELD_LABELS).index)
-        cells = ["--" if pd.isna(getattr(r, c)) else f"{getattr(r, c):.1f}" for c in FORM_COLUMNS]
+        hidden = {"hit_removed"} if r.year not in FIELD_DELETED_YEARS else set()
+        cells = ["--" if c in hidden or pd.isna(getattr(r, c)) else f"{getattr(r, c):.1f}" for c in FORM_COLUMNS]
         lines.append(f"{r.year} & {'; '.join(FIELD_LABELS[f] for f in fields)} & {r.papers:,} & {' & '.join(cells)} \\\\")
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
@@ -419,11 +419,6 @@ def pair_types(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=set
 
 
 PAIR_SIZE_OUTCOMES = {"hit": "Overlap", "shared": "Shared", "smaller": "Smaller set", "union": "Union"}
-PAIR_TYPE_NAMES = {
-    "HH": "Both unflagged",
-    "HL": "One flagged",
-    "LL": "Both flagged",
-}
 
 
 def type_fit(cell, types, outcome, controls=()):
@@ -437,36 +432,7 @@ def minus_signs(text):
     return re.sub(r"(?<![\w-])-(?=\d)", "$-$", text)
 
 
-def pair_type_sizes_table(out, tex):
-    lines = [
-        r"\begin{tabular}{@{}lrrrrrr@{}}",
-        r"\toprule",
-        r"Pair type & Pairs & \shortstack[r]{Overlap\\(points)} & \shortstack[r]{Shared\\problems} & "
-        r"\shortstack[r]{Problems,\\smaller review} & \shortstack[r]{Problems,\\either review} & "
-        r"\shortstack[r]{Shared,\\sizes fixed} \\",
-    ]
-    for r in out.itertuples():
-        if r.pair_type == "HH":
-            lines += [r"\midrule", rf"\multicolumn{{7}}{{@{{}}l}}{{\textbf{{{r.cell.replace('–', '--')}}}}} \\"]
-            cells = [f"{r.hit:.1f}", f"{r.shared:.2f}", f"{r.smaller:.2f}", f"{r.union:.2f}", f"{r.shared:.2f}"]
-        else:
-            cells = [f"{getattr(r, name):+.{1 if name == 'hit' else 2}f}" for name in [*PAIR_SIZE_OUTCOMES, "shared_adjusted"]]
-        lines.append(f"{PAIR_TYPE_NAMES[r.pair_type]} & {r.pairs:,} & " + " & ".join(cells) + r" \\")
-    Path(tex).write_text(minus_signs("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n"))
-
-
-def pair_type_sizes_table_from_report(
-    model=settings.DEFAULT_MODEL, reports=settings.ANALYSIS_REPORTS_DIR, tex=settings.TABLES_DIR / "pair_type_sizes.tex"
-):
-    pair_type_sizes_table(pd.read_csv(Path(reports) / f"pair_type_sizes_{model}.csv"), tex)
-
-
-def pair_type_sizes(
-    model=settings.DEFAULT_MODEL,
-    data=settings.WORK_DIR,
-    reports=settings.ANALYSIS_REPORTS_DIR,
-    tex=settings.TABLES_DIR / "pair_type_sizes.tex",
-):
+def pair_type_sizes(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=settings.ANALYSIS_REPORTS_DIR):
     flag = hub.meld_flags().flag.astype(int)
     pairs = analysis_pairs(model, None)
     rows = []
@@ -486,7 +452,6 @@ def pair_type_sizes(
     out = pd.DataFrame(rows)
     out.to_csv(Path(reports) / f"pair_type_sizes_{model}.csv", index=False)
     print(out.round(3).to_string(index=False))
-    pair_type_sizes_table(out, tex)
 
 
 JOURNAL_SUBSETS = ["Identifying", "3--5 reports, other", "Two reports"]
@@ -798,8 +763,7 @@ PASS1_VARIANTS = {"ml": ["noq", "nocq"], "journal": []}
 
 
 ALL_PAIR_TYPES = ("HH", *PAIR_TYPES)
-DECOMPOSITION_TERMS = ("change", "background", "llm", "composition", "flagged_excess")
-TABLE_TERMS = ("change", "background", "composition", "flagged_excess")
+DECOMPOSITION_TERMS = ("change", "background", "llm")
 
 
 def type_totals(weights, hits):
@@ -811,25 +775,23 @@ def shift_share(before, after):
     (share_a, mean_a), (share_b, mean_b) = before, after
     mean_a, mean_b = np.where(np.isnan(mean_a), mean_b, mean_a), np.where(np.isnan(mean_b), mean_a, mean_b)
     change = np.nan_to_num(share_b * mean_b).sum() - np.nan_to_num(share_a * mean_a).sum()
-    composition = np.nan_to_num((share_b - share_a) * (mean_a + mean_b) / 2).sum()
     background = mean_b[0] - mean_a[0]
-    llm = change - background
-    return np.array([change, background, llm, composition, llm - composition])
+    return np.array([change, background, change - background])
 
 
 PAIR_TYPE_HEADS = ["None", "One", "Two"]
 CLEAN_HEAD = r"None, no\\flag in\\paper"
-DECOMPOSITION_HEADS = ["Total", r"Unflagged\\pairs", r"Shift of\\types", r"Flagged,\\above\\unflagged"]
+DECOMPOSITION_HEADS = ["Total", r"Unflagged\\pairs", r"With\\flagged\\reviews"]
 
 
 def decomposition_table(out, tex):
     heads = [rf"\shortstack[r]{{{head}}}" for head in [*PAIR_TYPE_HEADS, *PAIR_TYPE_HEADS, CLEAN_HEAD, *DECOMPOSITION_HEADS]]
     lines = [
-        r"\begin{tabular}{@{}llrrrrrrrrrrr@{}}",
+        r"\begin{tabular}{@{}llrrrrrrrrrr@{}}",
         r"\toprule",
         r" & & \multicolumn{3}{c}{Share of pairs (\%)} & \multicolumn{4}{c}{Overlap (\%)} & "
-        r"\multicolumn{4}{c}{Change from year before (points)} \\",
-        r"\cmidrule(lr){3-5}\cmidrule(lr){6-9}\cmidrule(l){10-13}",
+        r"\multicolumn{3}{c}{Change from year before (points)} \\",
+        r"\cmidrule(lr){3-5}\cmidrule(lr){6-9}\cmidrule(l){10-12}",
         "Source & Year & " + " & ".join(heads) + r" \\",
         r"\midrule",
     ]
@@ -839,7 +801,7 @@ def decomposition_table(out, tex):
             cells += [f"{getattr(r, f'share_{t}'):.1f}" for t in ALL_PAIR_TYPES]
             cells += [f"{getattr(r, f'overlap_{t}'):.1f}" for t in ALL_PAIR_TYPES]
             cells.append(f"{r.overlap_clean:.1f}")
-            cells += ["--" if pd.isna(r.change) else f"{getattr(r, name):+.2f}" for name in TABLE_TERMS]
+            cells += ["--" if pd.isna(r.change) else f"{getattr(r, name):+.2f}" for name in DECOMPOSITION_TERMS]
             lines.append(" & ".join(cells) + r" \\")
         lines.append(r"\midrule")
     Path(tex).write_text(minus_signs("\n".join(lines[:-1] + [r"\bottomrule", r"\end{tabular}"]) + "\n"))
@@ -908,18 +870,22 @@ Z95 = 1.96
 
 def second_detector_table(out, tex):
     lines = [
-        r"\begin{tabular}{@{}lrrrrr@{}}",
+        r"\begin{tabular}{@{}lrrrrrr@{}}",
         r"\toprule",
-        r" & & \multicolumn{2}{c}{MELD} & \multicolumn{2}{c}{GigaCheck} \\",
-        r"\cmidrule(lr){3-4}\cmidrule(l){5-6}",
-        r"Reviews & Papers & Gap (points) & Pairs & Gap (points) & Pairs \\",
+        r" & \multicolumn{3}{c}{MELD} & \multicolumn{3}{c}{GigaCheck} \\",
+        r"\cmidrule(lr){2-4}\cmidrule(l){5-7}",
+        r"Reviews & Gap (points) & Papers & Pairs & Gap (points) & Papers & Pairs \\",
         r"\midrule",
     ]
     for r in out.itertuples():
-        cells = [r.cell.replace("–", "--"), f"{r.papers:,}"]
+        cells = [r.cell.replace("–", "--")]
         for name in ["meld", "gigacheck"]:
             est, se = getattr(r, name), getattr(r, f"{name}_se")
-            cells += [f"{est:+.1f} [{est - Z95 * se:+.1f}, {est + Z95 * se:+.1f}]", f"{getattr(r, f'{name}_pairs'):,}"]
+            cells += [
+                f"{est:+.1f} [{est - Z95 * se:+.1f}, {est + Z95 * se:+.1f}]",
+                f"{getattr(r, f'{name}_papers'):,}",
+                f"{getattr(r, f'{name}_pairs'):,}",
+            ]
         lines.append(" & ".join(cells) + r" \\")
     Path(tex).write_text(minus_signs("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n"))
 
@@ -936,10 +902,15 @@ def second_detector(
     cells = gap_cells(pairs) | {f"Journals {first_year}–{journals.year.max() % 100}": journals}
     rows = []
     for label, cell in cells.items():
-        row = dict(cell=label, papers=cell.panel_id.nunique())
+        row = dict(cell=label)
         for name, flag in flags.items():
             gap = direct_gap(cell, flag)
-            row |= {name: gap["two"], f"{name}_se": gap["two_se"], f"{name}_pairs": int((pair_counts(cell, flag) == 2).sum())}
+            row |= {
+                name: gap["two"],
+                f"{name}_se": gap["two_se"],
+                f"{name}_papers": gap["papers"],
+                f"{name}_pairs": int((pair_counts(cell, flag) == 2).sum()),
+            }
         rows.append(row)
     out = pd.DataFrame(rows)
     out.to_csv(Path(reports) / f"second_detector_{model}.csv", index=False)
@@ -1186,16 +1157,16 @@ def report_cells(df):
 def write_cell_table(out, tex, columns):
     names = {"same": "Same", "cross": "Cross"}
     titles = [title.partition("|") for _, title, _, _ in columns]
-    header = [" & & & & " + " & ".join(top for top, _, _ in titles) + r" \\"] if any(sep for _, sep, _ in titles) else []
-    header.append("Panels & Source & Detector stratum & $n$ & " + " & ".join(bottom or top for top, _, bottom in titles) + r" \\")
-    lines = [r"\begin{tabular}{@{}lll" + "r" * (len(columns) + 1) + "@{}}", r"\toprule", *header, r"\midrule"]
-    for r in out[(out.split == "all") & out.conf.isin(["all", *settings.ML_VENUES])].itertuples():
+    header = [" & & & " + " & ".join(top for top, _, _ in titles) + r" \\"] if any(sep for _, sep, _ in titles) else []
+    header.append("Panels & Detector stratum & $n$ & " + " & ".join(bottom or top for top, _, bottom in titles) + r" \\")
+    lines = [r"\begin{tabular}{@{}ll" + "r" * (len(columns) + 1) + "@{}}", r"\toprule", *header, r"\midrule"]
+    for r in out[(out.split == "all") & (out.conf == "all")].itertuples():
         cell = (r.years if r.stratum == "all" else r.stratum).replace("all", "All")
         values = []
         for name, _, digits, with_se in columns:
             text = f"{getattr(r, name):,.{digits}f}"
             values.append(text + f" ({getattr(r, name + '_se'):.{digits}f})" if with_se else text)
-        lines.append(f"{names[r.kind]} & {r.conf.replace('all', 'All')} & {cell} & {r.panels} & " + " & ".join(values) + r" \\")
+        lines.append(f"{names[r.kind]} & {cell} & {r.panels} & " + " & ".join(values) + r" \\")
     Path(tex).write_text("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n")
 
 
@@ -1252,16 +1223,7 @@ def pair_scores(pairs, n_claims):
     return row
 
 
-def covered(a, b, threshold):
-    return 100 * ((a @ b.T).max(axis=1) >= threshold).mean() if len(a) and len(b) else np.nan
-
-
-def within_list_similarities(vector_lists):
-    sims = [(v @ v.T)[np.triu_indices(len(v), 1)] for v in vector_lists if len(v) > 1]
-    return np.concatenate(sims)
-
-
-def extraction_row(text, claims, vectors, threshold, model, council):
+def extraction_row(text, claims, model, council):
     spans = {m: quote_spans(text, claims[m]) for m in claims}
     words = {m: set().union(*spans[m]) for m in claims}
     counts = Counter(w for m in council for w in words[m])
@@ -1276,19 +1238,7 @@ def extraction_row(text, claims, vectors, threshold, model, council):
     row.update({f"{k}_model": v for k, v in pair_scores(model_pairs, len(council) * len(claims[model])).items()})
     n_council = sum(len(claims[a]) for a, _ in permutations(council, 2))
     row.update({f"{k}_council": v for k, v in pair_scores(council_pairs, n_council).items()})
-    row["cover_recall_model"] = pd.Series([covered(vectors[m], vectors[model], threshold) for m in council]).mean()
-    row["cover_precision_model"] = pd.Series([covered(vectors[model], vectors[m], threshold) for m in council]).mean()
-    row["cover_council"] = pd.Series([covered(vectors[a], vectors[b], threshold) for a, b in permutations(council, 2)]).mean()
     return row
-
-
-def claim_vectors(claims):
-    texts = sorted({c["claim"] for by_review in claims.values() for cl in by_review.values() for c in cl})
-    client = extract.openrouter_client()
-    vectors = openai_embed(texts, settings.CLAIM_EMBED_MODEL, batch=64, threads=8, desc="embed claims", client=client)
-    vectors = normalize_rows(vectors)
-    index = {text: i for i, text in enumerate(texts)}
-    return lambda cl: vectors[[index[c["claim"]] for c in cl]]
 
 
 EXTRACTION_COLUMNS = [
@@ -1296,14 +1246,11 @@ EXTRACTION_COLUMNS = [
     ("claims_council", "Claims|council", 1, False),
     ("f1_model", "Span F1|Luna", 1, False),
     ("f1_council", "Span F1|council", 1, False),
-    ("cover_recall_model", "Member in|Luna's list", 1, False),
-    ("cover_precision_model", "Luna in|member's list", 1, False),
-    ("cover_council", "Member in|member's list", 1, False),
 ]
 
 
 def extraction_table(out, tex):
-    whole = (out.years == "all") & ((out.kind == "same") | ((out.conf == "all") & (out.stratum == "all")))
+    whole = (out.years == "all") & ((out.kind == "same") | (out.stratum == "all"))
     write_cell_table(out[whole], tex, EXTRACTION_COLUMNS)
 
 
@@ -1351,16 +1298,11 @@ def extraction(
         if "claims" in row:
             claims[row["model"]][row["review_id"]] = row["claims"]
     claims[model] = extract.load_claims(gold / f"claims_{model}.jsonl")
-    vectors = claim_vectors(claims)
     scored = [(panel, rid) for panel in panels for rid in panel["review_ids"] if all(rid in claims[m] for m in claims)]
-    review_vectors = {rid: {m: vectors(claims[m][rid]) for m in claims} for _, rid in scored}
-    all_lists = [v for by_model in review_vectors.values() for v in by_model.values()]
-    threshold = np.quantile(within_list_similarities(all_lists), COVER_QUANTILE)
-    print(f"coverage threshold: cosine {threshold:.3f}")
     rows = []
     for panel, rid in scored:
         review_claims = {m: claims[m][rid] for m in claims}
-        scores = extraction_row(texts[rid], review_claims, review_vectors[rid], threshold, model, council)
+        scores = extraction_row(texts[rid], review_claims, model, council)
         rows.append(dict(**panel_meta(panel), review_id=rid, **scores))
     reviews = pd.DataFrame(rows)
     reviews.to_csv(Path(reports) / f"extraction_reviews_{model}.csv", index=False)
@@ -1580,8 +1522,7 @@ def council_agreement(
     out.round(3).to_csv(Path(reports) / f"council_agreement_{model}.csv", index=False)
     print(out.round(2).to_string(index=False))
     columns = [
-        ("candidate_pairs", "Pairs", 0, False),
-        ("voted_pairs", "With three votes", 0, False),
+        ("voted_pairs", "Pairs", 0, False),
         ("pair_precision", "Precision", 1, False),
         ("pair_recall", "Recall", 1, False),
         ("pair_f1", "F1", 1, False),
@@ -1797,7 +1738,6 @@ if __name__ == "__main__":
             "appendix_claims": appendix_claims,
             "pair_types": pair_types,
             "pair_type_sizes": pair_type_sizes,
-            "pair_type_sizes_table": pair_type_sizes_table_from_report,
             "journal_subsets": journal_subsets,
             "coverage": coverage,
             "decomposition": decomposition,

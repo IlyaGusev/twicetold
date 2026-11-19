@@ -153,7 +153,6 @@ class Settings(BaseSettings):
     ARXIV_DELAY_SECONDS: float = 3.0
 
     EMBED_MODEL: str = "text-embedding-3-small"
-    CLAIM_EMBED_MODEL: str = "google/gemini-embedding-2"
     REVIEW_EMBED_MODEL: str = "google/gemini-embedding-2"
     REVIEW_EMBED_DIMENSIONS: int = 1536
     MELD_REPO: str = "anon-review-meld-2026/meld"
