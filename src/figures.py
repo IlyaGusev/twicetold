@@ -77,7 +77,8 @@ JOURNALS = {"SciPost": "SciPost", "F1000": "F1000", "PLOS": "PLOS", "BMC-Med": "
 ORDER = settings.ML_VENUES + list(JOURNALS)
 JOURNAL_PREFIX = {"F1000": "FResearch", "PLOS": "Plos", "SciPost": "Scipost", "BMC-Med": "Bmc", "Copernicus": "Copernicus"}
 SHORT = {
-    "+ length and claim count": "Controls: length, claims",
+    "fixed effects": "Fixed effects (FE)",
+    "+ length and claim count": "FE + length, claims",
     "99th-percentile threshold": "MELD 99th-pct. threshold",
     "99.5th-percentile threshold": "MELD 99.5th-pct. threshold",
     "Top-45% scores, ICLR 2020": "ICLR 2020",
@@ -658,12 +659,15 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     gap_rows = []
     threshold_rows = []
     for period, suffix in PERIOD_SUFFIX.items():
-        gap_rows += [(period, "FlagGap" + suffix), (f"{period}, + length and claim count", "ControlGap" + suffix)]
+        gap_rows += [
+            (period, "FlagGap" + suffix),
+            (f"{period}, fixed effects", "FeGap" + suffix),
+            (f"{period}, + length and claim count", "ControlGap" + suffix),
+        ]
         threshold_rows += [
             (f"{period}, 99th-percentile threshold", "ThresholdLowGap" + suffix),
             (f"{period}, 99.5th-percentile threshold", "ThresholdMidGap" + suffix),
         ]
-        values["FlagGapRound" + suffix] = f"{evidence.loc[period].est:.0f}"
     for label, prefix in gap_rows:
         row = evidence.loc[label]
         record(prefix, row.est, row.se, row.papers)
@@ -680,7 +684,6 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         record(prefix + "Gap", row.est, row.se, row.papers)
     pooled = gaps.loc["All journals"]
     record("JournalGap", pooled.est, pooled.se, pooled.papers)
-    values["JournalGapRound"] = f"{pooled.est:.0f}"
     values["JournalGapVarying"] = f"{int(pooled.varying):,}"
     meld = pd.read_csv(settings.REPORTS_DIR / "meld_summary.csv").set_index("name").value
     values["MeldThreshold"] = f"{meld.threshold:.2f}"
@@ -960,9 +963,9 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
     gigacheck_labels = pd.read_csv(settings.REPORTS_DIR / "gigacheck_labels.csv").set_index("known").flagged
     record("GigacheckHeldoutFlagged", gigacheck_labels["heldout"], digits=2)
     second = pd.read_csv(reports / f"second_detector_{model}.csv").set_index("cell")
-    for period, suffix in PERIOD_SUFFIX.items():
-        iclr = second.loc[period]
-        record("GigacheckFlagGap" + suffix, iclr.gigacheck, iclr.gigacheck_se, iclr.gigacheck_papers)
+    for cell, prefix in GAP_PREFIX.items():
+        row = second.loc[cell]
+        record("GigacheckGap" + prefix, row.gigacheck, row.gigacheck_se, row.gigacheck_papers)
     repro = pd.read_csv(reports / f"repro_{model}.csv").set_index("name").value
     for name in ["pass1_empty", "pass1_error_rows", "pass2_error_rows", "calibration_in_analysis", "calibration_outside"]:
         values["Repro" + name.title().replace("_", "").replace("1", "One").replace("2", "Two")] = f"{int(repro[name]):,}"

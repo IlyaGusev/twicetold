@@ -224,15 +224,16 @@ def fe_gap(design, flag, controls=()):
 def paper_gap(design, groups, top, base):
     means = design.hit.groupby([design.panel_id.to_numpy(), np.asarray(groups)]).mean().unstack()
     if not {top, base} <= set(means.columns):
-        return dict(est=np.nan, se=np.nan, papers=0)
+        return dict(est=np.nan, se=np.nan, papers=0, pairs=0)
     difference = (means[top] - means[base]).dropna() * 100
-    return dict(est=difference.mean(), se=difference.sem(), papers=len(difference))
+    compared = design.panel_id.isin(difference.index).to_numpy() & np.isin(groups, [top, base])
+    return dict(est=difference.mean(), se=difference.sem(), papers=len(difference), pairs=int(compared.sum()))
 
 
 def direct_gap(design, flag):
     counts = pair_counts(design, flag).to_numpy()
     two = paper_gap(design, counts, 2, 0)
-    return {"two": two["est"], "two_se": two["se"], "papers": two["papers"]}
+    return {"two": two["est"], "two_se": two["se"], "papers": two["papers"], "pairs": two["pairs"]}
 
 
 def meld_flag_at(meld, quantile):
@@ -287,8 +288,8 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
     periods = iclr_cells(design)
     rows = []
 
-    def add(group, label, subset_pairs, pair_flags, controls=()):
-        if controls:
+    def add(group, label, subset_pairs, pair_flags, controls=None):
+        if controls is not None:
             gap = fe_gap(subset_pairs, pair_flags, controls)
             n_flagged = pair_flags.reindex(subset_pairs.a).to_numpy() + pair_flags.reindex(subset_pairs.b).to_numpy()
             compared = pd.Series(n_flagged).groupby(subset_pairs.panel_id.to_numpy()).nunique().gt(1).sum()
@@ -309,6 +310,7 @@ def rq1_evidence(model=settings.DEFAULT_MODEL, data=settings.WORK_DIR, reports=s
     for period, iclr in periods.items():
         add(period, period, iclr, flag)
         controls = ("log_short", "log_long", "claims_short", "claims_long")
+        add(period, f"{period}, fixed effects", iclr.dropna(), flag, ())
         add(period, f"{period}, + length and claim count", iclr.dropna(), flag, controls)
         add(period, f"{period}, 99th-percentile threshold", iclr, meld_flag_at(meld, 0.99))
         add(period, f"{period}, 99.5th-percentile threshold", iclr, meld_flag_at(meld, 0.995))
@@ -909,7 +911,7 @@ def second_detector(
                 name: gap["two"],
                 f"{name}_se": gap["two_se"],
                 f"{name}_papers": gap["papers"],
-                f"{name}_pairs": int((pair_counts(cell, flag) == 2).sum()),
+                f"{name}_pairs": gap["pairs"],
             }
         rows.append(row)
     out = pd.DataFrame(rows)
@@ -1059,11 +1061,11 @@ def rewrite_test(
     table.round(3).to_csv(Path(reports) / f"rewrite_test_{model}.csv", index=False)
     print(table.round(2).T.to_string())
     lines = [
-        r"\begin{tabular}{lllrrrrrr}",
+        r"\begin{tabular}{lllrrrrrrr}",
         r"\toprule",
-        r" & & & & \multicolumn{3}{c}{Both changed} & & \\",
-        r"\cmidrule(lr){5-7}",
-        r"Condition & Writer & Source & Pairs & Before & After & \shortstack{Change\\{[95\% CI]}} & \shortstack{FE\\(SE)} & \shortstack{Alone\\{[95\% CI]}} \\",
+        r" & & & & \multicolumn{3}{c}{Both changed} & \multicolumn{2}{c}{Fixed effects} & \\",
+        r"\cmidrule(lr){5-7}\cmidrule(lr){8-9}",
+        r"Condition & Writer & Source & Papers & Before & After & \shortstack{Change\\{[95\% CI]}} & Pairs & \shortstack{Change\\(SE)} & \shortstack{Alone\\{[95\% CI]}} \\",
         r"\midrule",
     ]
     groups = table.groupby("condition").group.nunique()
@@ -1075,8 +1077,8 @@ def rewrite_test(
             lines.append(r"\midrule")
         name, writer = (REWRITE_LABELS[r.condition], WRITER_LABELS[r.writer]) if r.group == "ICLR" else ("", "")
         lines.append(
-            f"{name} & {writer} & {r.group} & {r.pairs:,} & {r.two_before:.1f} & {r.two_after:.1f} & "
-            f"{r.two_diff:+.1f} [{r.two_diff_low:+.1f}, {r.two_diff_high:+.1f}] & {r.two:+.1f} ({r.two_se:.1f}) & "
+            f"{name} & {writer} & {r.group} & {r.papers:,} & {r.two_before:.1f} & {r.two_after:.1f} & "
+            f"{r.two_diff:+.1f} [{r.two_diff_low:+.1f}, {r.two_diff_high:+.1f}] & {r.pairs:,} & {r.two:+.1f} ({r.two_se:.1f}) & "
             f"{r.alone_diff:+.1f} [{r.alone_diff_low:+.1f}, {r.alone_diff_high:+.1f}] \\\\"
         )
     Path(tex).write_text(minus_signs("\n".join(lines + [r"\bottomrule", r"\end{tabular}"]) + "\n"))

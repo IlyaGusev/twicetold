@@ -23,6 +23,7 @@ def test_direct_gap_is_the_mean_paper_difference():
     assert gap["two"] == 87.5
     assert gap["two_se"] == 12.5
     assert gap["papers"] == 2
+    assert gap["pairs"] == 5
 
 
 def test_no_paper_with_both_pair_types_gives_no_estimate():
@@ -34,4 +35,4 @@ def test_no_paper_with_both_pair_types_gives_no_estimate():
 
 def test_paper_gap_aligns_groups_by_position():
     groups = pd.Series([2, 2, 0, 2, 0, 1], index=list("uvwxyz"))
-    assert paper_gap(design(), groups, 2, 0) == dict(est=87.5, se=12.5, papers=2)
+    assert paper_gap(design(), groups, 2, 0) == dict(est=87.5, se=12.5, papers=2, pairs=5)

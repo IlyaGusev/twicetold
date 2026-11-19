@@ -32,7 +32,7 @@
 \maketitle
 
 \begin{abstract}
-Peer review relies on several readers finding different problems. We measure critique overlap in conference and journal reviews. At ICLR, measured overlap rose from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, in reviews from the same stage of the review process, with year-on-year rises at NeurIPS, ICML and the F1000 and PLOS journals. A third ICLR review of a paper added \CovNewSnap{} new problems to the other two in 2027, against \CovNewLast{} in 2026. We apply MELD, a detector of LLM-generated text, to all reviews. Within a paper, two reviews that MELD flags overlap more than two unflagged reviews: by \FlagGapRoundEarly{} points at ICLR in 2024--2025, by \FlagGapRoundLate{} points in 2026--2027, and by \JournalGapRound{} points across five journal sources. These results provide evidence that LLM-flagged reviews of one paper are less distinct from each other than unflagged reviews, and suggest that the diversity of critiques among reviews of a single paper is falling.
+Peer review relies on several readers finding different problems. We measure critique overlap in conference and journal reviews. At ICLR, measured overlap rose from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, in reviews from the same stage of the review process, with year-on-year rises at NeurIPS, ICML and the F1000 and PLOS journals. A third ICLR review of a paper added \CovNewSnap{} new problems to the other two in 2027, against \CovNewLast{} in 2026. We apply MELD, a detector of LLM-generated text, to all reviews. Within a paper, two reviews that MELD flags overlap more than two unflagged reviews: by \FlagGapEarly{} points at ICLR in 2024--2025, by \FlagGapLate{} points in 2026--2027, and by \JournalGap{} points across five journal sources. These results provide evidence that LLM-flagged reviews of one paper are less distinct from each other than unflagged reviews, and suggest that the diversity of critiques among reviews of a single paper is falling.
 \end{abstract}
 
 \begin{figure}[t]
@@ -52,8 +52,8 @@ Our findings are:
 
 \begin{itemize}[nosep]
 \item Critique overlap rose at ICLR from \IclrSnapBase\% in 2026 to \IclrSnapLast\% in 2027, at ICML in 2026 and at NeurIPS in 2025 (Section~\ref{sec:trends}, Figure~\ref{fig:overlap}).
-\item Within a paper, two LLM-flagged reviews overlap more than two unflagged reviews at ICLR, by \FlagGapRoundEarly{} points in 2024--2025 and \FlagGapRoundLate{} points in 2026--2027 (Section~\ref{sec:ai}, Figure~\ref{fig:ai}).
-\item Pooled over five journal sources, the same within-paper gap is \JournalGapRound{} points (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).\label{end:intro}
+\item Within a paper, two LLM-flagged reviews overlap more than two unflagged reviews at ICLR, by \FlagGapEarly{} points in 2024--2025 and \FlagGapLate{} points in 2026--2027 (Section~\ref{sec:ai}, Figure~\ref{fig:ai}).
+\item Pooled over five journal sources, the same within-paper gap is \JournalGap{} points (Section~\ref{sec:journals}, Figure~\ref{fig:fields}).\label{end:intro}
 \end{itemize}
 
 \section{Related Work}
@@ -80,7 +80,7 @@ Table~\ref{tab:data} lists the samples. ICLR and NeurIPS come from OpenReview \c
 \label{sec:extraction}
 A \textbf{critique claim} identifies one problem that needs one fix. We exclude praise and neutral text. In \textbf{pass 1}, GPT-6 Luna (Luna) reads one review in full and lists its claims. Each claim has a quote copied from the review, a one-sentence paraphrase and a category such as clarity or experiment scope.
 
-We check pass 1 against human labels and against other LLMs. For the human check, we use two public sets: \KimReviews{} Nature-family reviews that the authors of the set split into \KimItems{} critique items \citep{kim2026limits}, and \ClaimcheckReviews{} NeurIPS reviews with \ClaimcheckItems{} weakness spans that experts marked \citep{ou2025claimcheck}. A quote of at least one Luna claim falls in \KimItemRecall\% of the items and in \ClaimcheckItemRecall\% of the spans, and \KimClaimUnmatched\% of Luna's claims on the first set fall outside every item. For the LLM check, Sol 6.1, DeepSeek V4.1 Flash and Kimi K3.1 Pro run pass 1 on \RefReviews{} of our reviews, in \RefPanels{} panels from every venue, year and detector stratum. We call these three models the \textbf{council}. Luna's quotes reach a word-span F1 of \RefSpanFOne\% with a council member, against \RefCouncilSpanFOne\% between two members.
+We check pass 1 against human labels and against other LLMs. For the human check, we use two public sets: \KimReviews{} Nature-family reviews that the authors of the set split into \KimItems{} critique items \citep{kim2026limits}, and \ClaimcheckReviews{} NeurIPS reviews with \ClaimcheckItems{} weakness spans that experts marked \citep{ou2025claimcheck}. A quote of at least one Luna claim falls in \KimItemRecall\% of the items and in \ClaimcheckItemRecall\% of the spans, and \KimClaimUnmatched\% of Luna's claims on the first set fall outside every item. For the LLM check, Sol 6.1, DeepSeek V4.1 Flash and Kimi K3.1 Pro run pass 1 on \RefReviews{} of our reviews, in \RefPanels{} \textbf{validation panels} from every venue, year and detector stratum. We call these three models the \textbf{council}. Luna's quotes reach a word-span F1 of \RefSpanFOne\% with a council member, against \RefCouncilSpanFOne\% between two members.
 
 \subsection{Claim grouping}
 \label{sec:grouping}
@@ -91,7 +91,7 @@ To check pass 2, each council member groups Luna's claim lists with the same pro
 \begin{table}[t]
 \centering\footnotesize
 \input{tables/grouper_swap}
-\caption{Every grouper gives about the same within-paper gaps. Each grouper groups Luna's claims on \RefSwapPanels{} gold panels from 2024 on. Gap: overlap of pairs with one or two flagged reviews minus unflagged pairs of the same paper, with 95\% intervals.}
+\caption{Every grouper gives about the same within-paper gaps. Each grouper groups Luna's claims on \RefSwapPanels{} validation panels from 2024 on. Gap: overlap of pairs with one or two flagged reviews minus unflagged pairs of the same paper, with 95\% intervals.}
 \label{tab:swap}
 \end{table}
 
@@ -99,7 +99,7 @@ To check pass 2, each council member groups Luna's claim lists with the same pro
 \centering\footnotesize
 \setlength{\tabcolsep}{3pt}
 \input{tables/pipeline_contrasts}
-\caption{All four pipelines give every contrast the same sign; the overlap level depends on the model. Each model extracts and groups its own claims on \RefPipePanels{} same-paper and \RefCrossPanels{} cross-paper gold panels. Flagged gap: two flagged against two unflagged reviews of one paper, as in Table~\ref{tab:swap}.}
+\caption{All four pipelines give every contrast the same sign; the overlap level depends on the model. Each model extracts and groups its own claims on \RefPipePanels{} same-paper and \RefCrossPanels{} cross-paper validation panels. Flagged gap: the two-flagged gap of Table~\ref{tab:swap}.}
 \label{tab:pipelines}
 \end{table}
 
@@ -142,18 +142,18 @@ Table~\ref{tab:coverage} counts claims in all three-review subsets of each ICLR 
 
 \paragraph{RQ2: Do LLM-flagged reviews share a larger fraction of their critiques?}
 \label{sec:ai}
-For each paper with both pair types, we subtract the mean overlap of its pairs of two unflagged reviews from the mean overlap of its pairs of two flagged reviews. The \textbf{flagged-pair gap} is the mean of this difference over papers. At ICLR, the flagged-pair gap is \FlagGapEarly{} points in 2024--2025 and \FlagGapLate{} points in 2026--2027. We do not pool these two periods, because their reviews come from different stages of the review process. The gap is also positive at NeurIPS and at ICML (Figure~\ref{fig:ai}).
+For each paper with both pair types, we subtract the mean overlap of its pairs of two unflagged reviews from the mean overlap of its pairs of two flagged reviews. The \textbf{flagged-pair gap} is the mean of this difference over papers. At ICLR, the flagged-pair gap is \FlagGapEarly{} points in 2024--2025 and \FlagGapLate{} points in 2026--2027. We do not pool them: their reviews come from different review stages. The gap is also positive at NeurIPS and at ICML (Figure~\ref{fig:ai}).
 
-If the overlap of every ICLR pair had risen from 2026 to 2027 as much as the overlap of two unflagged reviews, from \DecIclrNoneLast\% to \DecSnapNoneLast\%, the total would have risen by \DecSnapBackground{} points, not \DecSnapChange. The other \DecSnapLlm{} points go with flagged reviews. Detector misses put some LLM use into unflagged pairs and make this estimate too low.
+If the overlap of every ICLR pair had risen from 2026 to 2027 as much as the overlap of two unflagged reviews, from \DecIclrNoneLast\% to \DecSnapNoneLast\%, the total would have risen by \DecSnapBackground{} points, not \DecSnapChange. The other \DecSnapLlm{} points go with flagged reviews. This split is an accounting, not an effect of LLM use.
 
 The gap could come from wording and not from content, if two reviews in one LLM style are easier to match. To test this style effect, Luna changes two human reviews in each of \RwIclrPapers{} pre-2023 ICLR panels and keeps their points. Polishing the language changes overlap by $+\PlIclrTwo$ points, and rewriting each review from an outline of its points by $+\RwIclrTwo$ points, against ICLR flagged-pair gaps of \FlagGapEarly{} and \FlagGapLate{} points. Style effects can therefore explain only part of the flagged-pair gap.
 
-The gap could also come from the detector and not from LLM use, if MELD gives high scores to reviewers who raise common critiques with or without an LLM. Such reviewers also wrote before ChatGPT. In a pre-ChatGPT check, we flag the top 45\% of MELD scores in ICLR 2020--2023, a share close to the 2026 flag rate, and repeat the comparison. The gap is $\PlaceboFirstGap$ points in 2020, $\PlaceboMidGap$ in 2021--2022 and $\PlaceboLastGap$ in 2023 (Figure~\ref{fig:checks}). A high detector score alone does not produce the gap.
+The gap could also come from the detector and not from LLM use, if MELD gives high scores to reviewers who raise common critiques with or without an LLM. Such reviewers also wrote before ChatGPT. In a pre-ChatGPT check, we flag the top 45\% of MELD scores in ICLR 2020--2023, a share close to the 2026 flag rate, and repeat the comparison. The gap is $\PlaceboFirstGap$ points in 2020, $\PlaceboMidGap$ in 2021--2022 and $\PlaceboLastGap$ in 2023 (Figure~\ref{fig:checks}). A high detector score alone does not produce the gap. GigaCheck \citep{tolstykh2026gigacheck}, which flags fewer reviews, gives gaps of \GigacheckGapIclrEarly{} and \GigacheckGapIclrLate{} points at ICLR, \GigacheckGapNeurips{} at NeurIPS and \GigacheckGapIcml{} at ICML (Table~\ref{tab:second}).
 
 \begin{figure}[t]
 \centering
 \includegraphics{figs/figA_checks.pdf}
-\caption{The within-paper flagged-pair gap is positive in both ICLR periods, at NeurIPS and at ICML, but not before ChatGPT, and shrinks at lower thresholds in ICLR 2024--2025. Gaps (Equation~\ref{eq:gap}), 95\% intervals. Controls: fixed effects, log length and log claim count of both reviews. Dotted lines: main estimates. Before ChatGPT, we flag the top 45\% of MELD scores.}
+\caption{The within-paper flagged-pair gap is positive in both ICLR periods, at NeurIPS and at ICML, but not before ChatGPT, and shrinks at lower thresholds in ICLR 2024--2025. Gaps: Equation~\ref{eq:gap}; FE: Equation~\ref{eq:fe} without and with length and claim-count controls. 95\% intervals cluster by paper. Dotted lines: main estimates. Before ChatGPT, we flag the top 45\% of MELD scores.}
 \label{fig:checks}
 \end{figure}
 
@@ -281,7 +281,7 @@ where $P$ is the set of papers with both pair types. Such a paper has at least t
  o_{pk}=\alpha_p+\beta_1\,\mathrm{one}_{pk}+\beta_2\,\mathrm{two}_{pk}+\varepsilon_{pk},
 \label{eq:fe}
 \end{equation}
-where $o_{pk}$ is the overlap of pair $k$ of paper $p$, $\alpha_p$ is a paper fixed effect, and $\mathrm{one}_{pk}$ and $\mathrm{two}_{pk}$ mark a pair with one and with two flagged reviews. The estimate is $\hat{\beta}_2$. This fit also uses the three-review papers with mixed flags, so the main text uses it for the journals, where few papers have four reviews. For the pooled journals, this fit gives \JournalGap{} points from \JournalGapVarying{} papers with mixed flags, and Equation~\ref{eq:gap} gives \IdJournalDirect{} points from \IdJournalDirectN{} papers. At ICLR, this fit gives \IdIclrEarlyFe{} points in 2024--2025 and \IdIclrLateFe{} points in 2026--2027, against \FlagGapEarly{} and \FlagGapLate{} from Equation~\ref{eq:gap}. With log length and log claim-count controls, this fit gives \ControlGapEarly{} and \ControlGapLate{} points for the two ICLR periods.
+where $o_{pk}$ is the overlap of pair $k$ of paper $p$, $\alpha_p$ is a paper fixed effect, and $\mathrm{one}_{pk}$ and $\mathrm{two}_{pk}$ mark a pair with one and with two flagged reviews. The estimate is $\hat{\beta}_2$. This fit also uses the three-review papers with mixed flags, so the main text uses it for the journals, where few papers have four reviews. For the pooled journals, this fit gives \JournalGap{} points from \JournalGapVarying{} papers with mixed flags, and Equation~\ref{eq:gap} gives \IdJournalDirect{} points from \IdJournalDirectN{} papers. At ICLR, this fit gives \FeGapEarly{} and \FeGapLate{} points for the two periods without controls and \ControlGapEarly{} and \ControlGapLate{} with log length and log claim-count controls, against \FlagGapEarly{} and \FlagGapLate{} from Equation~\ref{eq:gap}. It also uses papers without a two-flagged or an unflagged pair and weighs pairs, not papers, equally. Its SEs cluster by paper.
 
 \paragraph{Overlap measures.} Any ratio of shared problems to set size depends on set size, and the raw shared count grows with review length. Table~\ref{tab:measures} therefore repeats each main claim with seven measures and holds set size fixed in two of them.
 
@@ -338,7 +338,7 @@ With GigaCheck flags, the flagged-pair gap of Equation~\ref{eq:gap} is positive 
 \begin{table}[!htp]
 \centering\footnotesize
 \input{tables/second_detector}
-\caption{The flagged-pair gap is positive with the flags of either detector. Each gap is the overlap of two flagged reviews minus the overlap of two unflagged reviews of one paper (Equation~\ref{eq:gap}), in points, with its 95\% interval from the SE over papers. Papers: papers with both pair types, which the gap uses. Pairs: pairs of two flagged reviews. The journal row pools the five sources.}
+\caption{The flagged-pair gap is positive with the flags of either detector. Each gap is the overlap of two flagged reviews minus the overlap of two unflagged reviews of one paper (Equation~\ref{eq:gap}), in points, with its 95\% interval from the SE over papers. Papers: papers with both pair types. Pairs: two-flagged and unflagged pairs of these papers. The journal row pools the five sources.}
 \label{tab:second}
 \end{table}
 
@@ -355,13 +355,13 @@ When Luna groups each original with its rewrite, it matches \PlLunaRecall\% of t
 \centering\small
 \setlength{\tabcolsep}{4pt}
 \input{tables/rewrite_test}
-\caption{Outline rewriting raises the overlap of two changed ICLR reviews less than the flagged-pair gap, and polishing does not clearly raise it. Before and After give the mean overlap (\%) of the pair with both reviews changed. The fixed-effects estimate controls for pairs with one changed review and for the second grouping. The last column gives the change when Luna groups only the two changed reviews. Kimi covers ICLR only.}
+\caption{Outline rewriting raises the overlap of two changed ICLR reviews less than the flagged-pair gap, and polishing does not clearly raise it. Each paper gives one pair with both reviews changed. Before and After: mean overlap (\%) of these pairs. Alone: their change when Luna groups only these two reviews. Pairs: all pairs of these papers, before and after; the fixed-effects fit uses them, controls for pairs with one changed review and for the second grouping, and clusters SEs by paper. Kimi covers ICLR only.}
 \label{tab:rewrite}
 \end{table}
 
 
 \question{app:decomposition}{How much of the yearly rise goes with flagged reviews?}
-At ICLR, \DecSnapLlm{} of the \DecSnapChange{} points of the rise from 2026 to 2027. Table~\ref{tab:decomposition} splits each yearly change into the change of overlap of unflagged pairs, which we take as the change without detected LLM use, and the rest, which goes with flagged reviews. From 2025 to 2026 and from 2026 to 2027, overlap rose within each pair type.
+At ICLR, \DecSnapLlm{} of the \DecSnapChange{} points of the rise from 2026 to 2027. Table~\ref{tab:decomposition} splits each yearly change into the change of overlap of unflagged pairs, which we take as the change without detected LLM use, and the rest, which goes with flagged reviews. This split is an accounting, not an effect of LLM use, and not a lower bound: detector misses can depend on content and year. From 2025 to 2026 and from 2026 to 2027, overlap rose within each pair type.
 
 Luna finds fewer links in papers with no flagged review (Appendix~\ref{app:reference}), so a shift away from these papers can raise the measured overlap of unflagged pairs. Within these papers alone, the overlap of unflagged pairs still rose from \DecIclrCleanBase\% in 2025 to \DecIclrCleanLast\% in 2026 and \DecSnapCleanLast\% in 2027.
 
