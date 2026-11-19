@@ -32,7 +32,7 @@ TEXT_DARKEN = 0.35
 CHATGPT_BAND = (2022.6, settings.ICLR_LAST + 0.5)
 OVERLAP_BAND_START = 2023.5
 SAME_VENUE_PLACEBO = "shuffled4"
-CATEGORY_YEAR = 2026
+CATEGORY_YEAR = 2027
 plt.rcParams.update(
     {
         "font.family": "serif",
@@ -375,9 +375,9 @@ def categories(figs=settings.FIGURES_DIR, model=settings.DEFAULT_MODEL):
     changes.hlines(y, 0, shift.change, color=COLORS["light"], lw=1.4, zorder=1)
     changes.errorbar(shift.change, y, xerr=Z95 * shift.se, fmt="o", ms=3.5, color=color, elinewidth=1.0, zorder=2)
     changes.set_title(f"b  Change from {settings.ICLR_FROM}–22 to {CATEGORY_YEAR}", fontweight="bold")
-    changes.set_xlim(-12.5, 6.5)
-    changes.set_xticks([-10, 0, 5])
-    changes.spines["bottom"].set_bounds(-10, 5)
+    changes.set_xlim(-16.5, 7)
+    changes.set_xticks([-15, -10, -5, 0, 5])
+    changes.spines["bottom"].set_bounds(-15, 5)
     changes.set_xlabel("Change (points)")
     changes.tick_params(axis="y", left=False)
     changes.spines["left"].set_visible(False)
@@ -726,6 +726,7 @@ def numbers(model=settings.DEFAULT_MODEL, tables=settings.TABLES_DIR):
         ("clarity/presentation", "Clarity"),
         ("typo/formatting", "Typos"),
         ("experiments-scope", "Experiments"),
+        ("statistical-rigor", "Rigor"),
     ]:
         row = categories.loc[category]
         record(prefix + "Base", row.pre, digits=0)
